@@ -67,6 +67,7 @@ addopts = [
     "--cov=src",
     "--cov-report=term-missing",
     "--cov-report=html",
+    "--cov-report=xml",
 ]
 
 [tool.coverage.run]
