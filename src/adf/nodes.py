@@ -13,7 +13,7 @@ Usage:
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 # ---------------------------------------------------------------------------
 # Image Width Constants & Helpers
@@ -51,6 +51,7 @@ def resolve_image_width(width) -> tuple:
         return "center", int(width), "pixel"
     except (ValueError, TypeError):
         return "center", NARROW_PAGE_WIDTH_PX, "pixel"
+
 
 # ---------------------------------------------------------------------------
 # Block Nodes
@@ -343,7 +344,7 @@ def date_node(date_str: str) -> dict:
     ADF expects a millisecond UTC timestamp as a string.
     """
     try:
-        dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=UTC)
         timestamp = str(int(dt.timestamp() * 1000))
     except ValueError:
         timestamp = "0"

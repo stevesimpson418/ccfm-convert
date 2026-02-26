@@ -1,7 +1,7 @@
 """ADF Document Transformations."""
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from adf.inline import parse_inline_with_breaks
 from adf.nodes import expand, paragraph, resolve_image_width
@@ -64,7 +64,7 @@ def create_metadata_expand(metadata, git_url=""):
     lines.append(f"**Author:** {author}")
 
     # Last updated (current timestamp)
-    last_updated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    last_updated = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     lines.append(f"**Last Updated:** {last_updated}")
 
     # Labels
@@ -177,9 +177,7 @@ def resolve_attachment_media_nodes(adf_doc, attachment_map, page_id):
                             # Apply display_width override to parent mediaSingle if specified
                             display_width = entry.get("display_width")
                             if display_width is not None:
-                                layout, pixel_width, width_type = resolve_image_width(
-                                    display_width
-                                )
+                                layout, pixel_width, width_type = resolve_image_width(display_width)
                                 node["attrs"]["layout"] = layout
                                 if pixel_width is not None:
                                     node["attrs"]["width"] = pixel_width

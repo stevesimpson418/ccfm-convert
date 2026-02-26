@@ -6,7 +6,7 @@ pre-commit>=4.5.1
 
 # Test dependencies for Confluence Markdown Sync
 
-# Core dependencies 
+# Core dependencies
 requests>=2.32.5
 PyYAML>=6.0.3
 

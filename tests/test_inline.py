@@ -301,8 +301,10 @@ class TestCCFMExtensions:
         result = parse_inline("E=mc^2^")
 
         sup_nodes = [
-            n for n in result
-            if n.get("marks") and any(
+            n
+            for n in result
+            if n.get("marks")
+            and any(
                 m["type"] == "subsup" and m.get("attrs", {}).get("type") == "sup"
                 for m in n["marks"]
             )
@@ -314,8 +316,10 @@ class TestCCFMExtensions:
         result = parse_inline("H~2~O")
 
         sub_nodes = [
-            n for n in result
-            if n.get("marks") and any(
+            n
+            for n in result
+            if n.get("marks")
+            and any(
                 m["type"] == "subsup" and m.get("attrs", {}).get("type") == "sub"
                 for m in n["marks"]
             )
