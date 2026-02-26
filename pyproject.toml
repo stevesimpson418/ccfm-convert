@@ -68,6 +68,10 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html",
     "--cov-report=xml",
+    "--ignore=tests/smoke",
+]
+markers = [
+    "smoke: marks end-to-end tests that deploy to a real Confluence space",
 ]
 
 [tool.coverage.run]

@@ -217,3 +217,9 @@ __marimo__/
 
 # Claude Code local config
 .claude/
+
+# Smoke test state (contains live Confluence page IDs — not for version control)
+tests/smoke/.ccfm-smoke-state.json
+
+# Local env files (may contain credentials)
+.env.smoke
