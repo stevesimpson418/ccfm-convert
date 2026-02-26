@@ -7,7 +7,7 @@ legacy conversions, no storage format hacks, full editor compatibility.
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Linting: ruff](https://img.shields.io/badge/linting-ruff-red.svg)](https://github.com/astral-sh/ruff)
-[![codecov](https://codecov.io/gl/SilverRailTech/platform-engineering/confluence-docs/branch/main/graph/badge.svg)](https://codecov.io/gl/SilverRailTech/platform-engineering/confluence-docs)
+[![codecov](https://codecov.io/gh/stevesimpson418/ccfm-convert/branch/main/graph/badge.svg)](https://codecov.io/gh/stevesimpson418/ccfm-convert)
 
 - **Native ADF output** — Pages open in the Confluence editor without any legacy conversion
 - **Automatic page hierarchy** — Directory structure maps directly to Confluence page hierarchy
