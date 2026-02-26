@@ -156,6 +156,9 @@ def smoke_creds():
     """Return Confluence credentials from environment variables.
 
     Skips the entire test session if any required variable is missing.
+    Does NOT validate credentials against the live API — tests that require a
+    live Confluence connection should also declare the ``confluence_live``
+    fixture, which performs that validation.
     """
     required = {
         "domain": "CONFLUENCE_DOMAIN",
@@ -178,6 +181,64 @@ def smoke_creds():
 
     creds["space"] = SMOKE_SPACE
     return creds
+
+
+@pytest.fixture(scope="session")
+def confluence_live(smoke_creds):
+    """Validate that Confluence credentials work against the real API.
+
+    Skip the test if credentials are placeholder values (copied verbatim from
+    .env.smoke.example) or if the API call fails (wrong domain, expired token,
+    space not found, network unavailable).
+
+    Declare this fixture in any test that makes real Confluence API calls so
+    that failures surface as clean SKIP messages instead of cascading HTTP errors.
+    Tests that only use ``--dump`` or ``--plan`` (no API calls) should NOT
+    declare this fixture — they run fine with any credentials.
+    """
+    # Known placeholder values from .env.smoke.example — never real credentials
+    _PLACEHOLDER_DOMAINS = {"your-domain.atlassian.net"}
+    _PLACEHOLDER_EMAILS = {"your@email.com"}
+    _PLACEHOLDER_TOKENS = {"your-api-token"}
+
+    if (
+        smoke_creds["domain"] in _PLACEHOLDER_DOMAINS
+        or smoke_creds["email"] in _PLACEHOLDER_EMAILS
+        or smoke_creds["token"] in _PLACEHOLDER_TOKENS
+    ):
+        pytest.skip(
+            "Smoke test credentials appear to be placeholder values from "
+            ".env.smoke.example. Copy .env.smoke.example to .env.smoke, "
+            "fill in real Confluence credentials, then re-run."
+        )
+
+    try:
+        resp = requests.get(
+            f"https://{smoke_creds['domain']}/wiki/api/v2/spaces",
+            params={"keys": smoke_creds["space"]},
+            auth=(smoke_creds["email"], smoke_creds["token"]),
+            headers={"Accept": "application/json"},
+            timeout=15,
+        )
+        if resp.status_code == 401:
+            pytest.skip(
+                "Confluence credentials rejected (401 Unauthorized). "
+                "Check CONFLUENCE_EMAIL and CONFLUENCE_TOKEN in .env.smoke."
+            )
+        if resp.status_code == 404 or not resp.json().get("results"):
+            pytest.skip(
+                f"Confluence space '{smoke_creds['space']}' not found at "
+                f"https://{smoke_creds['domain']}. "
+                "Check CONFLUENCE_DOMAIN and CCFM_SMOKE_SPACE."
+            )
+        resp.raise_for_status()
+    except requests.exceptions.ConnectionError:
+        pytest.skip(
+            f"Cannot reach Confluence at https://{smoke_creds['domain']}. "
+            "Check CONFLUENCE_DOMAIN and your network connection."
+        )
+    except requests.exceptions.RequestException as exc:
+        pytest.skip(f"Confluence API check failed: {exc}")
 
 
 @pytest.fixture(scope="session")

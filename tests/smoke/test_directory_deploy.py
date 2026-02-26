@@ -21,7 +21,7 @@ EXAMPLE_MD_FILES = [
 class TestDirectoryDeploy:
     """Deploy an entire directory tree and verify all pages appear in state."""
 
-    def test_tree_creates_all_pages(self, ccfm_run, smoke_state):
+    def test_tree_creates_all_pages(self, ccfm_run, smoke_state, confluence_live):
         """--directory deploys all markdown files; state tracks each page_id."""
         result = ccfm_run("--directory", str(EXAMPLE_DIR))
 
@@ -37,7 +37,7 @@ class TestDirectoryDeploy:
             assert matching, f"{rel} not found in state. State keys: {list(pages.keys())}"
             assert matching[0]["page_id"], f"page_id is empty for {rel}"
 
-    def test_plan_shows_no_ops_after_deploy(self, ccfm_run, smoke_state):
+    def test_plan_shows_no_ops_after_deploy(self, ccfm_run, smoke_state, confluence_live):
         """--plan after a full deploy reports NO-OP for all pages and exits 0."""
         assert smoke_state.exists(), "State must exist from test_tree_creates_all_pages"
 

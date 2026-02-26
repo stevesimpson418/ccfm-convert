@@ -14,7 +14,7 @@ SINGLE_PAGE = SMOKE_DOCS / "single-page" / "single-page.md"
 class TestSingleFileDeploy:
     """Deploy a single markdown file and verify state tracking."""
 
-    def test_page_created(self, ccfm_run, smoke_state):
+    def test_page_created(self, ccfm_run, smoke_state, confluence_live):
         """--file deploys successfully and state file records the page_id."""
         result = ccfm_run("--file", str(SINGLE_PAGE))
 
@@ -32,7 +32,7 @@ class TestSingleFileDeploy:
         assert matching, f"single-page.md not found in state. State: {list(pages.keys())}"
         assert matching[0]["page_id"], "page_id is empty in state"
 
-    def test_page_updated_on_redeploy(self, ccfm_run, smoke_state):
+    def test_page_updated_on_redeploy(self, ccfm_run, smoke_state, confluence_live):
         """Re-deploying the same file updates (not duplicates) the page — same page_id."""
         assert smoke_state.exists(), "State must exist from test_page_created"
         data_before = json.loads(smoke_state.read_text())

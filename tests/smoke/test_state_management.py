@@ -35,7 +35,7 @@ class TestPlanMode:
             "CREATE" in result.stdout
         ), f"Expected 'CREATE' in --plan output before deploy.\nstdout: {result.stdout}"
 
-    def test_plan_after_deploy_shows_no_ops(self, ccfm_run):
+    def test_plan_after_deploy_shows_no_ops(self, ccfm_run, confluence_live):
         """--plan after a full deploy exits 0 and shows NO-OP for all pages."""
         # Deploy both pages first
         result = ccfm_run("--directory", str(STATE_DIR))
@@ -55,7 +55,7 @@ class TestPlanMode:
 class TestChangedOnly:
     """--changed-only skips unchanged files and deploys modified ones."""
 
-    def test_changed_only_skips_unchanged(self, ccfm_run):
+    def test_changed_only_skips_unchanged(self, ccfm_run, confluence_live):
         """After a clean deploy, --changed-only reports 0 files with changes."""
         # Ensure both pages are deployed (may already be from TestPlanMode)
         ccfm_run("--directory", str(STATE_DIR))
@@ -67,7 +67,7 @@ class TestChangedOnly:
             "0 file(s) with changes" in result.stdout
         ), f"Expected '0 file(s) with changes' in output.\nstdout: {result.stdout}"
 
-    def test_changed_only_deploys_modified_file(self, ccfm_run, tmp_path):
+    def test_changed_only_deploys_modified_file(self, ccfm_run, tmp_path, confluence_live):
         """After modifying page-alpha, --changed-only deploys only that file."""
         # Ensure a clean baseline deploy first
         ccfm_run("--directory", str(STATE_DIR))
@@ -100,7 +100,7 @@ class TestChangedOnly:
 class TestArchiveOrphans:
     """--archive-orphans removes pages no longer tracked in the directory."""
 
-    def test_archive_orphans_removes_absent_page(self, ccfm_run):
+    def test_archive_orphans_removes_absent_page(self, ccfm_run, confluence_live):
         """Deploy alpha+beta, then run with --archive-orphans on alpha-only dir.
 
         The beta page should be archived and removed from state.
@@ -126,6 +126,8 @@ class TestArchiveOrphans:
             result = ccfm_run(
                 "--archive-orphans",
                 "--directory",
+                str(STATE_DIR),
+                "--docs-root",
                 str(STATE_DIR),
             )
 
