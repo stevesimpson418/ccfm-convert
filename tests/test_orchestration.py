@@ -1,7 +1,6 @@
 """Tests for deploy.orchestration module."""
 
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
@@ -71,7 +70,7 @@ class TestEnsurePageHierarchy:
 
         mock_api.create_page.side_effect = mock_create
 
-        parent_id = ensure_page_hierarchy(mock_api, "space123", filepath, docs_root)
+        ensure_page_hierarchy(mock_api, "space123", filepath, docs_root)
 
         # Should create 3 levels of pages
         assert mock_api.create_page.call_count == 3
@@ -110,7 +109,7 @@ class TestEnsurePageHierarchy:
         mock_api.find_page_by_title.return_value = None
         mock_api.create_page.return_value = "parent-123"
 
-        parent_id = ensure_page_hierarchy(mock_api, "space123", filepath, docs_root)
+        ensure_page_hierarchy(mock_api, "space123", filepath, docs_root)
 
         # Should use title from frontmatter
         call_args = mock_api.create_page.call_args
@@ -151,21 +150,19 @@ class TestDeployPage:
     def test_deploy_with_frontmatter(self, mock_api, tmp_path):
         """Test page with frontmatter."""
         filepath = tmp_path / "test.md"
-        filepath.write_text(
-            """---
+        filepath.write_text("""---
 title: Custom Title
 author: John Doe
 labels:
   - python
   - api
 ---
-# Content"""
-        )
+# Content""")
 
         mock_api.find_page_by_title.return_value = None
         mock_api.create_page.return_value = "new-123"
 
-        page_id = deploy_page(mock_api, "space123", None, filepath)
+        deploy_page(mock_api, "space123", None, filepath)
 
         # Should use custom title
         call_args = mock_api.create_page.call_args
@@ -181,12 +178,10 @@ labels:
     def test_deploy_skip_disabled(self, mock_api, tmp_path):
         """Test skipping page with deploy_page: false."""
         filepath = tmp_path / "test.md"
-        filepath.write_text(
-            """---
+        filepath.write_text("""---
 deploy_page: false
 ---
-# Content"""
-        )
+# Content""")
 
         page_id = deploy_page(mock_api, "space123", None, filepath)
 
@@ -198,16 +193,14 @@ deploy_page: false
         """Test page with attachments."""
         # Create main file
         filepath = tmp_path / "test.md"
-        filepath.write_text(
-            """---
+        filepath.write_text("""---
 attachments:
   - path: diagram.png
     alt: Architecture
 ---
 # Content
 
-![diagram](diagram.png)"""
-        )
+![diagram](diagram.png)""")
 
         # Create attachment file
         attachment = tmp_path / "diagram.png"
@@ -216,7 +209,7 @@ attachments:
         mock_api.find_page_by_title.return_value = None
         mock_api.create_page.return_value = "new-123"
 
-        page_id = deploy_page(mock_api, "space123", None, filepath)
+        deploy_page(mock_api, "space123", None, filepath)
 
         # Should upload attachment
         mock_api.upload_attachment.assert_called_once()
@@ -228,13 +221,11 @@ attachments:
     def test_deploy_missing_attachment(self, mock_api, tmp_path):
         """Test handling missing attachment file."""
         filepath = tmp_path / "test.md"
-        filepath.write_text(
-            """---
+        filepath.write_text("""---
 attachments:
   - missing.png
 ---
-# Content"""
-        )
+# Content""")
 
         mock_api.find_page_by_title.return_value = None
         mock_api.create_page.return_value = "new-123"
@@ -250,12 +241,10 @@ attachments:
     def test_deploy_draft_page(self, mock_api, tmp_path):
         """Test deploying draft page."""
         filepath = tmp_path / "test.md"
-        filepath.write_text(
-            """---
+        filepath.write_text("""---
 page_status: draft
 ---
-# Draft"""
-        )
+# Draft""")
 
         mock_api.find_page_by_title.return_value = None
         mock_api.create_page.return_value = "new-123"
@@ -283,12 +272,10 @@ page_status: draft
     def test_deploy_ci_banner_disabled(self, mock_api, tmp_path):
         """Test disabling CI banner."""
         filepath = tmp_path / "test.md"
-        filepath.write_text(
-            """---
+        filepath.write_text("""---
 ci_banner: false
 ---
-# Content"""
-        )
+# Content""")
 
         mock_api.find_page_by_title.return_value = None
         mock_api.create_page.return_value = "new-123"
@@ -331,14 +318,12 @@ ci_banner: false
     def test_frontmatter_parent_overrides_directory_hierarchy(self, mock_api, tmp_path):
         """deploy_page uses frontmatter parent when specified."""
         filepath = tmp_path / "test.md"
-        filepath.write_text(
-            """---
+        filepath.write_text("""---
 page_meta:
   title: My Page
   parent: Explicit Parent
 ---
-# Content"""
-        )
+# Content""")
         mock_api.find_page_by_title.side_effect = lambda space, title: (
             "explicit-parent-id" if title == "Explicit Parent" else None
         )
@@ -352,14 +337,12 @@ page_meta:
     def test_frontmatter_parent_not_found_falls_back(self, mock_api, tmp_path):
         """deploy_page falls back to directory parent when frontmatter parent not found."""
         filepath = tmp_path / "test.md"
-        filepath.write_text(
-            """---
+        filepath.write_text("""---
 page_meta:
   title: My Page
   parent: Nonexistent Page
 ---
-# Content"""
-        )
+# Content""")
         mock_api.find_page_by_title.return_value = None
         mock_api.create_page.return_value = "new-page"
 
@@ -404,9 +387,7 @@ class TestEnsurePageHierarchyCoverage:
         subdir.mkdir(parents=True)
 
         page_content = subdir / ".page_content.md"
-        page_content.write_text(
-            "---\npage_meta:\n  title: Team\n  author: John Smith\n---\n# Team"
-        )
+        page_content.write_text("---\npage_meta:\n  title: Team\n  author: John Smith\n---\n# Team")
         filepath = subdir / "child.md"
 
         mock_api.find_page_by_title.return_value = "existing-team-page"
@@ -467,9 +448,7 @@ class TestDeployPageCoverage:
     def test_deploy_page_skips_when_deploy_page_false(self, mock_api, tmp_path):
         """Lines 182-183: deploy_page returns None when deploy_page frontmatter is false."""
         filepath = tmp_path / "skip.md"
-        filepath.write_text(
-            "---\ndeploy_config:\n  deploy_page: false\n---\n# Content"
-        )
+        filepath.write_text("---\ndeploy_config:\n  deploy_page: false\n---\n# Content")
 
         result = deploy_page(mock_api, "space123", None, filepath)
 
@@ -522,9 +501,7 @@ class TestDeployPageCoverage:
         attachment_file = tmp_path / "image.png"
         attachment_file.write_bytes(b"fake png data")
 
-        filepath.write_text(
-            "---\npage_meta:\n  attachments:\n    - image.png\n---\n# Page"
-        )
+        filepath.write_text("---\npage_meta:\n  attachments:\n    - image.png\n---\n# Page")
 
         mock_api.find_page_by_title.return_value = None
         mock_api.create_page.return_value = "page-123"
@@ -542,9 +519,7 @@ class TestDeployPageCoverage:
         attachment_file = tmp_path / "image.png"
         attachment_file.write_bytes(b"data")
 
-        filepath.write_text(
-            "---\npage_meta:\n  attachments:\n    - image.png\n---\n# Page"
-        )
+        filepath.write_text("---\npage_meta:\n  attachments:\n    - image.png\n---\n# Page")
 
         mock_api.find_page_by_title.return_value = None
         mock_api.create_page.return_value = "page-123"
@@ -563,9 +538,7 @@ class TestDeployPageCoverage:
         attachment_file = tmp_path / "image.png"
         attachment_file.write_bytes(b"data")
 
-        filepath.write_text(
-            "---\npage_meta:\n  attachments:\n    - image.png\n---\n# Page"
-        )
+        filepath.write_text("---\npage_meta:\n  attachments:\n    - image.png\n---\n# Page")
 
         mock_api.find_page_by_title.return_value = None
         mock_api.create_page.return_value = "page-123"
@@ -742,9 +715,7 @@ class TestDeployTree:
         deploy_tree(mock_api, "space123", root_path, docs_root)
 
         # Container page "Sub" must have been created with parent_id=None (at space root)
-        sub_create_call = next(
-            c for c in mock_api.create_page.call_args_list if c[0][2] == "Sub"
-        )
+        sub_create_call = next(c for c in mock_api.create_page.call_args_list if c[0][2] == "Sub")
         assert sub_create_call[0][1] is None  # Sub created at space root
 
         # Child page must have Sub as its parent
@@ -760,9 +731,7 @@ class TestPathTraversalProtection:
     def test_traversal_string_format_is_blocked(self, mock_api, tmp_path):
         """String-format attachment path with traversal is skipped without uploading."""
         filepath = tmp_path / "page.md"
-        filepath.write_text(
-            "---\npage_meta:\n  attachments:\n    - ../../etc/passwd\n---\n# Page"
-        )
+        filepath.write_text("---\npage_meta:\n  attachments:\n    - ../../etc/passwd\n---\n# Page")
         mock_api.find_page_by_title.return_value = None
         mock_api.create_page.return_value = "page-123"
 
@@ -790,9 +759,7 @@ class TestPathTraversalProtection:
         filepath = tmp_path / "page.md"
         attachment_file = tmp_path / "valid.png"
         attachment_file.write_bytes(b"data")
-        filepath.write_text(
-            "---\npage_meta:\n  attachments:\n    - path: valid.png\n---\n# Page"
-        )
+        filepath.write_text("---\npage_meta:\n  attachments:\n    - path: valid.png\n---\n# Page")
         mock_api.find_page_by_title.return_value = None
         mock_api.create_page.return_value = "page-123"
         mock_api.upload_attachment.return_value = {"results": [{"id": "att-1"}]}
@@ -829,14 +796,12 @@ class TestEdgeCases:
     def test_invalid_frontmatter(self, mock_api, tmp_path):
         """Test handling invalid frontmatter."""
         filepath = tmp_path / "test.md"
-        filepath.write_text(
-            """---
+        filepath.write_text("""---
 invalid yaml:
   - item
     bad indentation
 ---
-# Content"""
-        )
+# Content""")
 
         mock_api.find_page_by_title.return_value = None
         mock_api.create_page.return_value = "page-123"

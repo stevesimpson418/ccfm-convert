@@ -1,10 +1,9 @@
 """Tests for main.py CLI module."""
 
 import os
-import sys
 from io import StringIO
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -373,10 +372,10 @@ class TestErrorHandling:
     def test_api_error(self, mock_deploy, mock_api_class):
         """Test handling of API errors."""
         mock_api = Mock()
-        mock_api.get_space_id.side_effect = Exception("API Error")
+        mock_api.get_space_id.side_effect = RuntimeError("API Error")
         mock_api_class.return_value = mock_api
 
-        with pytest.raises(Exception):
+        with pytest.raises(RuntimeError):
             with patch(
                 "sys.argv",
                 [

@@ -1,7 +1,5 @@
 """Tests for deploy.transforms module."""
 
-import pytest
-
 from adf.nodes import NARROW_PAGE_WIDTH_PX, doc, inline_card, media_single, paragraph, text_node
 from deploy.transforms import (
     add_ci_banner,

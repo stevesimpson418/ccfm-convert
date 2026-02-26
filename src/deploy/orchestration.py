@@ -179,7 +179,7 @@ def deploy_page(api, space_id, parent_id, filepath, git_repo_url="", dump=False)
 
     # Check if page should be deployed
     if not metadata.get("deploy_page", True):
-        print(f"   ⏭️  Skipping: deploy_page is set to false")
+        print("   ⏭️  Skipping: deploy_page is set to false")
         return None
 
     title = metadata.get("title", filepath.stem.replace("-", " ").title())
@@ -214,7 +214,9 @@ def deploy_page(api, space_id, parent_id, filepath, git_repo_url="", dump=False)
             parent_id = parent_page_id
             print(f"   🔗 Parent override: '{frontmatter_parent}' (ID: {parent_page_id})")
         else:
-            print(f"   ⚠️  Warning: Parent page '{frontmatter_parent}' not found, using directory hierarchy")
+            print(
+                f"   ⚠️  Warning: Parent page '{frontmatter_parent}' not found, using directory hierarchy"
+            )
 
     # STEP 1: Create or update page (images are still external URLs or placeholders)
     page_id = api.find_page_by_title(space_id, title)
@@ -223,7 +225,7 @@ def deploy_page(api, space_id, parent_id, filepath, git_repo_url="", dump=False)
         print(f"   ♻️  Updating existing page (ID: {page_id})")
         api.update_page(page_id, title, body, status=page_status)
     else:
-        print(f"   ✨ Creating new page")
+        print("   ✨ Creating new page")
         page_id = api.create_page(space_id, parent_id, title, body, status=page_status)
 
     # Prepare labels
@@ -274,7 +276,7 @@ def deploy_page(api, space_id, parent_id, filepath, git_repo_url="", dump=False)
                     attachment_id = upload_result["results"][0]["id"]
 
                     # Fetch Media Services fileId via v2 API
-                    print(f"   🔑 Fetching Media Services fileId...")
+                    print("   🔑 Fetching Media Services fileId...")
                     file_id = api.get_attachment_fileid(attachment_id)
 
                     if file_id:
@@ -295,7 +297,7 @@ def deploy_page(api, space_id, parent_id, filepath, git_repo_url="", dump=False)
         if attachment_map:
             from .transforms import resolve_attachment_media_nodes
 
-            print(f"   🔗 Resolving attachment media nodes...")
+            print("   🔗 Resolving attachment media nodes...")
             body_with_attachments = resolve_attachment_media_nodes(body, attachment_map, page_id)
             api.update_page(page_id, title, body_with_attachments, status=page_status)
             print(f"   ✓ Page updated with {len(attachment_map)} attachment(s)")

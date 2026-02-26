@@ -445,7 +445,7 @@ Final paragraph."""
     def test_table_in_list(self):
         """Test table inside list (if supported)."""
         markdown = """- Item
-  
+
 | A | B |
 |---|---|
 | 1 | 2 |"""

@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import Mock, mock_open, patch
 
 import pytest
+import requests
 
 from deploy.api import ConfluenceAPI
 
@@ -87,10 +88,10 @@ class TestFindPageByTitle:
     def test_find_page_http_error(self, mock_get, api):
         """Test HTTP error handling."""
         mock_response = Mock()
-        mock_response.raise_for_status.side_effect = Exception("HTTP 404")
+        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("HTTP 404")
         mock_get.return_value = mock_response
 
-        with pytest.raises(Exception):
+        with pytest.raises(requests.exceptions.HTTPError):
             api.find_page_by_title("123", "Page")
 
 
@@ -383,9 +384,7 @@ class TestFindPageWebuiUrl:
         """Returns None when result has no _links.webui."""
         mock_response = Mock()
         mock_response.raise_for_status = Mock()
-        mock_response.json.return_value = {
-            "results": [{"id": "123", "_links": {}}]
-        }
+        mock_response.json.return_value = {"results": [{"id": "123", "_links": {}}]}
         mock_get.return_value = mock_response
 
         url = api.find_page_webui_url("space-123", "My Page")
@@ -419,11 +418,11 @@ class TestCreatePageErrorPath:
         mock_response.status_code = 500
         mock_response.text = "Internal Server Error"
         mock_response.json.side_effect = ValueError("No JSON")
-        mock_response.raise_for_status.side_effect = Exception("500")
+        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("500")
         mock_post.return_value = mock_response
 
         body = {"version": 1, "type": "doc", "content": []}
-        with pytest.raises(Exception):
+        with pytest.raises(requests.exceptions.HTTPError):
             api.create_page("space-123", None, "Test Page", body)
 
 
@@ -449,8 +448,14 @@ class TestUploadAttachmentNormalisation:
 
     @patch("deploy.api.requests.get")
     @patch("deploy.api.requests.post")
-    @patch("builtins.open", new_callable=__import__("unittest.mock", fromlist=["mock_open"]).mock_open, read_data=b"data")
-    def test_upload_existing_attachment_bare_object_normalised(self, mock_file, mock_post, mock_get, api):
+    @patch(
+        "builtins.open",
+        new_callable=__import__("unittest.mock", fromlist=["mock_open"]).mock_open,
+        read_data=b"data",
+    )
+    def test_upload_existing_attachment_bare_object_normalised(
+        self, mock_file, mock_post, mock_get, api
+    ):
         """
         When updating an existing attachment the data endpoint returns a bare object
         (no 'results' wrapper). The method must normalise it to {'results': [obj]}.
@@ -468,6 +473,7 @@ class TestUploadAttachmentNormalisation:
         mock_post.return_value = mock_post_response
 
         from pathlib import Path
+
         result = api.upload_attachment("page-789", Path("img.png"))
 
         assert result is not None
@@ -476,8 +482,14 @@ class TestUploadAttachmentNormalisation:
 
     @patch("deploy.api.requests.get")
     @patch("deploy.api.requests.post")
-    @patch("builtins.open", new_callable=__import__("unittest.mock", fromlist=["mock_open"]).mock_open, read_data=b"data")
-    def test_upload_existing_attachment_bare_object_without_id_uses_existing_id(self, mock_file, mock_post, mock_get, api):
+    @patch(
+        "builtins.open",
+        new_callable=__import__("unittest.mock", fromlist=["mock_open"]).mock_open,
+        read_data=b"data",
+    )
+    def test_upload_existing_attachment_bare_object_without_id_uses_existing_id(
+        self, mock_file, mock_post, mock_get, api
+    ):
         """
         When the update response is a bare object without an 'id' field,
         the existing attachment ID is used as fallback (line 248 else branch).
@@ -494,6 +506,7 @@ class TestUploadAttachmentNormalisation:
         mock_post.return_value = mock_post_response
 
         from pathlib import Path
+
         result = api.upload_attachment("page-789", Path("img.png"))
 
         assert result is not None
@@ -507,9 +520,9 @@ class TestErrorHandling:
     @patch("deploy.api.requests.get")
     def test_network_error(self, mock_get, api):
         """Test network error handling."""
-        mock_get.side_effect = Exception("Network error")
+        mock_get.side_effect = requests.exceptions.ConnectionError("Network error")
 
-        with pytest.raises(Exception):
+        with pytest.raises(requests.exceptions.ConnectionError):
             api.get_space_id("TEST")
 
     @patch("deploy.api.requests.post")
@@ -517,10 +530,10 @@ class TestErrorHandling:
         """Test authentication error."""
         mock_response = Mock()
         mock_response.status_code = 401
-        mock_response.raise_for_status.side_effect = Exception("Unauthorized")
+        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("Unauthorized")
         mock_post.return_value = mock_response
 
-        with pytest.raises(Exception):
+        with pytest.raises(requests.exceptions.HTTPError):
             body = {"version": 1, "type": "doc", "content": []}
             api.create_page("123", None, "Page", body)
 
@@ -529,10 +542,12 @@ class TestErrorHandling:
         """Test rate limit handling."""
         mock_response = Mock()
         mock_response.status_code = 429
-        mock_response.raise_for_status.side_effect = Exception("Too many requests")
+        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError(
+            "Too many requests"
+        )
         mock_get.return_value = mock_response
 
-        with pytest.raises(Exception):
+        with pytest.raises(requests.exceptions.HTTPError):
             api.get_space_id("TEST")
 
     @patch("deploy.api.requests.post")
@@ -540,9 +555,11 @@ class TestErrorHandling:
         """Test server error handling."""
         mock_response = Mock()
         mock_response.status_code = 500
-        mock_response.raise_for_status.side_effect = Exception("Internal server error")
+        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError(
+            "Internal server error"
+        )
         mock_post.return_value = mock_response
 
-        with pytest.raises(Exception):
+        with pytest.raises(requests.exceptions.HTTPError):
             body = {"version": 1, "type": "doc", "content": []}
             api.create_page("123", None, "Page", body)

@@ -1,7 +1,5 @@
 """Tests for adf.blocks module."""
 
-import pytest
-
 from adf.blocks import (
     build_list,
     lines_to_paragraphs,
@@ -419,7 +417,7 @@ class TestCoverageGaps:
             "| A | B |",
             "|---|---|",
             "| 1 | 2 |",
-            "",           # blank row — should be skipped
+            "",  # blank row — should be skipped
             "| 3 | 4 |",
         ]
         result = parse_table(lines)

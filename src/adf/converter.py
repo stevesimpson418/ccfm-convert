@@ -78,9 +78,7 @@ def convert(markdown_text: str) -> dict:
             continue
 
         # --- Image: ![alt](url) or ![alt](url){width=VALUE} on its own line ---
-        img_match = re.match(
-            r"^!\[([^\]]*)\]\(([^)]+)\)(?:\{width=([^}]+)\})?\s*$", line.strip()
-        )
+        img_match = re.match(r"^!\[([^\]]*)\]\(([^)]+)\)(?:\{width=([^}]+)\})?\s*$", line.strip())
         if img_match:
             alt_text = img_match.group(1)
             url = img_match.group(2).strip()
@@ -88,9 +86,7 @@ def convert(markdown_text: str) -> dict:
             # Strip surrounding quotes (e.g. "file name.png" or 'file name.png')
             if len(url) >= 2 and url[0] in ('"', "'") and url[-1] == url[0]:
                 url = url[1:-1]
-            content.append(
-                media_single(url, alt_text if alt_text else None, width=img_width)
-            )
+            content.append(media_single(url, alt_text if alt_text else None, width=img_width))
             i += 1
             continue
 
