@@ -122,6 +122,35 @@ class TestLists:
         assert result["content"][0]["type"] == "bulletList"
         # Should contain nested ordered list
 
+    def test_list_item_with_continuation_indent(self):
+        """Continuation lines indented with 2 spaces that are not list markers
+        are gathered into the same list block (converter.py lines 130-133).
+
+        A line like '  continuation text' starts with '  ' but has no list
+        marker, so it falls into the elif branch rather than the list-item
+        branch or the break branch.
+        """
+        markdown = "- First item\n  continuation text\n- Second item"
+        result = convert(markdown)
+
+        # The whole thing must still produce a single bulletList node
+        assert result["content"][0]["type"] == "bulletList"
+        # Both top-level items must be present
+        assert len(result["content"][0]["content"]) >= 1
+
+    def test_list_continuation_indent_plain_text_collected(self):
+        """A 2-space-indented plain-text line following a list item is
+        collected into the same list_lines buffer so the list parser can
+        treat it as continuation content (covers converter.py lines 132-133).
+        """
+        markdown = "- Item one\n  more detail here\n- Item two"
+        result = convert(markdown)
+
+        # Whole block is one bulletList — the continuation line did not
+        # cause an early break that would have split content into separate nodes
+        assert len(result["content"]) == 1
+        assert result["content"][0]["type"] == "bulletList"
+
 
 class TestCodeBlocks:
     """Test code block conversion."""
