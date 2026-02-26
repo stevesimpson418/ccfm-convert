@@ -1,0 +1,15 @@
+{
+  "recommendations": [
+    // Python
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-python.black-formatter",
+    "charliermarsh.ruff",
+    // Markdown
+    "DavidAnson.vscode-markdownlint"
+  ],
+  "unwantedRecommendations": [
+    // Ruff replaces Flake8 — disable to avoid duplicate errors
+    "ms-python.flake8"
+  ]
+}

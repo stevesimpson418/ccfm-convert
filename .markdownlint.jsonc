@@ -1,0 +1,30 @@
+{
+  // Default: enable all rules
+  "default": true,
+  // MD003: Heading style - enforce ATX style (# Heading)
+  "MD003": {
+    "style": "atx"
+  },
+  // MD007: Unordered list indentation - 2 spaces
+  "MD007": {
+    "indent": 2
+  },
+  // MD013: Line length - disabled (no hard limit on prose)
+  "MD013": false,
+  // MD024: Allow duplicate headings if they're not siblings
+  "MD024": {
+    "siblings_only": true
+  },
+  // MD025: Only one H1 per document — set front_matter_title to "" so the
+  // frontmatter `title` field is not counted as the H1. Files can have both
+  // a frontmatter title (for Confluence page title) and an H1 in the body.
+  "MD025": { "front_matter_title": "" },
+  // MD033: Allow inline HTML - needed for Confluence-specific notes
+  "MD033": false,
+  // MD041: First line doesn't need to be H1 (files have frontmatter)
+  "MD041": false,
+  // MD046: Code block style - fenced (```) not indented
+  "MD046": {
+    "style": "fenced"
+  }
+}
