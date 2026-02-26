@@ -130,6 +130,10 @@ def deploy_tree(api, space_id, root_path, docs_root, git_repo_url="", dump=False
         docs_root: Root documentation directory
         git_repo_url: Git repository URL for CI banner
         dump: If True, write ADF JSON files and skip deployment
+
+    Returns:
+        List of (filepath, page_id) tuples. page_id is None if the page was
+        skipped (deploy_page: false in frontmatter) or if dump mode is active.
     """
     md_files = sorted(root_path.rglob("*.md"))
 
@@ -137,6 +141,8 @@ def deploy_tree(api, space_id, root_path, docs_root, git_repo_url="", dump=False
     md_files = [f for f in md_files if f.name != ".page_content.md"]
 
     print(f"\n📚 Found {len(md_files)} markdown files in tree")
+
+    results: list[tuple[Path, str | None]] = []
 
     for filepath in md_files:
         try:
@@ -147,10 +153,45 @@ def deploy_tree(api, space_id, root_path, docs_root, git_repo_url="", dump=False
                 parent_id = None
 
             # Deploy the file
-            deploy_page(api, space_id, parent_id, filepath, git_repo_url, dump=dump)
+            page_id = deploy_page(api, space_id, parent_id, filepath, git_repo_url, dump=dump)
+            results.append((filepath, page_id))
         except Exception as e:
             print(f"   ❌ Error: {e}")
+            results.append((filepath, None))
             continue
+
+    return results
+
+
+def archive_page(api, page_id: str, title: str) -> bool:
+    """Archive a Confluence page by setting its status to 'archived'.
+
+    Used to clean up pages whose source markdown files have been deleted.
+
+    Args:
+        api: ConfluenceAPI instance
+        page_id: ID of the page to archive
+        title: Page title (required by the update endpoint)
+
+    Returns:
+        True if the archive operation succeeded, False otherwise.
+    """
+    try:
+        api.update_page(
+            page_id,
+            title,
+            {
+                "version": 1,
+                "type": "doc",
+                "content": [{"type": "paragraph", "content": [{"type": "text", "text": " "}]}],
+            },
+            status="archived",
+        )
+        print(f"   🗄️  Archived page: '{title}' (ID: {page_id})")
+        return True
+    except Exception as e:
+        print(f"   ⚠️  Could not archive '{title}' (ID: {page_id}): {e}")
+        return False
 
 
 def deploy_page(api, space_id, parent_id, filepath, git_repo_url="", dump=False):
