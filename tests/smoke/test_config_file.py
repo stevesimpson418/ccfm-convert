@@ -15,8 +15,13 @@ CONFIG_PAGE = SMOKE_DOCS / "config-test" / "config-page.md"
 class TestConfigFileDeploy:
     """Deploy using a ccfm.yaml config file instead of inline CLI flags."""
 
-    def test_deploy_via_config_file(self, smoke_state):
-        """--config ccfm.yaml with ${ENV_VAR} interpolation deploys successfully."""
+    def test_deploy_via_config_file(self, confluence_live, smoke_state):
+        """--config ccfm.yaml with ${ENV_VAR} interpolation deploys successfully.
+
+        Relies on confluence_live to validate Confluence credentials before running
+        the subprocess — ensures the test skips cleanly when credentials are
+        missing or contain placeholder values from .env.smoke.example.
+        """
         import subprocess
         import sys
 

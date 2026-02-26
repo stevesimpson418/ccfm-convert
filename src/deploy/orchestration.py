@@ -164,29 +164,25 @@ def deploy_tree(api, space_id, root_path, docs_root, git_repo_url="", dump=False
 
 
 def archive_page(api, page_id: str, title: str) -> bool:
-    """Archive a Confluence page by setting its status to 'archived'.
+    """Delete an orphaned Confluence page (moves it to the site trash).
+
+    The Confluence Cloud v2 API does not support ``status: archived`` via the
+    PUT pages endpoint (only ``CURRENT`` and ``DRAFT`` are accepted). Instead,
+    we use the v2 DELETE endpoint, which moves the page to the site trash and
+    is equivalent to the "Archive" action in the Confluence UI.
 
     Used to clean up pages whose source markdown files have been deleted.
 
     Args:
         api: ConfluenceAPI instance
-        page_id: ID of the page to archive
-        title: Page title (required by the update endpoint)
+        page_id: ID of the page to delete
+        title: Page title (used only for logging)
 
     Returns:
-        True if the archive operation succeeded, False otherwise.
+        True if the operation succeeded, False otherwise.
     """
     try:
-        api.update_page(
-            page_id,
-            title,
-            {
-                "version": 1,
-                "type": "doc",
-                "content": [{"type": "paragraph", "content": [{"type": "text", "text": " "}]}],
-            },
-            status="archived",
-        )
+        api.delete_page(page_id)
         print(f"   🗄️  Archived page: '{title}' (ID: {page_id})")
         return True
     except Exception as e:

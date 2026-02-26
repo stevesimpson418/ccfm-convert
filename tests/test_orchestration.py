@@ -814,27 +814,24 @@ invalid yaml:
 
 
 class TestArchivePage:
-    """Tests for archive_page (lines 179-185 in orchestration.py)."""
+    """Tests for archive_page.
+
+    archive_page uses api.delete_page() (v2 DELETE) because the Confluence Cloud
+    v2 PUT endpoint only accepts CURRENT or DRAFT as status values — 'archived'
+    is rejected with a 400 error. DELETE moves the page to the site trash, which
+    is the closest available equivalent to archiving via the API.
+    """
 
     def test_archive_page_success_returns_true(self, mock_api):
-        """archive_page calls update_page with status='archived' and returns True (lines 179-182)."""
+        """archive_page calls api.delete_page and returns True on success."""
         result = archive_page(mock_api, "page-42", "My Page")
 
         assert result is True
-        mock_api.update_page.assert_called_once_with(
-            "page-42",
-            "My Page",
-            {
-                "version": 1,
-                "type": "doc",
-                "content": [{"type": "paragraph", "content": [{"type": "text", "text": " "}]}],
-            },
-            status="archived",
-        )
+        mock_api.delete_page.assert_called_once_with("page-42")
 
     def test_archive_page_exception_returns_false(self, mock_api):
-        """archive_page catches exceptions and returns False (lines 183-185)."""
-        mock_api.update_page.side_effect = RuntimeError("API down")
+        """archive_page catches exceptions from delete_page and returns False."""
+        mock_api.delete_page.side_effect = RuntimeError("API down")
 
         result = archive_page(mock_api, "page-99", "Broken Page")
 
@@ -850,7 +847,7 @@ class TestArchivePage:
 
     def test_archive_page_prints_warning_on_failure(self, mock_api, capsys):
         """archive_page prints a warning on failure."""
-        mock_api.update_page.side_effect = RuntimeError("timeout")
+        mock_api.delete_page.side_effect = RuntimeError("timeout")
 
         archive_page(mock_api, "page-2", "Failed Page")
 

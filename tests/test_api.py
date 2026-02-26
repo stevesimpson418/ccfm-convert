@@ -392,6 +392,38 @@ class TestFindPageWebuiUrl:
         assert url is None
 
 
+class TestDeletePage:
+    """Tests for delete_page (v2 DELETE endpoint)."""
+
+    @patch("deploy.api.requests.delete")
+    def test_delete_page_success(self, mock_delete, api):
+        """delete_page calls DELETE /pages/{id} and does not raise on success."""
+        mock_response = Mock()
+        mock_response.status_code = 204
+        mock_response.raise_for_status = Mock()
+        mock_delete.return_value = mock_response
+
+        api.delete_page("page-42")
+
+        mock_delete.assert_called_once_with(
+            "https://example.atlassian.net/wiki/api/v2/pages/page-42",
+            auth=("test@example.com", "test-token"),
+            headers={"Accept": "application/json"},
+            timeout=30,
+        )
+        mock_response.raise_for_status.assert_called_once()
+
+    @patch("deploy.api.requests.delete")
+    def test_delete_page_raises_on_http_error(self, mock_delete, api):
+        """delete_page propagates HTTP errors from raise_for_status."""
+        mock_response = Mock()
+        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("404 Not Found")
+        mock_delete.return_value = mock_response
+
+        with pytest.raises(requests.exceptions.HTTPError):
+            api.delete_page("nonexistent-page")
+
+
 class TestCreatePageErrorPath:
     """Test create_page error-printing branch (lines 105-111)."""
 
