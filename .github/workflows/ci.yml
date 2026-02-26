@@ -63,4 +63,4 @@ jobs:
         run: npm install -g markdownlint-cli
 
       - name: Lint Markdown
-        run: markdownlint docs/ README.md CCFM.md --config .markdownlint.jsonc
+        run: markdownlint tests/smoke/docs/ README.md CCFM.md --config .markdownlint.jsonc

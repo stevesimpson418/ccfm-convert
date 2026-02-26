@@ -67,7 +67,7 @@ python src/main.py \
   --email your.email@example.com \
   --token YOUR_API_TOKEN \
   --space YOUR_SPACE_KEY \
-  --file docs/my-page.md
+  --file path/to/my-page.md
 
 # Deploy a directory recursively
 python src/main.py \
@@ -75,7 +75,7 @@ python src/main.py \
   --email your.email@example.com \
   --token YOUR_API_TOKEN \
   --space YOUR_SPACE_KEY \
-  --directory docs
+  --directory path/to/docs
 ```
 
 ### 5. Inspect before deploying
@@ -88,9 +88,9 @@ python src/main.py \
   --email your.email@example.com \
   --token YOUR_API_TOKEN \
   --space YOUR_SPACE_KEY \
-  --file docs/my-page.md \
+  --file path/to/my-page.md \
   --dump
-# Writes docs/my-page.adf.json for inspection
+# Writes path/to/my-page.adf.json for inspection
 ```
 
 ---
@@ -161,7 +161,7 @@ python src/main.py \
   --email user@example.com \
   --token abc123 \
   --space DOCS \
-  --file docs/api/authentication.md
+  --file path/to/api/authentication.md
 
 # Deploy entire docs folder
 python src/main.py \
@@ -169,16 +169,16 @@ python src/main.py \
   --email user@example.com \
   --token abc123 \
   --space DOCS \
-  --directory docs
+  --directory path/to/docs
 
-# With CI banner links back to source files (GitLab)
+# With CI banner links back to source files
 python src/main.py \
   --domain company.atlassian.net \
   --email user@example.com \
   --token abc123 \
   --space DOCS \
-  --directory docs \
-  --git-repo-url "https://gitlab.com/org/repo/-/blob/main"
+  --directory path/to/docs \
+  --git-repo-url "https://github.com/org/repo/blob/main"
 ```
 
 ---
@@ -287,31 +287,7 @@ custom titles.
 
 ## CI/CD
 
-Store credentials as masked CI/CD variables: `CONFLUENCE_DOMAIN`, `CONFLUENCE_EMAIL`,
-`CONFLUENCE_TOKEN`.
-
-### GitLab CI
-
-```yaml
-deploy-docs:
-  image: python:3.12-slim
-  stage: deploy
-  rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-      changes:
-        - docs/**
-  before_script:
-    - pip install -r requirements.txt
-  script:
-    - python src/main.py
-        --domain "$CONFLUENCE_DOMAIN"
-        --email "$CONFLUENCE_EMAIL"
-        --token "$CONFLUENCE_TOKEN"
-        --space DOCS
-        --directory docs
-        --git-repo-url "$CI_PROJECT_URL/-/blob/$CI_COMMIT_REF_NAME"
-        --changed-only
-```
+Store credentials as secrets: `CONFLUENCE_DOMAIN`, `CONFLUENCE_EMAIL`, `CONFLUENCE_TOKEN`.
 
 ### GitHub Actions
 
@@ -372,8 +348,12 @@ jobs:
 │   ├── plan/                 # Plan/diff mode
 │   │   └── planner.py        # compute_plan(), DeployPlan — terraform-style diff output
 │   └── main.py               # CLI entry point (argparse)
-├── tests/                    # Pytest test suite
-├── docs/                     # Your documentation (deploy this directory)
+├── tests/
+│   ├── smoke/                # End-to-end smoke tests (real Confluence space)
+│   │   ├── conftest.py       # Credentials, cleanup hook, ccfm_run fixture
+│   │   ├── docs/             # Fixture markdown files deployed during smoke tests
+│   │   └── test_*.py         # Smoke test modules
+│   └── test_*.py             # Unit tests (100% coverage, all mocked)
 ├── .ccfm-state.json          # Deployment state (commit this alongside your docs)
 ├── ccfm.yaml                 # Optional project config (credentials, space, docs_root)
 ├── CCFM.md                   # Complete CCFM syntax and ADF mapping reference
@@ -402,12 +382,37 @@ pre-commit install
 ### Running tests
 
 ```bash
-pytest                              # All tests with coverage report
+pytest                              # All unit tests with coverage report
 pytest tests/test_converter.py      # Single file
 pytest -k "test_heading"            # Single test by name
 ```
 
 Coverage runs automatically via `pyproject.toml`. The target is 100% line coverage on `src/`.
+
+### Smoke tests
+
+End-to-end tests that deploy real pages to a Confluence space. Requires credentials for a
+dedicated test space (the project uses `CCFMDEV` at `ccfm.atlassian.net`).
+
+```bash
+# Copy and fill in credentials
+cp .env.smoke.example .env
+# Edit .env with your values, then:
+source .env
+
+# Run all smoke tests and auto-cleanup Confluence pages when done
+pytest tests/smoke/ --no-cov -v
+
+# Run tests and leave pages in Confluence for manual inspection
+pytest tests/smoke/ --no-cov -v --no-cleanup
+
+# Delete pages from a previous --no-cleanup run (skips re-running tests)
+pytest tests/smoke/ --no-cov -v --cleanup-only
+```
+
+**GitHub Actions:** Go to Actions → Smoke Tests → Run workflow (manual trigger).
+Requires `CONFLUENCE_DOMAIN`, `CONFLUENCE_EMAIL`, and `CONFLUENCE_TOKEN` secrets.
+Uncheck "Delete Confluence pages after tests" to leave pages for manual inspection.
 
 ### Code style
 
@@ -489,7 +494,7 @@ the ADF structure before deploying to Confluence.
 3. Make your changes
 4. Run `pytest` — all tests must pass, coverage must be maintained
 5. Run `pre-commit run --all-files`
-6. Submit a merge request
+6. Submit a pull request
 
 ---
 

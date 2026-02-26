@@ -1,0 +1,11 @@
+version: 1
+
+# Smoke test config file — credentials come from environment variables.
+# Used by test_config_file.py to verify that ccfm.yaml with ${ENV_VAR}
+# interpolation works end-to-end.
+
+domain: ${CONFLUENCE_DOMAIN}
+email: ${CONFLUENCE_EMAIL}
+token: ${CONFLUENCE_TOKEN}
+space: CCFMDEV
+docs_root: tests/smoke/docs
