@@ -30,7 +30,8 @@ class TestConfigFileDeploy:
         result = subprocess.run(
             [
                 sys.executable,
-                "src/main.py",
+                "-m",
+                "ccfm_convert",
                 "--config",
                 str(CONFIG_FILE),
                 "--file",
