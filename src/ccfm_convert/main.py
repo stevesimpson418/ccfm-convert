@@ -83,6 +83,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Show what would be deployed without making any changes",
     )
     parser.add_argument(
+        "--plan-exit-code",
+        action="store_true",
+        help="With --plan, exit 2 when changes are pending (Terraform-style)",
+    )
+    parser.add_argument(
         "--changed-only",
         action="store_true",
         help="Only deploy files whose content has changed since last deploy",
@@ -175,7 +180,9 @@ def main():
             archive_orphans=args.archive_orphans,
         )
         plan.print_summary()
-        sys.exit(2 if plan.has_changes() else 0)
+        if args.plan_exit_code:
+            sys.exit(2 if plan.has_changes() else 0)
+        sys.exit(0)
 
     # ------------------------------------------------------------------
     # 6. Changed-only filter
