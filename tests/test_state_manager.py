@@ -284,11 +284,16 @@ class TestFindOrphans:
 
         import os
 
+        # Create a sibling directory guaranteed NOT to be an ancestor of tmp_path on
+        # any platform.  This avoids the Linux failure where /tmp is an ancestor of
+        # pytest's tmp_path (e.g. /tmp/pytest-of-runner/...).
+        unrelated_cwd = tmp_path.parent / "unrelated_cwd_state"
+        unrelated_cwd.mkdir(exist_ok=True)
+
         old_cwd = os.getcwd()
-        # Change to a directory that does NOT contain tmp_path
-        os.chdir("/tmp")
+        os.chdir(unrelated_cwd)
         try:
-            # present is absolute and NOT relative to /tmp cwd,
+            # present is absolute and NOT relative to unrelated_cwd,
             # so _to_rel returns str(present) instead of raising.
             # "some/other.md" is not relative to Path("docs") so not flagged as orphan.
             manager.set_page("some/other.md", "7", "Other", "SP", "s", "sha256:x")

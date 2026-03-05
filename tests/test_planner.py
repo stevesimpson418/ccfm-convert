@@ -414,15 +414,20 @@ class TestComputePlan:
         f = _write_md(docs, "page.md")
         state = _make_state(tmp_path)
 
-        # Change to a directory that does NOT contain tmp_path
+        # Create a sibling directory that is guaranteed NOT to be an ancestor of
+        # tmp_path on any platform.  Using tmp_path.parent / "unrelated_cwd" ensures
+        # it sits beside (not above) tmp_path, so relative_to() will always raise.
+        unrelated_cwd = tmp_path.parent / "unrelated_cwd"
+        unrelated_cwd.mkdir(exist_ok=True)
+
         old_cwd = os.getcwd()
-        os.chdir("/tmp")
+        os.chdir(unrelated_cwd)
         try:
             plan = compute_plan(state, [f], docs)
         finally:
             os.chdir(old_cwd)
 
-        # rel_path should be the absolute string, not raise
+        # rel_path should be the full absolute string, not raise
         assert str(f) == plan.page_actions[0].rel_path
 
     def test_empty_files_list_produces_empty_plan(self, tmp_path):
