@@ -3,8 +3,8 @@
 import os
 from pathlib import Path
 
-from plan.planner import DeployPlan, OrphanAction, PageAction, compute_plan
-from state.manager import StateManager
+from ccfm_convert.plan.planner import DeployPlan, OrphanAction, PageAction, compute_plan
+from ccfm_convert.state.manager import StateManager
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -270,7 +270,9 @@ class TestDeriveTitleViaComputePlan:
         os.chdir(tmp_path)
         try:
             # Patch Path.read_text on the specific instance to raise OSError
-            with patch("plan.planner.Path.read_text", side_effect=OSError("disk error")):
+            with patch(
+                "ccfm_convert.plan.planner.Path.read_text", side_effect=OSError("disk error")
+            ):
                 plan = compute_plan(state, [f], docs)
         finally:
             os.chdir(old_cwd)

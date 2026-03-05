@@ -1,7 +1,14 @@
 """Tests for deploy.transforms module."""
 
-from adf.nodes import NARROW_PAGE_WIDTH_PX, doc, inline_card, media_single, paragraph, text_node
-from deploy.transforms import (
+from ccfm_convert.adf.nodes import (
+    NARROW_PAGE_WIDTH_PX,
+    doc,
+    inline_card,
+    media_single,
+    paragraph,
+    text_node,
+)
+from ccfm_convert.deploy.transforms import (
     add_ci_banner,
     create_metadata_expand,
     resolve_attachment_media_nodes,

@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from config.loader import interpolate_env, load_config, merge_config_with_args
+from ccfm_convert.config.loader import interpolate_env, load_config, merge_config_with_args
 
 
 class TestInterpolateEnv:
