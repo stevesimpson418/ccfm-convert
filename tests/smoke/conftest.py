@@ -259,7 +259,8 @@ def ccfm_run(smoke_creds):
     def _run(*extra_args, check=True):
         cmd = [
             sys.executable,
-            "src/main.py",
+            "-m",
+            "ccfm_convert",
             "--domain",
             smoke_creds["domain"],
             "--email",

@@ -1,0 +1,63 @@
+name: "CCFM Deploy"
+description: "Deploy Markdown to Confluence Cloud as native ADF pages"
+author: "stevesimpson418"
+
+branding:
+  icon: "upload-cloud"
+  color: "blue"
+
+inputs:
+  domain:
+    description: "Confluence domain (e.g. company.atlassian.net)"
+    required: true
+  email:
+    description: "Atlassian user email address"
+    required: true
+  token:
+    description: "Atlassian API token"
+    required: true
+  space:
+    description: "Confluence space key (e.g. DOCS)"
+    required: true
+  directory:
+    description: "Directory to deploy recursively"
+    required: false
+  file:
+    description: "Single markdown file to deploy"
+    required: false
+  args:
+    description: "Additional ccfm arguments (e.g. --changed-only --plan)"
+    required: false
+    default: ""
+  version:
+    description: "ccfm-convert PyPI version to install"
+    required: false
+    default: "0.1.0"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install ccfm-convert
+      run: pip install ccfm-convert==${{ inputs.version }}
+      shell: bash
+
+    - name: Deploy to Confluence
+      run: |
+        TARGET=""
+        if [ -n "${{ inputs.directory }}" ]; then
+          TARGET="--directory ${{ inputs.directory }}"
+        elif [ -n "${{ inputs.file }}" ]; then
+          TARGET="--file ${{ inputs.file }}"
+        fi
+        ccfm \
+          --domain "${{ inputs.domain }}" \
+          --email  "${{ inputs.email }}" \
+          --token  "${{ inputs.token }}" \
+          --space  "${{ inputs.space }}" \
+          $TARGET ${{ inputs.args }}
+      shell: bash

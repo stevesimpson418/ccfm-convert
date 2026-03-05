@@ -11,8 +11,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-from deploy.frontmatter import parse_frontmatter
-from state.manager import StateManager
+from ccfm_convert.deploy.frontmatter import parse_frontmatter
+from ccfm_convert.state.manager import StateManager
 
 
 @dataclass

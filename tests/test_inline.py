@@ -2,7 +2,7 @@
 
 import pytest
 
-from adf.inline import parse_inline, parse_inline_with_breaks
+from ccfm_convert.adf.inline import parse_inline, parse_inline_with_breaks
 
 
 class TestParseInline:

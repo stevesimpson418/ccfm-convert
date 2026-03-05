@@ -1,6 +1,6 @@
 """Tests for adf.blocks module."""
 
-from adf.blocks import (
+from ccfm_convert.adf.blocks import (
     build_list,
     lines_to_paragraphs,
     list_line_info,
