@@ -2,7 +2,7 @@
 
 import pytest
 
-from adf.nodes import (
+from ccfm_convert.adf.nodes import (
     NARROW_PAGE_WIDTH_PX,
     blockquote,
     bullet_list,

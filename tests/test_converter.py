@@ -2,8 +2,8 @@
 
 import pytest
 
-from adf import convert
-from adf.converter import convert_markdown_to_adf
+from ccfm_convert.adf import convert
+from ccfm_convert.adf.converter import convert_markdown_to_adf
 
 
 class TestBasicConversion:

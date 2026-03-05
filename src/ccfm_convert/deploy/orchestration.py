@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from adf import convert
+from ccfm_convert.adf import convert
 
 from .frontmatter import parse_frontmatter
 from .transforms import add_ci_banner, resolve_page_links
