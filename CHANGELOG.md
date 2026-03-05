@@ -4,6 +4,14 @@ All notable changes to CCFM are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.2] - 2026-03-05
+
+### Fixed
+
+- Docker image now works correctly with GitLab CI and other CI runners that
+  inject shell scripts, and tolerates `docker run ... image ccfm --flags`
+  (previously doubled the `ccfm` command)
+
 ## [0.1.1] - 2026-03-05
 
 ### Fixed
@@ -37,5 +45,6 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - `ccfm.yaml` project config file with `${ENV_VAR}` interpolation
 - 100% unit test coverage; end-to-end smoke tests against real Confluence
 
+[0.1.2]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/stevesimpson418/ccfm-convert/releases/tag/v0.1.0
