@@ -1169,6 +1169,195 @@ class TestStateSaveAfterTreeDeploy:
 # ---------------------------------------------------------------------------
 
 
+class TestChangedOnlyEarlyExit:
+    """--changed-only with 0 changes must exit before any deploy or archive."""
+
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_tree")
+    def test_zero_changes_does_not_call_deploy_tree(
+        self, mock_deploy_tree, mock_api_class, tmp_path, capsys
+    ):
+        """When --changed-only reports 0 changes, deploy_tree must not be called."""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        unchanged = docs / "unchanged.md"
+        unchanged.write_text("# Content")
+
+        mock_api = Mock()
+        mock_api.get_space_id.return_value = "space123"
+        mock_api_class.return_value = mock_api
+        mock_deploy_tree.return_value = []
+
+        from ccfm_convert.state.manager import StateManager
+
+        state_file = tmp_path / ".ccfm-state.json"
+        original = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            sm = StateManager(state_file)
+            unchanged_rel = str(unchanged.relative_to(tmp_path))
+            sm.set_page(unchanged_rel, "p1", "Unchanged", "TEST", "s1", sm.compute_hash(unchanged))
+            sm.save()
+
+            with patch(
+                "sys.argv",
+                [
+                    "main.py",
+                    "--domain",
+                    "example.atlassian.net",
+                    "--email",
+                    "test@example.com",
+                    "--token",
+                    "tok",
+                    "--space",
+                    "TEST",
+                    "--directory",
+                    str(docs),
+                    "--changed-only",
+                    "--state",
+                    str(state_file),
+                ],
+            ):
+                main.main()
+        finally:
+            os.chdir(original)
+
+        mock_deploy_tree.assert_not_called()
+        captured = capsys.readouterr()
+        assert "No changes to deploy" in captured.out
+
+    @patch("ccfm_convert.main.archive_page")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_tree")
+    def test_zero_changes_does_not_archive_pages(
+        self, mock_deploy_tree, mock_api_class, mock_archive, tmp_path
+    ):
+        """When --changed-only reports 0 changes, --archive-orphans must not run."""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        unchanged = docs / "unchanged.md"
+        unchanged.write_text("# Content")
+
+        mock_api = Mock()
+        mock_api.get_space_id.return_value = "space123"
+        mock_api_class.return_value = mock_api
+        mock_deploy_tree.return_value = []
+
+        from ccfm_convert.state.manager import StateManager
+
+        state_file = tmp_path / ".ccfm-state.json"
+        original = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            sm = StateManager(state_file)
+            unchanged_rel = str(unchanged.relative_to(tmp_path))
+            sm.set_page(unchanged_rel, "p1", "Unchanged", "TEST", "s1", sm.compute_hash(unchanged))
+            sm.save()
+
+            with patch(
+                "sys.argv",
+                [
+                    "main.py",
+                    "--domain",
+                    "example.atlassian.net",
+                    "--email",
+                    "test@example.com",
+                    "--token",
+                    "tok",
+                    "--space",
+                    "TEST",
+                    "--directory",
+                    str(docs),
+                    "--changed-only",
+                    "--archive-orphans",
+                    "--state",
+                    str(state_file),
+                ],
+            ):
+                main.main()
+        finally:
+            os.chdir(original)
+
+        mock_deploy_tree.assert_not_called()
+        mock_archive.assert_not_called()
+
+
+class TestChangedOnlyWithArchiveOrphans:
+    """--changed-only + --archive-orphans: orphan detection uses all disk files, not just changed ones."""
+
+    @patch("ccfm_convert.main.archive_page")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_tree")
+    def test_unchanged_files_on_disk_are_not_treated_as_orphans(
+        self, mock_deploy_tree, mock_api_class, mock_archive, tmp_path
+    ):
+        """Unchanged files still present on disk must not be archived even if
+        --changed-only excludes them from the deploy set.
+
+        Regression test for issue #3 (Bug 2): find_orphans must receive all current
+        disk files, not the --changed-only-filtered subset.
+        """
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        changed = docs / "changed.md"
+        unchanged = docs / "unchanged.md"
+        changed.write_text("# New Content")
+        unchanged.write_text("# Stable Content")
+
+        mock_api = Mock()
+        mock_api.get_space_id.return_value = "space123"
+        mock_api_class.return_value = mock_api
+        mock_deploy_tree.return_value = [(changed, "changed-pid")]
+        mock_archive.return_value = True
+
+        from ccfm_convert.state.manager import StateManager
+
+        state_file = tmp_path / ".ccfm-state.json"
+        original = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            sm = StateManager(state_file)
+            unchanged_rel = str(unchanged.relative_to(tmp_path))
+            # 'unchanged' is already in state with a matching hash → has_changed=False
+            sm.set_page(
+                unchanged_rel,
+                "unchanged-pid",
+                "Unchanged",
+                "TEST",
+                "s1",
+                sm.compute_hash(unchanged),
+            )
+            sm.save()
+
+            with patch(
+                "sys.argv",
+                [
+                    "main.py",
+                    "--domain",
+                    "example.atlassian.net",
+                    "--email",
+                    "test@example.com",
+                    "--token",
+                    "tok",
+                    "--space",
+                    "TEST",
+                    "--directory",
+                    str(docs),
+                    "--changed-only",
+                    "--archive-orphans",
+                    "--state",
+                    str(state_file),
+                ],
+            ):
+                main.main()
+        finally:
+            os.chdir(original)
+
+        # 'unchanged.md' is on disk — must not be archived even though it was
+        # excluded from target_files by --changed-only
+        mock_archive.assert_not_called()
+
+
 class TestArchiveOrphansLiveDeploy:
     @patch("ccfm_convert.main.archive_page")
     @patch("ccfm_convert.main.ConfluenceAPI")
