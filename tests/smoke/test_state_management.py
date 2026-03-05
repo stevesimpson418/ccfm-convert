@@ -97,6 +97,100 @@ class TestChangedOnly:
             PAGE_ALPHA.write_text(original_content, encoding="utf-8")
 
 
+class TestChangedOnlyWithArchiveOrphans:
+    """Regression tests for issue #3.
+
+    When --changed-only detects 0 changes, the deploy must be a no-op — no pages
+    should be updated and no pages should be archived.  Previously the tool would
+    traverse the full tree despite 0 changes, then archive every page because the
+    orphan check compared state against an empty visited set.
+    """
+
+    def test_noop_run_does_not_archive_any_pages(self, ccfm_run, confluence_live):
+        """Second deploy with --changed-only --archive-orphans must not archive anything.
+
+        Reproduces issue #3: run --changed-only --archive-orphans when no files
+        have changed since the previous deploy. All pages must remain deployed.
+        """
+        # Step 1: clean deploy — ensures both pages exist in Confluence and state
+        result = ccfm_run("--directory", str(STATE_DIR))
+        assert result.returncode == 0, f"Initial deploy failed:\n{result.stderr}"
+
+        data_before = json.loads(SMOKE_STATE.read_text())
+        pages_before = set(data_before["pages"].keys())
+        assert pages_before, "State is empty after initial deploy"
+
+        # Step 2: re-run with both flags — no files have changed, must be a no-op
+        result = ccfm_run(
+            "--changed-only",
+            "--archive-orphans",
+            "--directory",
+            str(STATE_DIR),
+            check=False,
+        )
+
+        assert result.returncode == 0, f"--changed-only --archive-orphans failed:\n{result.stderr}"
+        assert (
+            "No changes to deploy" in result.stdout
+        ), f"Expected early-exit message when 0 changes detected.\nstdout: {result.stdout}"
+
+        # All pages tracked before must still be in state
+        data_after = json.loads(SMOKE_STATE.read_text())
+        pages_after = set(data_after["pages"].keys())
+        archived = pages_before - pages_after
+        assert not archived, (
+            f"Pages were incorrectly archived during a no-op run: {archived}\n"
+            f"stdout: {result.stdout}"
+        )
+
+    def test_unchanged_files_not_treated_as_orphans(self, ccfm_run, confluence_live):
+        """When only one file changes, unchanged files on disk must not be archived.
+
+        Reproduces issue #3 (Bug 2): orphan detection must use all current disk
+        files, not just the --changed-only subset.
+        """
+        # Step 1: clean baseline deploy
+        result = ccfm_run("--directory", str(STATE_DIR))
+        assert result.returncode == 0, f"Initial deploy failed:\n{result.stderr}"
+
+        data_before = json.loads(SMOKE_STATE.read_text())
+        beta_entries = [k for k in data_before["pages"] if BETA_KEY in k]
+        assert beta_entries, "page-beta not in state after deploy"
+
+        # Step 2: modify page-alpha only → --changed-only will deploy it, but
+        # page-beta is unchanged on disk and must not be treated as an orphan
+        original_content = PAGE_ALPHA.read_text(encoding="utf-8")
+        modified_content = original_content.replace(
+            "Version: **1**",
+            "Version: **3** — orphan regression test",
+        )
+        try:
+            PAGE_ALPHA.write_text(modified_content, encoding="utf-8")
+
+            result = ccfm_run(
+                "--changed-only",
+                "--archive-orphans",
+                "--directory",
+                str(STATE_DIR),
+                check=False,
+            )
+
+            assert (
+                result.returncode == 0
+            ), f"--changed-only --archive-orphans failed:\n{result.stderr}"
+
+            # page-beta must still be in state — it's on disk, not an orphan
+            data_after = json.loads(SMOKE_STATE.read_text())
+            beta_still_present = [k for k in data_after["pages"] if BETA_KEY in k]
+            assert beta_still_present, (
+                f"page-beta was incorrectly archived as an orphan.\n"
+                f"State after: {list(data_after['pages'].keys())}\n"
+                f"stdout: {result.stdout}"
+            )
+        finally:
+            PAGE_ALPHA.write_text(original_content, encoding="utf-8")
+
+
 class TestArchiveOrphans:
     """--archive-orphans removes pages no longer tracked in the directory."""
 

@@ -159,6 +159,11 @@ def main():
         print("Error: Specify either --file or --directory")
         sys.exit(1)
 
+    # Snapshot all current on-disk files before any --changed-only filtering.
+    # Used for accurate orphan detection: orphans are files in state with no
+    # corresponding file on disk, not files excluded by --changed-only.
+    all_files = list(target_files)
+
     # ------------------------------------------------------------------
     # 5. Plan mode — show diff and exit
     # ------------------------------------------------------------------
@@ -178,6 +183,9 @@ def main():
     if args.changed_only:
         target_files = [f for f in target_files if state.has_changed(_rel_path(f), f)]
         print(f"ℹ️  --changed-only: {len(target_files)} file(s) with changes")
+        if not target_files:
+            print("ℹ️  No changes to deploy.")
+            return
 
     # ------------------------------------------------------------------
     # 7. Dump mode — write ADF locally, no API calls
@@ -232,7 +240,7 @@ def main():
     # 9. Archive orphaned pages
     # ------------------------------------------------------------------
     if args.archive_orphans:
-        orphans = state.find_orphans(target_files, args.docs_root)
+        orphans = state.find_orphans(all_files, args.docs_root)
         if orphans:
             print(f"\n🗄️  Archiving {len(orphans)} orphaned page(s)...")
             for rel_path in orphans:
