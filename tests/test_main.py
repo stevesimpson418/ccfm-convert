@@ -797,8 +797,8 @@ class TestPlanMode:
         mock_plan.print_summary.assert_called_once()
 
     @patch("ccfm_convert.main.compute_plan")
-    def test_plan_mode_has_changes_exits_two(self, mock_compute_plan, tmp_path):
-        """--plan exits 2 when there are pending changes (CI-detectable)."""
+    def test_plan_mode_has_changes_exits_zero_by_default(self, mock_compute_plan, tmp_path):
+        """--plan exits 0 even when there are pending changes (CI-friendly)."""
         test_file = tmp_path / "test.md"
         test_file.write_text("# Test")
 
@@ -818,7 +818,57 @@ class TestPlanMode:
             ):
                 main.main()
 
+        assert exc_info.value.code == 0
+
+    @patch("ccfm_convert.main.compute_plan")
+    def test_plan_exit_code_has_changes_exits_two(self, mock_compute_plan, tmp_path):
+        """--plan --plan-exit-code exits 2 when there are pending changes."""
+        test_file = tmp_path / "test.md"
+        test_file.write_text("# Test")
+
+        mock_plan = Mock()
+        mock_plan.has_changes.return_value = True
+        mock_compute_plan.return_value = mock_plan
+
+        with pytest.raises(SystemExit) as exc_info:
+            with patch(
+                "sys.argv",
+                [
+                    "main.py",
+                    "--plan",
+                    "--plan-exit-code",
+                    "--file",
+                    str(test_file),
+                ],
+            ):
+                main.main()
+
         assert exc_info.value.code == 2
+
+    @patch("ccfm_convert.main.compute_plan")
+    def test_plan_exit_code_no_changes_exits_zero(self, mock_compute_plan, tmp_path):
+        """--plan --plan-exit-code exits 0 when there are no changes."""
+        test_file = tmp_path / "test.md"
+        test_file.write_text("# Test")
+
+        mock_plan = Mock()
+        mock_plan.has_changes.return_value = False
+        mock_compute_plan.return_value = mock_plan
+
+        with pytest.raises(SystemExit) as exc_info:
+            with patch(
+                "sys.argv",
+                [
+                    "main.py",
+                    "--plan",
+                    "--plan-exit-code",
+                    "--file",
+                    str(test_file),
+                ],
+            ):
+                main.main()
+
+        assert exc_info.value.code == 0
 
     @patch("ccfm_convert.main.compute_plan")
     def test_plan_mode_with_archive_orphans(self, mock_compute_plan, tmp_path):
