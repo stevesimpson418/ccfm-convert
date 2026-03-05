@@ -229,6 +229,29 @@ class ConfluenceAPI:
 
         return response.json().get("fileId")
 
+    def delete_page(self, page_id):
+        """Permanently delete a page (moves it to the site trash).
+
+        Used by archive_page() to remove orphaned pages whose source files
+        have been deleted. The v2 DELETE endpoint is the only reliable way to
+        deactivate a page in Confluence Cloud — the PUT endpoint does not accept
+        ``status: archived``.
+
+        Args:
+            page_id: ID of the page to delete.
+
+        Raises:
+            requests.HTTPError: if the API returns a non-2xx response.
+        """
+        url = f"{self.base_url}/pages/{page_id}"
+        response = requests.delete(
+            url,
+            auth=self.auth,
+            headers={"Accept": "application/json"},
+            timeout=REQUEST_TIMEOUT,
+        )
+        response.raise_for_status()
+
     def upload_attachment(self, page_id, filepath, alt_text=None):
         """
         Upload attachment to page using v1 API.

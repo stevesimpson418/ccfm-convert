@@ -67,7 +67,7 @@ python src/main.py \
   --email your.email@example.com \
   --token YOUR_API_TOKEN \
   --space YOUR_SPACE_KEY \
-  --file docs/my-page.md
+  --file path/to/my-page.md
 
 # Deploy a directory recursively
 python src/main.py \
@@ -75,7 +75,7 @@ python src/main.py \
   --email your.email@example.com \
   --token YOUR_API_TOKEN \
   --space YOUR_SPACE_KEY \
-  --directory docs
+  --directory path/to/docs
 ```
 
 ### 5. Inspect before deploying
@@ -88,9 +88,9 @@ python src/main.py \
   --email your.email@example.com \
   --token YOUR_API_TOKEN \
   --space YOUR_SPACE_KEY \
-  --file docs/my-page.md \
+  --file path/to/my-page.md \
   --dump
-# Writes docs/my-page.adf.json for inspection
+# Writes path/to/my-page.adf.json for inspection
 ```
 
 ---
@@ -131,18 +131,25 @@ See [CCFM.md — Front matter](CCFM.md#front-matter) for the complete field refe
 ```text
 python src/main.py [OPTIONS]
 
-Required:
+Required (not needed for --plan or --dump):
   --domain DOMAIN          Confluence domain (e.g., company.atlassian.net)
   --email EMAIL            User email address
-  --token TOKEN            Atlassian API token
+  --token TOKEN            Atlassian API token (or set CONFLUENCE_TOKEN env var)
   --space SPACE            Space key (e.g., DOCS — not the space display name)
 
-Options:
+Deployment targets (one required):
   --file PATH              Deploy a single markdown file
   --directory PATH         Deploy a directory recursively
+
+Options:
+  --config PATH            Path to ccfm.yaml config file (default: ccfm.yaml if present)
+  --state PATH             Path to state file (default: .ccfm-state.json)
   --docs-root PATH         Documentation root directory (default: docs)
   --git-repo-url URL       Git repo URL for CI banner source links
   --dump                   Write ADF to .adf.json files, skip deployment
+  --plan                   Show what would be deployed without making any changes
+  --changed-only           Only deploy files whose content has changed since last deploy
+  --archive-orphans        Archive Confluence pages for markdown files removed from disk
 ```
 
 ### Examples
@@ -154,7 +161,7 @@ python src/main.py \
   --email user@example.com \
   --token abc123 \
   --space DOCS \
-  --file docs/api/authentication.md
+  --file path/to/api/authentication.md
 
 # Deploy entire docs folder
 python src/main.py \
@@ -162,17 +169,92 @@ python src/main.py \
   --email user@example.com \
   --token abc123 \
   --space DOCS \
-  --directory docs
+  --directory path/to/docs
 
-# With CI banner links back to source files (GitLab)
+# With CI banner links back to source files
+python src/main.py \
+  --domain company.atlassian.net \
+  --email user@example.com \
+  --token abc123 \
+  --space DOCS \
+  --directory path/to/docs \
+  --git-repo-url "https://github.com/org/repo/blob/main"
+```
+
+---
+
+## State Management
+
+CCFM tracks deployed pages in a local `.ccfm-state.json` file. This enables:
+
+- **Plan mode** — see what would change before deploying
+- **Changed-only deploys** — skip files with no content changes (faster CI)
+- **Orphan archiving** — archive pages whose source files have been deleted
+
+**Commit the state file** alongside your documentation. Team members and CI pipelines
+share the same deployment history through version control.
+
+```bash
+# Preview what would be deployed (no API calls made)
 python src/main.py \
   --domain company.atlassian.net \
   --email user@example.com \
   --token abc123 \
   --space DOCS \
   --directory docs \
-  --git-repo-url "https://gitlab.com/org/repo/-/blob/main"
+  --plan
+
+# Only deploy changed files (faster CI runs)
+python src/main.py \
+  --domain company.atlassian.net \
+  --email user@example.com \
+  --token abc123 \
+  --space DOCS \
+  --directory docs \
+  --changed-only
+
+# Archive pages whose source markdown files were deleted
+python src/main.py \
+  --domain company.atlassian.net \
+  --email user@example.com \
+  --token abc123 \
+  --space DOCS \
+  --directory docs \
+  --archive-orphans
 ```
+
+`--plan` exits with code `2` when there are pending changes and `0` when everything is
+up to date — useful for CI gates.
+
+---
+
+## Config File (ccfm.yaml)
+
+Place a `ccfm.yaml` in your project root to avoid repeating credentials on every run.
+CLI arguments always take precedence over config file values.
+
+```yaml
+version: 1
+
+domain: company.atlassian.net
+email: ${CONFLUENCE_EMAIL}       # env var interpolation supported
+token: ${CONFLUENCE_TOKEN}
+space: DOCS
+docs_root: docs
+git_repo_url: https://github.com/org/repo
+state_file: .ccfm-state.json
+```
+
+With a config file in place:
+
+```bash
+python src/main.py --directory docs --plan
+python src/main.py --directory docs
+```
+
+**Security note:** `ccfm.yaml` is a trusted-author file. Any environment variable
+visible to the process can be interpolated into config values. Review `ccfm.yaml`
+changes in pull requests the same way you review CI pipeline changes.
 
 ---
 
@@ -205,32 +287,27 @@ custom titles.
 
 ## CI/CD
 
-Store credentials as masked CI/CD variables: `CONFLUENCE_DOMAIN`, `CONFLUENCE_EMAIL`,
-`CONFLUENCE_TOKEN`.
+Store credentials as secrets: `CONFLUENCE_DOMAIN`, `CONFLUENCE_EMAIL`, `CONFLUENCE_TOKEN`.
 
-### GitLab CI
+### Pipeline overview
 
-```yaml
-deploy-docs:
-  image: python:3.12-slim
-  stage: deploy
-  rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-      changes:
-        - docs/**
-  before_script:
-    - pip install -r requirements.txt
-  script:
-    - python src/main.py
-        --domain "$CONFLUENCE_DOMAIN"
-        --email "$CONFLUENCE_EMAIL"
-        --token "$CONFLUENCE_TOKEN"
-        --space DOCS
-        --directory docs
-        --git-repo-url "$CI_PROJECT_URL/-/blob/$CI_COMMIT_REF_NAME"
-```
+Every PR targeting `main` runs three gates:
 
-### GitHub Actions
+| Check | When | Blocks merge? |
+| --- | --- | --- |
+| Lint + unit tests (100% coverage) | Every push / PR commit | Yes |
+| Smoke tests against CCFMDEV space | PRs + pushes touching `src/` or `tests/smoke/` | Yes |
+| Markdown lint | Every push / PR commit | Yes |
+
+Smoke tests auto-cleanup Confluence pages after each run. For manual inspection
+runs (leave pages in Confluence), use **Actions → Smoke Tests → Run workflow** and
+uncheck *Delete Confluence pages after tests*.
+
+Set these required status checks in GitHub → Settings → Branches → main:
+
+- `Lint`, `Test`, `Markdown Lint`, `Smoke Tests (CCFMDEV)`
+
+### Deploying your docs via GitHub Actions
 
 ```yaml
 name: Deploy Docs
@@ -261,7 +338,8 @@ jobs:
             --token "$CONFLUENCE_TOKEN" \
             --space DOCS \
             --directory docs \
-            --git-repo-url "https://github.com/${{ github.repository }}/blob/main"
+            --git-repo-url "https://github.com/${{ github.repository }}/blob/main" \
+            --changed-only
 ```
 
 ---
@@ -279,11 +357,23 @@ jobs:
 │   ├── deploy/               # Confluence API and deployment logic
 │   │   ├── api.py            # ConfluenceAPI class (REST v2 + v1 for attachments)
 │   │   ├── frontmatter.py    # YAML frontmatter parsing
-│   │   ├── orchestration.py  # deploy_page(), deploy_tree(), page hierarchy
+│   │   ├── orchestration.py  # deploy_page(), deploy_tree(), archive_page()
 │   │   └── transforms.py     # CI banner, page link resolution, attachment media nodes
+│   ├── state/                # Deployment state persistence
+│   │   └── manager.py        # StateManager — filepath → page_id mapping, content hashing
+│   ├── config/               # Project config file loader
+│   │   └── loader.py         # ccfm.yaml loader with ${ENV_VAR} interpolation
+│   ├── plan/                 # Plan/diff mode
+│   │   └── planner.py        # compute_plan(), DeployPlan — terraform-style diff output
 │   └── main.py               # CLI entry point (argparse)
-├── tests/                    # Pytest test suite
-├── docs/                     # Your documentation (deploy this directory)
+├── tests/
+│   ├── smoke/                # End-to-end smoke tests (real Confluence space)
+│   │   ├── conftest.py       # Credentials, cleanup hook, ccfm_run fixture
+│   │   ├── docs/             # Fixture markdown files deployed during smoke tests
+│   │   └── test_*.py         # Smoke test modules
+│   └── test_*.py             # Unit tests (100% coverage, all mocked)
+├── .ccfm-state.json          # Deployment state (commit this alongside your docs)
+├── ccfm.yaml                 # Optional project config (credentials, space, docs_root)
 ├── CCFM.md                   # Complete CCFM syntax and ADF mapping reference
 ├── requirements.txt          # Runtime dependencies
 ├── requirements-test.txt     # Development and test dependencies
@@ -310,12 +400,37 @@ pre-commit install
 ### Running tests
 
 ```bash
-pytest                              # All tests with coverage report
+pytest                              # All unit tests with coverage report
 pytest tests/test_converter.py      # Single file
 pytest -k "test_heading"            # Single test by name
 ```
 
 Coverage runs automatically via `pyproject.toml`. The target is 100% line coverage on `src/`.
+
+### Smoke tests
+
+End-to-end tests that deploy real pages to a Confluence space. Requires credentials for a
+dedicated test space (the project uses `CCFMDEV` at `ccfm.atlassian.net`).
+
+```bash
+# Copy and fill in credentials
+cp .env.smoke.example .env.smoke
+# Edit .env.smoke with your values, then:
+source .env.smoke
+
+# Run all smoke tests and auto-cleanup Confluence pages when done
+pytest tests/smoke/ --no-cov -v
+
+# Run tests and leave pages in Confluence for manual inspection
+pytest tests/smoke/ --no-cov -v --no-cleanup
+
+# Delete pages from a previous --no-cleanup run (skips re-running tests)
+pytest tests/smoke/ --no-cov -v --cleanup-only
+```
+
+**GitHub Actions:** Go to Actions → Smoke Tests → Run workflow (manual trigger).
+Requires `CONFLUENCE_DOMAIN`, `CONFLUENCE_EMAIL`, and `CONFLUENCE_TOKEN` secrets.
+Uncheck "Delete Confluence pages after tests" to leave pages for manual inspection.
 
 ### Code style
 
@@ -397,7 +512,7 @@ the ADF structure before deploying to Confluence.
 3. Make your changes
 4. Run `pytest` — all tests must pass, coverage must be maintained
 5. Run `pre-commit run --all-files`
-6. Submit a merge request
+6. Submit a pull request
 
 ---
 

@@ -130,6 +130,10 @@ def deploy_tree(api, space_id, root_path, docs_root, git_repo_url="", dump=False
         docs_root: Root documentation directory
         git_repo_url: Git repository URL for CI banner
         dump: If True, write ADF JSON files and skip deployment
+
+    Returns:
+        List of (filepath, page_id) tuples. page_id is None if the page was
+        skipped (deploy_page: false in frontmatter) or if dump mode is active.
     """
     md_files = sorted(root_path.rglob("*.md"))
 
@@ -137,6 +141,8 @@ def deploy_tree(api, space_id, root_path, docs_root, git_repo_url="", dump=False
     md_files = [f for f in md_files if f.name != ".page_content.md"]
 
     print(f"\n📚 Found {len(md_files)} markdown files in tree")
+
+    results: list[tuple[Path, str | None]] = []
 
     for filepath in md_files:
         try:
@@ -147,10 +153,41 @@ def deploy_tree(api, space_id, root_path, docs_root, git_repo_url="", dump=False
                 parent_id = None
 
             # Deploy the file
-            deploy_page(api, space_id, parent_id, filepath, git_repo_url, dump=dump)
+            page_id = deploy_page(api, space_id, parent_id, filepath, git_repo_url, dump=dump)
+            results.append((filepath, page_id))
         except Exception as e:
             print(f"   ❌ Error: {e}")
+            results.append((filepath, None))
             continue
+
+    return results
+
+
+def archive_page(api, page_id: str, title: str) -> bool:
+    """Delete an orphaned Confluence page (moves it to the site trash).
+
+    The Confluence Cloud v2 API does not support ``status: archived`` via the
+    PUT pages endpoint (only ``CURRENT`` and ``DRAFT`` are accepted). Instead,
+    we use the v2 DELETE endpoint, which moves the page to the site trash and
+    is equivalent to the "Archive" action in the Confluence UI.
+
+    Used to clean up pages whose source markdown files have been deleted.
+
+    Args:
+        api: ConfluenceAPI instance
+        page_id: ID of the page to delete
+        title: Page title (used only for logging)
+
+    Returns:
+        True if the operation succeeded, False otherwise.
+    """
+    try:
+        api.delete_page(page_id)
+        print(f"   🗄️  Archived page: '{title}' (ID: {page_id})")
+        return True
+    except Exception as e:
+        print(f"   ⚠️  Could not archive '{title}' (ID: {page_id}): {e}")
+        return False
 
 
 def deploy_page(api, space_id, parent_id, filepath, git_repo_url="", dump=False):
