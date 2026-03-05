@@ -5,7 +5,7 @@ Confluence Cloud. Write documentation as Markdown, deploy it as native Confluenc
 legacy conversions, no storage format hacks, full editor compatibility.
 
 [![PyPI](https://img.shields.io/pypi/v/ccfm-convert)](https://pypi.org/project/ccfm-convert/)
-[![Docker](https://ghcr.io/badges/stevesimpson418/ccfm-convert/badge)](https://github.com/stevesimpson418/ccfm-convert/pkgs/container/ccfm-convert)
+[![Docker](https://img.shields.io/badge/docker-ghcr.io-blue?logo=docker)](https://github.com/stevesimpson418/ccfm-convert/pkgs/container/ccfm-convert)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Linting: ruff](https://img.shields.io/badge/linting-ruff-red.svg)](https://github.com/astral-sh/ruff)
