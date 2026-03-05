@@ -1,6 +1,16 @@
 name: Smoke Tests
 
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "tests/smoke/**"
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "tests/smoke/**"
   workflow_dispatch:
     inputs:
       cleanup:
@@ -30,7 +40,8 @@ jobs:
           CONFLUENCE_TOKEN: ${{ secrets.CONFLUENCE_TOKEN }}
         run: |
           FLAGS=""
-          if [ "${{ github.event.inputs.cleanup }}" = "false" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && \
+             [ "${{ github.event.inputs.cleanup }}" = "false" ]; then
             FLAGS="--no-cleanup"
           fi
           pytest tests/smoke/ --no-cov -v $FLAGS
