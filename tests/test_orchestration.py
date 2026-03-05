@@ -4,7 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from deploy.orchestration import deploy_page, deploy_tree, ensure_page_hierarchy
+from deploy.orchestration import archive_page, deploy_page, deploy_tree, ensure_page_hierarchy
 
 
 @pytest.fixture
@@ -811,3 +811,45 @@ invalid yaml:
 
         # Should still create page
         assert page_id == "page-123"
+
+
+class TestArchivePage:
+    """Tests for archive_page.
+
+    archive_page uses api.delete_page() (v2 DELETE) because the Confluence Cloud
+    v2 PUT endpoint only accepts CURRENT or DRAFT as status values — 'archived'
+    is rejected with a 400 error. DELETE moves the page to the site trash, which
+    is the closest available equivalent to archiving via the API.
+    """
+
+    def test_archive_page_success_returns_true(self, mock_api):
+        """archive_page calls api.delete_page and returns True on success."""
+        result = archive_page(mock_api, "page-42", "My Page")
+
+        assert result is True
+        mock_api.delete_page.assert_called_once_with("page-42")
+
+    def test_archive_page_exception_returns_false(self, mock_api):
+        """archive_page catches exceptions from delete_page and returns False."""
+        mock_api.delete_page.side_effect = RuntimeError("API down")
+
+        result = archive_page(mock_api, "page-99", "Broken Page")
+
+        assert result is False
+
+    def test_archive_page_prints_success_message(self, mock_api, capsys):
+        """archive_page prints confirmation with title and page_id on success."""
+        archive_page(mock_api, "page-1", "Published Title")
+
+        captured = capsys.readouterr()
+        assert "Published Title" in captured.out
+        assert "page-1" in captured.out
+
+    def test_archive_page_prints_warning_on_failure(self, mock_api, capsys):
+        """archive_page prints a warning on failure."""
+        mock_api.delete_page.side_effect = RuntimeError("timeout")
+
+        archive_page(mock_api, "page-2", "Failed Page")
+
+        captured = capsys.readouterr()
+        assert "Failed Page" in captured.out
