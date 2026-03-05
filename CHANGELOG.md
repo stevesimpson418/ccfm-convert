@@ -4,6 +4,19 @@ All notable changes to CCFM are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] - 2026-03-05
+
+### Fixed
+
+- `--changed-only` with zero changes no longer traverses the full directory tree
+  or runs orphan archiving — it exits immediately with `No changes to deploy.`
+  ([#3](https://github.com/stevesimpson418/ccfm-convert/issues/3))
+- `--archive-orphans` combined with `--changed-only` no longer archives pages
+  that were simply unchanged on disk; orphan detection now uses the full set of
+  current files rather than the changed-files-only subset
+  ([#3](https://github.com/stevesimpson418/ccfm-convert/issues/3))
+- Broken GHCR badge URL in README replaced with static shields.io badge
+
 ## [0.1.0] - 2026-03-05
 
 ### Added
@@ -24,4 +37,5 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - `ccfm.yaml` project config file with `${ENV_VAR}` interpolation
 - 100% unit test coverage; end-to-end smoke tests against real Confluence
 
+[0.1.1]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/stevesimpson418/ccfm-convert/releases/tag/v0.1.0
