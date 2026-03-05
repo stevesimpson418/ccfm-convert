@@ -289,7 +289,25 @@ custom titles.
 
 Store credentials as secrets: `CONFLUENCE_DOMAIN`, `CONFLUENCE_EMAIL`, `CONFLUENCE_TOKEN`.
 
-### GitHub Actions
+### Pipeline overview
+
+Every PR targeting `main` runs three gates:
+
+| Check | When | Blocks merge? |
+| --- | --- | --- |
+| Lint + unit tests (100% coverage) | Every push / PR commit | Yes |
+| Smoke tests against CCFMDEV space | PRs + pushes touching `src/` or `tests/smoke/` | Yes |
+| Markdown lint | Every push / PR commit | Yes |
+
+Smoke tests auto-cleanup Confluence pages after each run. For manual inspection
+runs (leave pages in Confluence), use **Actions → Smoke Tests → Run workflow** and
+uncheck *Delete Confluence pages after tests*.
+
+Set these required status checks in GitHub → Settings → Branches → main:
+
+- `Lint`, `Test`, `Markdown Lint`, `Smoke Tests (CCFMDEV)`
+
+### Deploying your docs via GitHub Actions
 
 ```yaml
 name: Deploy Docs
