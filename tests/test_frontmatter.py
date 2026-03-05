@@ -2,7 +2,7 @@
 
 import pytest
 
-from deploy.frontmatter import parse_frontmatter
+from ccfm_convert.deploy.frontmatter import parse_frontmatter
 
 
 class TestFrontmatterParsing:

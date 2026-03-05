@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from state.manager import StateManager
+from ccfm_convert.state.manager import StateManager
 
 
 @pytest.fixture

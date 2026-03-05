@@ -1,3 +1,29 @@
+[project]
+name = "ccfm-convert"
+version = "0.1.0"
+description = "Deploy Markdown as native ADF pages to Confluence Cloud"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+dependencies = [
+    "requests>=2.32.5",
+    "PyYAML>=6.0.3",
+]
+
+[project.scripts]
+ccfm = "ccfm_convert.main:main"
+
+[project.urls]
+Homepage = "https://github.com/stevesimpson418/ccfm-convert"
+Repository = "https://github.com/stevesimpson418/ccfm-convert"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [tool.black]
 line-length = 100
 target-version = ['py312']
@@ -80,6 +106,8 @@ omit = [
     "*/tests/*",
     "*/__pycache__/*",
     "*/venv/*",
+    "src/ccfm_convert/__init__.py",
+    "src/ccfm_convert/__main__.py",
 ]
 
 [tool.coverage.report]

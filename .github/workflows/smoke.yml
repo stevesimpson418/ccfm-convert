@@ -41,8 +41,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install test dependencies
-        run: pip install -r requirements-test.txt
+      - name: Install package and test dependencies
+        run: pip install -e . -r requirements-test.txt
 
       - name: Run smoke tests
         env:

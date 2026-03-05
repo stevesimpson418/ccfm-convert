@@ -4,6 +4,8 @@ A CLI tool that converts Markdown to Atlassian Document Format (ADF) and deploys
 Confluence Cloud. Write documentation as Markdown, deploy it as native Confluence pages — no
 legacy conversions, no storage format hacks, full editor compatibility.
 
+[![PyPI](https://img.shields.io/pypi/v/ccfm-convert)](https://pypi.org/project/ccfm-convert/)
+[![Docker](https://ghcr.io/badges/stevesimpson418/ccfm-convert/badge)](https://github.com/stevesimpson418/ccfm-convert/pkgs/container/ccfm-convert)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Linting: ruff](https://img.shields.io/badge/linting-ruff-red.svg)](https://github.com/astral-sh/ruff)
@@ -29,10 +31,7 @@ create a token, and note your Atlassian email address.
 ### 2. Install
 
 ```bash
-python -m venv .env
-source .env/bin/activate    # Windows: .env\Scripts\activate
-
-pip install -r requirements.txt
+pip install ccfm-convert
 ```
 
 ### 3. Write a page
@@ -62,7 +61,7 @@ This is **bold** text, this is *italic*.
 
 ```bash
 # Deploy a single file
-python src/main.py \
+ccfm \
   --domain your-domain.atlassian.net \
   --email your.email@example.com \
   --token YOUR_API_TOKEN \
@@ -70,7 +69,7 @@ python src/main.py \
   --file path/to/my-page.md
 
 # Deploy a directory recursively
-python src/main.py \
+ccfm \
   --domain your-domain.atlassian.net \
   --email your.email@example.com \
   --token YOUR_API_TOKEN \
@@ -83,7 +82,7 @@ python src/main.py \
 Use `--dump` to write ADF JSON files locally without making any API calls:
 
 ```bash
-python src/main.py \
+ccfm \
   --domain your-domain.atlassian.net \
   --email your.email@example.com \
   --token YOUR_API_TOKEN \
@@ -129,7 +128,7 @@ See [CCFM.md — Front matter](CCFM.md#front-matter) for the complete field refe
 ## CLI Reference
 
 ```text
-python src/main.py [OPTIONS]
+ccfm [OPTIONS]
 
 Required (not needed for --plan or --dump):
   --domain DOMAIN          Confluence domain (e.g., company.atlassian.net)
@@ -156,7 +155,7 @@ Options:
 
 ```bash
 # Deploy a single file
-python src/main.py \
+ccfm \
   --domain company.atlassian.net \
   --email user@example.com \
   --token abc123 \
@@ -164,7 +163,7 @@ python src/main.py \
   --file path/to/api/authentication.md
 
 # Deploy entire docs folder
-python src/main.py \
+ccfm \
   --domain company.atlassian.net \
   --email user@example.com \
   --token abc123 \
@@ -172,7 +171,7 @@ python src/main.py \
   --directory path/to/docs
 
 # With CI banner links back to source files
-python src/main.py \
+ccfm \
   --domain company.atlassian.net \
   --email user@example.com \
   --token abc123 \
@@ -196,7 +195,7 @@ share the same deployment history through version control.
 
 ```bash
 # Preview what would be deployed (no API calls made)
-python src/main.py \
+ccfm \
   --domain company.atlassian.net \
   --email user@example.com \
   --token abc123 \
@@ -205,7 +204,7 @@ python src/main.py \
   --plan
 
 # Only deploy changed files (faster CI runs)
-python src/main.py \
+ccfm \
   --domain company.atlassian.net \
   --email user@example.com \
   --token abc123 \
@@ -214,7 +213,7 @@ python src/main.py \
   --changed-only
 
 # Archive pages whose source markdown files were deleted
-python src/main.py \
+ccfm \
   --domain company.atlassian.net \
   --email user@example.com \
   --token abc123 \
@@ -248,13 +247,44 @@ state_file: .ccfm-state.json
 With a config file in place:
 
 ```bash
-python src/main.py --directory docs --plan
-python src/main.py --directory docs
+ccfm --directory docs --plan
+ccfm --directory docs
 ```
 
 **Security note:** `ccfm.yaml` is a trusted-author file. Any environment variable
 visible to the process can be interpolated into config values. Review `ccfm.yaml`
 changes in pull requests the same way you review CI pipeline changes.
+
+---
+
+## Docker
+
+```bash
+docker pull ghcr.io/stevesimpson418/ccfm-convert:latest
+
+docker run --rm \
+  -e CONFLUENCE_DOMAIN=company.atlassian.net \
+  -e CONFLUENCE_EMAIL=user@example.com \
+  -e CONFLUENCE_TOKEN=your-token \
+  -v $(pwd)/docs:/docs \
+  ghcr.io/stevesimpson418/ccfm-convert:latest \
+  --space DOCS --directory /docs
+```
+
+---
+
+## GitHub Action
+
+```yaml
+- uses: stevesimpson418/ccfm-action@v0.1.0
+  with:
+    domain: ${{ secrets.CONFLUENCE_DOMAIN }}
+    email:  ${{ secrets.CONFLUENCE_EMAIL }}
+    token:  ${{ secrets.CONFLUENCE_TOKEN }}
+    space:  DOCS
+    directory: docs
+    args: --changed-only
+```
 
 ---
 
@@ -326,13 +356,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install -r requirements.txt
+      - run: pip install ccfm-convert
       - env:
           CONFLUENCE_DOMAIN: ${{ secrets.CONFLUENCE_DOMAIN }}
           CONFLUENCE_EMAIL: ${{ secrets.CONFLUENCE_EMAIL }}
           CONFLUENCE_TOKEN: ${{ secrets.CONFLUENCE_TOKEN }}
         run: |
-          python src/main.py \
+          ccfm \
             --domain "$CONFLUENCE_DOMAIN" \
             --email "$CONFLUENCE_EMAIL" \
             --token "$CONFLUENCE_TOKEN" \
@@ -349,23 +379,24 @@ jobs:
 ```text
 .
 ├── src/
-│   ├── adf/                  # Markdown → ADF converter (pure, no I/O)
-│   │   ├── nodes.py          # ADF node constructor functions
-│   │   ├── inline.py         # Inline markdown parsing
-│   │   ├── blocks.py         # Block markdown parsing
-│   │   └── converter.py      # Orchestration; convert() entry point
-│   ├── deploy/               # Confluence API and deployment logic
-│   │   ├── api.py            # ConfluenceAPI class (REST v2 + v1 for attachments)
-│   │   ├── frontmatter.py    # YAML frontmatter parsing
-│   │   ├── orchestration.py  # deploy_page(), deploy_tree(), archive_page()
-│   │   └── transforms.py     # CI banner, page link resolution, attachment media nodes
-│   ├── state/                # Deployment state persistence
-│   │   └── manager.py        # StateManager — filepath → page_id mapping, content hashing
-│   ├── config/               # Project config file loader
-│   │   └── loader.py         # ccfm.yaml loader with ${ENV_VAR} interpolation
-│   ├── plan/                 # Plan/diff mode
-│   │   └── planner.py        # compute_plan(), DeployPlan — terraform-style diff output
-│   └── main.py               # CLI entry point (argparse)
+│   └── ccfm_convert/
+│       ├── adf/                  # Markdown → ADF converter (pure, no I/O)
+│       │   ├── nodes.py          # ADF node constructor functions
+│       │   ├── inline.py         # Inline markdown parsing
+│       │   ├── blocks.py         # Block markdown parsing
+│       │   └── converter.py      # Orchestration; convert() entry point
+│       ├── deploy/               # Confluence API and deployment logic
+│       │   ├── api.py            # ConfluenceAPI class (REST v2 + v1 for attachments)
+│       │   ├── frontmatter.py    # YAML frontmatter parsing
+│       │   ├── orchestration.py  # deploy_page(), deploy_tree(), archive_page()
+│       │   └── transforms.py     # CI banner, page link resolution, attachment media nodes
+│       ├── state/                # Deployment state persistence
+│       │   └── manager.py        # StateManager — filepath → page_id mapping, content hashing
+│       ├── config/               # Project config file loader
+│       │   └── loader.py         # ccfm.yaml loader with ${ENV_VAR} interpolation
+│       ├── plan/                 # Plan/diff mode
+│       │   └── planner.py        # compute_plan(), DeployPlan — terraform-style diff output
+│       └── main.py               # CLI entry point (argparse)
 ├── tests/
 │   ├── smoke/                # End-to-end smoke tests (real Confluence space)
 │   │   ├── conftest.py       # Credentials, cleanup hook, ccfm_run fixture
@@ -390,8 +421,9 @@ jobs:
 python -m venv .env
 source .env/bin/activate    # Windows: .env\Scripts\activate
 
-# Install runtime and dev/test dependencies
-pip install -r requirements.txt -r requirements-test.txt
+# Install the package and dev/test dependencies
+pip install -e .
+pip install -r requirements-test.txt
 
 # Install pre-commit hooks
 pre-commit install
@@ -448,7 +480,7 @@ pre-commit run --all-files  # All hooks
 
 ## Architecture
 
-### `src/adf/` — Pure conversion
+### `src/ccfm_convert/adf/` — Pure conversion
 
 No I/O, no network calls. Entry point: `convert(markdown: str) -> dict`.
 
@@ -457,7 +489,7 @@ No I/O, no network calls. Entry point: `convert(markdown: str) -> dict`.
 - `blocks.py` — Block parsing: tables, lists (bullet/ordered/task), panels, expands, blockquotes
 - `converter.py` — Orchestrates the conversion; calls into blocks and inline parsers
 
-### `src/deploy/` — Confluence API interaction
+### `src/ccfm_convert/deploy/` — Confluence API interaction
 
 - `api.py` — `ConfluenceAPI` class wrapping REST API v2 (v1 for attachment upload —
   Confluence v2 lacks a POST attachment endpoint, tracked at CONFCLOUD-77196)

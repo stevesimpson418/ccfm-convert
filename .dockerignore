@@ -1,0 +1,14 @@
+.git
+.github
+.env
+.env.smoke
+tests/
+htmlcov/
+dist/
+build/
+*.pyc
+__pycache__
+.pytest_cache
+.ruff_cache
+.mypy_cache
+coverage.xml

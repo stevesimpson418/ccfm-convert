@@ -7,8 +7,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-import main
-from main import _derive_title, _rel_path
+import ccfm_convert.main as main
+from ccfm_convert.main import _derive_title, _rel_path
 
 
 @pytest.fixture
@@ -31,8 +31,8 @@ class TestCLIArguments:
             with patch("sys.argv", ["main.py"]):
                 main.main()
 
-    @patch("main.ConfluenceAPI")
-    @patch("main.deploy_page")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_page")
     def test_single_file_deployment(self, mock_deploy, mock_api_class, tmp_path):
         """Test deploying single file."""
         # Create test file
@@ -64,8 +64,8 @@ class TestCLIArguments:
 
         mock_deploy.assert_called_once()
 
-    @patch("main.ConfluenceAPI")
-    @patch("main.deploy_tree")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_tree")
     def test_directory_deployment(self, mock_deploy_tree, mock_api_class, tmp_path):
         """Test deploying directory."""
         # Create test directory
@@ -96,8 +96,8 @@ class TestCLIArguments:
 
         mock_deploy_tree.assert_called_once()
 
-    @patch("main.ConfluenceAPI")
-    @patch("main.deploy_page")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_page")
     def test_dump_mode(self, mock_deploy, mock_api_class, tmp_path):
         """Test dump mode (no actual deployment)."""
         test_file = tmp_path / "test.md"
@@ -131,7 +131,7 @@ class TestCLIArguments:
         mock_deploy.assert_called_once()
         assert mock_deploy.call_args[1]["dump"] is True
 
-    @patch("main.ConfluenceAPI")
+    @patch("ccfm_convert.main.ConfluenceAPI")
     def test_no_file_or_directory(self, mock_api_class):
         """Test error when neither file nor directory specified."""
         mock_api = Mock()
@@ -155,8 +155,8 @@ class TestCLIArguments:
             ):
                 main.main()
 
-    @patch("main.ConfluenceAPI")
-    @patch("main.deploy_page")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_page")
     def test_custom_docs_root(self, mock_deploy, mock_api_class, tmp_path):
         """Test custom docs root."""
         custom_root = tmp_path / "custom_docs"
@@ -192,8 +192,8 @@ class TestCLIArguments:
 
         mock_deploy.assert_called_once()
 
-    @patch("main.ConfluenceAPI")
-    @patch("main.deploy_page")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_page")
     def test_with_git_repo_url(self, mock_deploy, mock_api_class, tmp_path):
         """Test with git repo URL."""
         test_file = tmp_path / "test.md"
@@ -234,9 +234,9 @@ class TestCLIArguments:
 class TestCLIIntegration:
     """Test CLI integration scenarios."""
 
-    @patch("main.ConfluenceAPI")
-    @patch("main.ensure_page_hierarchy")
-    @patch("main.deploy_page")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.ensure_page_hierarchy")
+    @patch("ccfm_convert.main.deploy_page")
     def test_file_with_hierarchy(self, mock_deploy, mock_hierarchy, mock_api_class, tmp_path):
         """Test file deployment with automatic hierarchy."""
         docs_root = tmp_path / "docs"
@@ -277,8 +277,8 @@ class TestCLIIntegration:
         # Should pass parent_id to deploy_page
         assert mock_deploy.call_args[0][2] == "parent123"
 
-    @patch("main.ConfluenceAPI")
-    @patch("main.deploy_tree")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_tree")
     def test_tree_deployment_with_git_url(self, mock_tree, mock_api_class, tmp_path):
         """Test tree deployment with git URL."""
         test_dir = tmp_path / "docs"
@@ -318,7 +318,7 @@ class TestCLIIntegration:
 class TestErrorHandling:
     """Test error handling in CLI."""
 
-    @patch("main.ConfluenceAPI")
+    @patch("ccfm_convert.main.ConfluenceAPI")
     def test_invalid_space(self, mock_api_class):
         """Test handling of invalid space."""
         mock_api = Mock()
@@ -344,8 +344,8 @@ class TestErrorHandling:
             ):
                 main.main()
 
-    @patch("main.ConfluenceAPI")
-    @patch("main.deploy_page")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_page")
     def test_nonexistent_file(self, mock_deploy, mock_api_class):
         """Test handling of non-existent file."""
         mock_api = Mock()
@@ -372,8 +372,8 @@ class TestErrorHandling:
             ):
                 main.main()
 
-    @patch("main.ConfluenceAPI")
-    @patch("main.deploy_page")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_page")
     def test_api_error(self, mock_deploy, mock_api_class):
         """Test handling of API errors."""
         mock_api = Mock()
@@ -403,8 +403,8 @@ class TestErrorHandling:
 class TestOutput:
     """Test CLI output."""
 
-    @patch("main.ConfluenceAPI")
-    @patch("main.deploy_page")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_page")
     @patch("sys.stdout", new_callable=StringIO)
     def test_success_output(self, mock_stdout, mock_deploy, mock_api_class, tmp_path):
         """Test success message output."""
@@ -437,8 +437,8 @@ class TestOutput:
         output = mock_stdout.getvalue()
         assert "Deployment complete" in output
 
-    @patch("main.ConfluenceAPI")
-    @patch("main.deploy_page")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_page")
     @patch("sys.stdout", new_callable=StringIO)
     def test_dump_mode_output(self, mock_stdout, mock_deploy, mock_api_class, tmp_path):
         """Test dump mode output."""
@@ -475,8 +475,8 @@ class TestOutput:
 class TestPathHandling:
     """Test path handling."""
 
-    @patch("main.ConfluenceAPI")
-    @patch("main.deploy_page")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_page")
     def test_relative_path(self, mock_deploy, mock_api_class, tmp_path):
         """Test with relative path."""
         # Change to temp directory
@@ -516,8 +516,8 @@ class TestPathHandling:
         finally:
             os.chdir(original_cwd)
 
-    @patch("main.ConfluenceAPI")
-    @patch("main.deploy_page")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_page")
     def test_absolute_path(self, mock_deploy, mock_api_class, tmp_path):
         """Test with absolute path."""
         test_file = tmp_path / "test.md"
@@ -552,8 +552,8 @@ class TestPathHandling:
 class TestTokenHandling:
     """Test API token supplied via CLI arg or CONFLUENCE_TOKEN env var."""
 
-    @patch("main.ConfluenceAPI")
-    @patch("main.deploy_page")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_page")
     def test_token_from_env_var(self, mock_deploy, mock_api_class, tmp_path):
         """Token is read from CONFLUENCE_TOKEN env var when --token is not provided."""
         test_file = tmp_path / "test.md"
@@ -662,8 +662,8 @@ class TestDeriveTitle:
 
 
 class TestConfigFileLoading:
-    @patch("main.ConfluenceAPI")
-    @patch("main.deploy_page")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_page")
     def test_config_file_loaded_when_ccfm_yaml_present(self, mock_deploy, mock_api_class, tmp_path):
         """ccfm.yaml is auto-loaded if present (lines 98-104)."""
         test_file = tmp_path / "test.md"
@@ -693,7 +693,7 @@ class TestConfigFileLoading:
         # domain was supplied by config file, not CLI
         mock_api_class.assert_called_once_with("config.atlassian.net", "cfg@example.com", "tok")
 
-    @patch("main.load_config")
+    @patch("ccfm_convert.main.load_config")
     def test_config_file_load_error_exits_with_code_1(self, mock_load_config, tmp_path):
         """Bad config file causes sys.exit(1) (lines 99-104)."""
         config_file = tmp_path / "ccfm.yaml"
@@ -722,8 +722,8 @@ class TestConfigFileLoading:
 
         assert exc_info.value.code == 1
 
-    @patch("main.ConfluenceAPI")
-    @patch("main.deploy_page")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_page")
     def test_explicit_config_flag_loads_named_file(self, mock_deploy, mock_api_class, tmp_path):
         """--config <path> loads the specified file, not the default ccfm.yaml (lines 97-104)."""
         test_file = tmp_path / "test.md"
@@ -762,7 +762,7 @@ class TestConfigFileLoading:
 
 
 class TestPlanMode:
-    @patch("main.compute_plan")
+    @patch("ccfm_convert.main.compute_plan")
     def test_plan_mode_no_changes_exits_zero(self, mock_compute_plan, tmp_path):
         """--plan exits 0 when there are no pending changes."""
         test_file = tmp_path / "test.md"
@@ -796,7 +796,7 @@ class TestPlanMode:
         mock_compute_plan.assert_called_once()
         mock_plan.print_summary.assert_called_once()
 
-    @patch("main.compute_plan")
+    @patch("ccfm_convert.main.compute_plan")
     def test_plan_mode_has_changes_exits_two(self, mock_compute_plan, tmp_path):
         """--plan exits 2 when there are pending changes (CI-detectable)."""
         test_file = tmp_path / "test.md"
@@ -820,7 +820,7 @@ class TestPlanMode:
 
         assert exc_info.value.code == 2
 
-    @patch("main.compute_plan")
+    @patch("ccfm_convert.main.compute_plan")
     def test_plan_mode_with_archive_orphans(self, mock_compute_plan, tmp_path):
         """--plan --archive-orphans passes archive_orphans=True to compute_plan."""
         test_file = tmp_path / "test.md"
@@ -844,7 +844,7 @@ class TestPlanMode:
         call_kwargs = mock_compute_plan.call_args[1]
         assert call_kwargs["archive_orphans"] is True
 
-    @patch("main.compute_plan")
+    @patch("ccfm_convert.main.compute_plan")
     def test_plan_mode_with_directory(self, mock_compute_plan, tmp_path):
         """--plan with --directory collects md files for the plan."""
         docs = tmp_path / "docs"
@@ -878,8 +878,8 @@ class TestPlanMode:
 
 
 class TestChangedOnlyMode:
-    @patch("main.ConfluenceAPI")
-    @patch("main.deploy_tree")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_tree")
     def test_changed_only_prints_count_message(
         self, mock_deploy_tree, mock_api_class, tmp_path, capsys
     ):
@@ -897,7 +897,7 @@ class TestChangedOnlyMode:
         mock_deploy_tree.return_value = []
 
         # Pre-populate state so 'unchanged.md' already matches its hash
-        from state.manager import StateManager
+        from ccfm_convert.state.manager import StateManager
 
         state_file = tmp_path / ".ccfm-state.json"
         sm = StateManager(state_file)
@@ -943,7 +943,7 @@ class TestChangedOnlyMode:
 
 
 class TestDumpModeDirectory:
-    @patch("main.deploy_tree")
+    @patch("ccfm_convert.main.deploy_tree")
     def test_dump_mode_directory_calls_deploy_tree_with_dump_true(self, mock_deploy_tree, tmp_path):
         """dump mode with --directory calls deploy_tree(dump=True) (lines 174-175)."""
         test_dir = tmp_path / "docs"
@@ -979,9 +979,9 @@ class TestDumpModeDirectory:
 
 
 class TestStateSaveAfterFileDeploy:
-    @patch("main.ConfluenceAPI")
-    @patch("main.deploy_page")
-    @patch("main.ensure_page_hierarchy")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_page")
+    @patch("ccfm_convert.main.ensure_page_hierarchy")
     def test_state_saved_after_successful_file_deploy(
         self, mock_hierarchy, mock_deploy, mock_api_class, tmp_path
     ):
@@ -1023,9 +1023,9 @@ class TestStateSaveAfterFileDeploy:
         data = json.loads(state_file.read_text())
         assert any(v["page_id"] == "deployed-page-id" for v in data["pages"].values())
 
-    @patch("main.ConfluenceAPI")
-    @patch("main.deploy_page")
-    @patch("main.ensure_page_hierarchy")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_page")
+    @patch("ccfm_convert.main.ensure_page_hierarchy")
     def test_state_not_saved_when_deploy_returns_none(
         self, mock_hierarchy, mock_deploy, mock_api_class, tmp_path
     ):
@@ -1070,8 +1070,8 @@ class TestStateSaveAfterFileDeploy:
 
 
 class TestStateSaveAfterTreeDeploy:
-    @patch("main.ConfluenceAPI")
-    @patch("main.deploy_tree")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_tree")
     def test_state_saved_for_each_deployed_page_in_tree(
         self, mock_deploy_tree, mock_api_class, tmp_path
     ):
@@ -1118,8 +1118,8 @@ class TestStateSaveAfterTreeDeploy:
         assert "pid1" in page_ids
         assert "pid2" in page_ids
 
-    @patch("main.ConfluenceAPI")
-    @patch("main.deploy_tree")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_tree")
     def test_state_skips_none_page_ids_in_tree(self, mock_deploy_tree, mock_api_class, tmp_path):
         """page_id=None entries from deploy_tree are not written to state (line 207 condition)."""
         docs = tmp_path / "docs"
@@ -1170,9 +1170,9 @@ class TestStateSaveAfterTreeDeploy:
 
 
 class TestArchiveOrphansLiveDeploy:
-    @patch("main.archive_page")
-    @patch("main.ConfluenceAPI")
-    @patch("main.deploy_tree")
+    @patch("ccfm_convert.main.archive_page")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_tree")
     def test_archive_orphans_calls_archive_and_removes_from_state(
         self, mock_deploy_tree, mock_api_class, mock_archive, tmp_path
     ):
@@ -1191,7 +1191,7 @@ class TestArchiveOrphansLiveDeploy:
         state_file = tmp_path / ".ccfm-state.json"
 
         # Pre-populate state with a now-deleted page
-        from state.manager import StateManager
+        from ccfm_convert.state.manager import StateManager
 
         original = os.getcwd()
         os.chdir(tmp_path)
@@ -1230,9 +1230,9 @@ class TestArchiveOrphansLiveDeploy:
         data = json.loads(state_file.read_text())
         assert "docs/deleted.md" not in data["pages"]
 
-    @patch("main.archive_page")
-    @patch("main.ConfluenceAPI")
-    @patch("main.deploy_tree")
+    @patch("ccfm_convert.main.archive_page")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_tree")
     def test_archive_orphans_no_orphans_prints_message(
         self, mock_deploy_tree, mock_api_class, mock_archive, tmp_path, capsys
     ):
@@ -1279,9 +1279,9 @@ class TestArchiveOrphansLiveDeploy:
         assert "No orphaned pages found" in captured.out
         mock_archive.assert_not_called()
 
-    @patch("main.archive_page")
-    @patch("main.ConfluenceAPI")
-    @patch("main.deploy_tree")
+    @patch("ccfm_convert.main.archive_page")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    @patch("ccfm_convert.main.deploy_tree")
     def test_archive_failure_does_not_remove_from_state(
         self, mock_deploy_tree, mock_api_class, mock_archive, tmp_path
     ):
@@ -1297,7 +1297,7 @@ class TestArchiveOrphansLiveDeploy:
 
         state_file = tmp_path / ".ccfm-state.json"
 
-        from state.manager import StateManager
+        from ccfm_convert.state.manager import StateManager
 
         original = os.getcwd()
         os.chdir(tmp_path)

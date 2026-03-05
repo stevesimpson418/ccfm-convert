@@ -5,11 +5,17 @@ import os
 import sys
 from pathlib import Path
 
-from config import load_config, merge_config_with_args
-from deploy import ConfluenceAPI, archive_page, deploy_page, deploy_tree, ensure_page_hierarchy
-from deploy.frontmatter import parse_frontmatter
-from plan import compute_plan
-from state import StateManager
+from ccfm_convert.config import load_config, merge_config_with_args
+from ccfm_convert.deploy import (
+    ConfluenceAPI,
+    archive_page,
+    deploy_page,
+    deploy_tree,
+    ensure_page_hierarchy,
+)
+from ccfm_convert.deploy.frontmatter import parse_frontmatter
+from ccfm_convert.plan import compute_plan
+from ccfm_convert.state import StateManager
 
 
 def _rel_path(filepath: Path) -> str:

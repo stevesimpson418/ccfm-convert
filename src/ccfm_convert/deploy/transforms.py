@@ -3,8 +3,8 @@
 import os
 from datetime import UTC, datetime
 
-from adf.inline import parse_inline_with_breaks
-from adf.nodes import expand, paragraph, resolve_image_width
+from ccfm_convert.adf.inline import parse_inline_with_breaks
+from ccfm_convert.adf.nodes import expand, paragraph, resolve_image_width
 
 
 def add_ci_banner(adf_doc, git_url="", banner_text=None, metadata=None):

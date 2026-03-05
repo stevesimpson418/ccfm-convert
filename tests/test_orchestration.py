@@ -4,7 +4,12 @@ from unittest.mock import Mock
 
 import pytest
 
-from deploy.orchestration import archive_page, deploy_page, deploy_tree, ensure_page_hierarchy
+from ccfm_convert.deploy.orchestration import (
+    archive_page,
+    deploy_page,
+    deploy_tree,
+    ensure_page_hierarchy,
+)
 
 
 @pytest.fixture
