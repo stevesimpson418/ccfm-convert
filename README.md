@@ -396,9 +396,9 @@ dedicated test space (the project uses `CCFMDEV` at `ccfm.atlassian.net`).
 
 ```bash
 # Copy and fill in credentials
-cp .env.smoke.example .env
-# Edit .env with your values, then:
-source .env
+cp .env.smoke.example .env.smoke
+# Edit .env.smoke with your values, then:
+source .env.smoke
 
 # Run all smoke tests and auto-cleanup Confluence pages when done
 pytest tests/smoke/ --no-cov -v
