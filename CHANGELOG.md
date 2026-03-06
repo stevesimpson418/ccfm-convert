@@ -4,7 +4,12 @@ All notable changes to CCFM are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
-## [0.2.0] - 2026-03-05
+## [0.2.1] - 2026-03-06
+
+_Re-release of 0.2.0 — PyPI rejected the re-uploaded artifacts after a tag
+fix; no code changes._
+
+## [0.2.0] - 2026-03-05 [YANKED]
 
 ### Changed
 
@@ -53,6 +58,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - `ccfm.yaml` project config file with `${ENV_VAR}` interpolation
 - 100% unit test coverage; end-to-end smoke tests against real Confluence
 
+[0.2.1]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.1.0...v0.1.1
