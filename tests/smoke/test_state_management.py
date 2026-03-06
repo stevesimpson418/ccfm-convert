@@ -21,11 +21,11 @@ class TestPlanMode:
     """--plan exit codes and output before/after a deploy."""
 
     def test_plan_before_deploy_shows_creates(self, ccfm_run):
-        """--plan before any deploy exits 2 and lists CREATE actions."""
+        """--plan --plan-exit-code before any deploy exits 2 and lists CREATE actions."""
         # Ensure no pre-existing state for this directory
         SMOKE_STATE.unlink(missing_ok=True)
 
-        result = ccfm_run("--plan", "--directory", str(STATE_DIR), check=False)
+        result = ccfm_run("--plan", "--plan-exit-code", "--directory", str(STATE_DIR), check=False)
 
         assert result.returncode == 2, (
             f"Expected exit 2 (pending changes) before first deploy, "
