@@ -25,29 +25,41 @@ def ensure_page_hierarchy(api, space_id, filepath, docs_root, git_repo_url=""):
         git_repo_url: Git repo URL for CI banner
 
     Returns:
-        Parent page ID for the file (the immediate parent page's ID)
+        Tuple of (parent_page_id, hierarchy_pages) where hierarchy_pages is a list of
+        (rel_path, page_id, title) for each directory container page created/found.
     """
     # Get relative path from docs root
     try:
         rel_path = filepath.relative_to(docs_root)
     except ValueError:
         # File is not under docs_root
-        return None
+        return None, []
 
     # Get directory path (everything except the filename)
     dir_path = rel_path.parent
 
     # If file is directly in docs root, no parent needed
     if str(dir_path) == ".":
-        return None
+        return None, []
 
     # Create each directory as a page in the hierarchy
     parts = dir_path.parts
     current_parent_id = None
+    hierarchy_pages: list[tuple[str, str, str]] = []
+
+    docs_root_resolved = docs_root.resolve()
 
     for i, dir_name in enumerate(parts):
         # Build path to this directory
         current_dir = docs_root / Path(*parts[: i + 1])
+
+        # Guard against symlinks that point outside docs_root
+        if not current_dir.resolve().is_relative_to(docs_root_resolved):
+            raise ValueError(
+                f"Directory '{current_dir}' resolves outside docs_root '{docs_root}'. "
+                "Symlinks that escape the docs root are not permitted."
+            )
+
         page_content_file = current_dir / ".page_content.md"
 
         # Determine title and body
@@ -116,7 +128,14 @@ def ensure_page_hierarchy(api, space_id, filepath, docs_root, git_repo_url=""):
                     labels.append(author_label)
                 api.add_labels(current_parent_id, labels)
 
-    return current_parent_id
+        # Record the hierarchy page using its path relative to cwd
+        try:
+            dir_rel_path = str(current_dir.resolve().relative_to(Path.cwd().resolve()))
+        except ValueError:
+            dir_rel_path = str(current_dir)
+        hierarchy_pages.append((dir_rel_path, current_parent_id, title))
+
+    return current_parent_id, hierarchy_pages
 
 
 def deploy_tree(api, space_id, root_path, docs_root, git_repo_url="", dump=False):
@@ -132,8 +151,9 @@ def deploy_tree(api, space_id, root_path, docs_root, git_repo_url="", dump=False
         dump: If True, write ADF JSON files and skip deployment
 
     Returns:
-        List of (filepath, page_id) tuples. page_id is None if the page was
-        skipped (deploy_page: false in frontmatter) or if dump mode is active.
+        Tuple of (results, hierarchy_pages) where results is a list of
+        (filepath, page_id) tuples and hierarchy_pages is a deduplicated list of
+        (rel_path, page_id, title) for each directory container page.
     """
     md_files = sorted(root_path.rglob("*.md"))
 
@@ -143,12 +163,20 @@ def deploy_tree(api, space_id, root_path, docs_root, git_repo_url="", dump=False
     print(f"\n📚 Found {len(md_files)} markdown files in tree")
 
     results: list[tuple[Path, str | None]] = []
+    all_hierarchy_pages: list[tuple[str, str, str]] = []
+    seen_dirs: set[str] = set()
 
     for filepath in md_files:
         try:
             # Ensure page hierarchy exists
             if not dump:
-                parent_id = ensure_page_hierarchy(api, space_id, filepath, root_path, git_repo_url)
+                parent_id, h_pages = ensure_page_hierarchy(
+                    api, space_id, filepath, root_path, git_repo_url
+                )
+                for hp in h_pages:
+                    if hp[0] not in seen_dirs:
+                        all_hierarchy_pages.append(hp)
+                        seen_dirs.add(hp[0])
             else:
                 parent_id = None
 
@@ -160,7 +188,7 @@ def deploy_tree(api, space_id, root_path, docs_root, git_repo_url="", dump=False
             results.append((filepath, None))
             continue
 
-    return results
+    return results, all_hierarchy_pages
 
 
 def archive_page(api, page_id: str, title: str) -> bool:

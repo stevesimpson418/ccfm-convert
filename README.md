@@ -15,6 +15,8 @@ legacy conversions, no storage format hacks, full editor compatibility.
 - **Automatic page hierarchy** — Directory structure maps directly to Confluence page hierarchy
 - **CCFM extensions** — Status badges, panels, expands, dates, smart page links, emoji, image width control
 - **Idempotent** — Safe to run multiple times; creates or updates pages automatically
+- **Remote state** — Deployment state stored in Confluence itself, no local files to commit
+- **Concurrent deploy protection** — Terraform-style locking prevents conflicting deploys
 - **CI/CD ready** — Deploy documentation on every commit to your main branch
 
 Full syntax reference: **[CCFM.md](CCFM.md)**
@@ -34,7 +36,26 @@ create a token, and note your Atlassian email address.
 pip install ccfm-convert
 ```
 
-### 3. Write a page
+### 3. Initialise your space
+
+Before deploying for the first time, initialise CCFM in your Confluence space. This creates
+a `_ccfm` management page that stores deployment state and lock information.
+
+```bash
+ccfm \
+  --domain your-domain.atlassian.net \
+  --email your.email@example.com \
+  --token YOUR_API_TOKEN \
+  --space YOUR_SPACE_KEY \
+  init
+```
+
+This is idempotent — safe to run multiple times. It creates:
+
+- A `_ccfm` container page at the space root
+- A `CCFM State Management` child page (tagged with `ccfm-internal` label)
+
+### 4. Write a page
 
 ```markdown
 ---
@@ -57,7 +78,7 @@ This is **bold** text, this is *italic*.
 ::In Progress::blue::   ::Stable::green::
 ```
 
-### 4. Deploy
+### 5. Deploy
 
 ```bash
 # Deploy a single file
@@ -66,7 +87,7 @@ ccfm \
   --email your.email@example.com \
   --token YOUR_API_TOKEN \
   --space YOUR_SPACE_KEY \
-  --file path/to/my-page.md
+  deploy --file path/to/my-page.md
 
 # Deploy a directory recursively
 ccfm \
@@ -74,19 +95,15 @@ ccfm \
   --email your.email@example.com \
   --token YOUR_API_TOKEN \
   --space YOUR_SPACE_KEY \
-  --directory path/to/docs
+  deploy --directory path/to/docs
 ```
 
-### 5. Inspect before deploying
+### 6. Inspect before deploying
 
 Use `--dump` to write ADF JSON files locally without making any API calls:
 
 ```bash
-ccfm \
-  --domain your-domain.atlassian.net \
-  --email your.email@example.com \
-  --token YOUR_API_TOKEN \
-  --space YOUR_SPACE_KEY \
+ccfm deploy \
   --file path/to/my-page.md \
   --dump
 # Writes path/to/my-page.adf.json for inspection
@@ -127,103 +144,197 @@ See [CCFM.md — Front matter](CCFM.md#front-matter) for the complete field refe
 
 ## CLI Reference
 
+CCFM uses subcommands. Global credential options must come **before** the subcommand:
+
 ```text
-ccfm [OPTIONS]
+ccfm [GLOBAL OPTIONS] <command> [COMMAND OPTIONS]
 
-Required (not needed for --plan or --dump):
-  --domain DOMAIN          Confluence domain (e.g., company.atlassian.net)
-  --email EMAIL            User email address
-  --token TOKEN            Atlassian API token (or set CONFLUENCE_TOKEN env var)
-  --space SPACE            Space key (e.g., DOCS — not the space display name)
+Commands:
+  init                   Initialise remote state in a Confluence space
+  deploy                 Deploy markdown files to Confluence
+  state list             List all pages tracked in remote state
+  state pull             Print remote state JSON to stdout
+  state push <file>      Overwrite remote state from a local file
+  state rm <path>        Remove a page entry from remote state
+  state show <path>      Show state entry for a specific path
+  lock acquire           Manually acquire the remote lock
+  lock status            Show current lock status
+  lock release           Force-release a stale lock
 
-Deployment targets (one required):
-  --file PATH              Deploy a single markdown file
-  --directory PATH         Deploy a directory recursively
+Global options (apply to all commands):
+  --config PATH          Path to ccfm.yaml config file (default: ccfm.yaml if present)
+  --domain DOMAIN        Confluence domain (e.g., company.atlassian.net)
+  --email EMAIL          User email address
+  --token TOKEN          Atlassian API token (or set CONFLUENCE_TOKEN env var)
+  --space SPACE          Space key (e.g., DOCS — not the space display name)
+```
+
+### Deploy options
+
+```text
+ccfm deploy [OPTIONS]
+
+Deployment targets (one required unless --dump):
+  --file PATH            Deploy a single markdown file
+  --directory PATH       Deploy a directory recursively
 
 Options:
-  --config PATH            Path to ccfm.yaml config file (default: ccfm.yaml if present)
-  --state PATH             Path to state file (default: .ccfm-state.json)
-  --docs-root PATH         Documentation root directory (default: docs)
-  --git-repo-url URL       Git repo URL for CI banner source links
-  --dump                   Write ADF to .adf.json files, skip deployment
-  --plan                   Show what would be deployed without making any changes
-  --changed-only           Only deploy files whose content has changed since last deploy
-  --archive-orphans        Archive Confluence pages for markdown files removed from disk
+  --docs-root PATH       Documentation root directory (default: docs)
+  --git-repo-url URL     Git repo URL for CI banner source links
+  --dump                 Write ADF to .adf.json files, skip deployment
+  --plan                 Show what would be deployed without making changes
+  --plan-exit-code       Exit 2 when plan detects pending changes (for CI gates)
+  --changed-only         Only deploy files whose content has changed
+  --archive-orphans      Archive pages for markdown files removed from disk
+  --lock-id ID           Lock identifier for CI traceability (e.g., pipeline ID)
 ```
 
 ### Examples
 
 ```bash
+# Initialise CCFM in your space (one-time setup)
+ccfm --domain company.atlassian.net --email user@example.com --token abc123 --space DOCS init
+
 # Deploy a single file
-ccfm \
-  --domain company.atlassian.net \
-  --email user@example.com \
-  --token abc123 \
-  --space DOCS \
-  --file path/to/api/authentication.md
+ccfm --domain company.atlassian.net --email user@example.com --token abc123 --space DOCS \
+  deploy --file path/to/api/authentication.md
 
 # Deploy entire docs folder
-ccfm \
-  --domain company.atlassian.net \
-  --email user@example.com \
-  --token abc123 \
-  --space DOCS \
-  --directory path/to/docs
+ccfm --domain company.atlassian.net --email user@example.com --token abc123 --space DOCS \
+  deploy --directory path/to/docs
 
 # With CI banner links back to source files
-ccfm \
-  --domain company.atlassian.net \
-  --email user@example.com \
-  --token abc123 \
-  --space DOCS \
-  --directory path/to/docs \
-  --git-repo-url "https://github.com/org/repo/blob/main"
+ccfm --domain company.atlassian.net --email user@example.com --token abc123 --space DOCS \
+  deploy --directory path/to/docs --git-repo-url "https://github.com/org/repo/blob/main"
+
+# Preview changes without deploying (credentials from ccfm.yaml)
+ccfm deploy --directory docs --plan
+
+# Check lock status
+ccfm --domain company.atlassian.net --email user@example.com --token abc123 --space DOCS \
+  lock status
+
+# View tracked pages
+ccfm --domain company.atlassian.net --email user@example.com --token abc123 --space DOCS \
+  state list
 ```
 
 ---
 
 ## State Management
 
-CCFM tracks deployed pages in a local `.ccfm-state.json` file. This enables:
+CCFM stores deployment state remotely in Confluence itself — no local state files to commit
+or sync. State is stored as a `ccfm-state.json` attachment on the `CCFM State Management`
+page, which lives under a `_ccfm` container page in your space.
+
+This enables:
 
 - **Plan mode** — see what would change before deploying
 - **Changed-only deploys** — skip files with no content changes (faster CI)
 - **Orphan archiving** — archive pages whose source files have been deleted
+- **No checkin loops** — state changes don't trigger CI rebuilds
+- **No merge conflicts** — concurrent deploys don't fight over a state file
 
-**Commit the state file** alongside your documentation. Team members and CI pipelines
-share the same deployment history through version control.
+### Initialising
+
+Run `ccfm init` before your first deploy. This creates the management infrastructure
+in your Confluence space:
 
 ```bash
-# Preview what would be deployed (no API calls made)
-ccfm \
-  --domain company.atlassian.net \
-  --email user@example.com \
-  --token abc123 \
-  --space DOCS \
-  --directory docs \
-  --plan
-
-# Only deploy changed files (faster CI runs)
-ccfm \
-  --domain company.atlassian.net \
-  --email user@example.com \
-  --token abc123 \
-  --space DOCS \
-  --directory docs \
-  --changed-only
-
-# Archive pages whose source markdown files were deleted
-ccfm \
-  --domain company.atlassian.net \
-  --email user@example.com \
-  --token abc123 \
-  --space DOCS \
-  --directory docs \
-  --archive-orphans
+ccfm --domain company.atlassian.net --email user@example.com --token abc123 --space DOCS init
 ```
 
-`--plan` exits with code `2` when there are pending changes and `0` when everything is
-up to date — useful for CI gates.
+The command is idempotent — running it again is a no-op. It is a **one-time per-space** operation; you do not need to run it before every deploy.
+
+### Inspecting and managing state
+
+```bash
+# List all tracked pages
+ccfm --domain ... --email ... --token ... --space DOCS state list
+
+# Show full details for a specific entry
+ccfm --domain ... --email ... --token ... --space DOCS state show docs/my-page.md
+
+# Download the raw state JSON (useful for piping to jq or saving a backup)
+ccfm --domain ... --email ... --token ... --space DOCS state pull
+
+# Remove a specific entry (e.g., after manually deleting a page in Confluence)
+ccfm --domain ... --email ... --token ... --space DOCS state rm docs/old-page.md
+```
+
+#### Recovery: push a repaired state file
+
+If state becomes corrupted, download it, edit it locally, then push it back:
+
+```bash
+ccfm --domain ... --email ... --token ... --space DOCS state pull > state-backup.json
+# edit state-backup.json
+ccfm --domain ... --email ... --token ... --space DOCS state push state-backup.json
+```
+
+> **Warning:** `state push` overwrites the remote state completely. Use with caution.
+
+### Plan mode
+
+Preview what would change without making any modifications:
+
+```bash
+ccfm deploy --directory docs --plan
+```
+
+Use `--plan-exit-code` to exit with code `2` when there are pending changes — useful
+for CI gates that block merges until docs are deployed.
+
+---
+
+## Locking
+
+CCFM uses Terraform-style locking to prevent concurrent deploys from corrupting state or
+creating duplicate pages. Locks are stored as a content property on the management page,
+using Confluence's optimistic concurrency (version numbers) to prevent race conditions.
+
+### How it works
+
+- `ccfm deploy` automatically acquires a lock before deploying and releases it when done
+- If another deploy is in progress, the command fails immediately with a lock error
+- `--plan` and `--dump` modes do **not** acquire locks (they're read-only)
+- Lock owner is auto-detected as `user@hostname`
+
+### CI traceability
+
+Pass `--lock-id` to associate the lock with a CI pipeline for easier debugging:
+
+```bash
+ccfm --space DOCS deploy --directory docs --lock-id "$CI_PIPELINE_ID"
+```
+
+### Checking lock status
+
+```bash
+ccfm --domain ... --email ... --token ... --space DOCS lock status
+```
+
+Output shows whether the lock is held, by whom, when it was acquired, and the lock ID.
+
+### Manually acquiring the lock
+
+For maintenance or scripted workflows, acquire the lock without deploying:
+
+```bash
+ccfm --domain ... --email ... --token ... --space DOCS lock acquire
+
+# With a custom operation label and lock ID
+ccfm --domain ... --email ... --token ... --space DOCS \
+  lock acquire --operation maintenance --lock-id "manual-$(date +%s)"
+```
+
+### Recovering from stale locks
+
+If a CI job crashes mid-deploy, the lock may be left in place. Force-release it:
+
+```bash
+ccfm --domain ... --email ... --token ... --space DOCS lock release
+```
 
 ---
 
@@ -241,14 +352,13 @@ token: ${CONFLUENCE_TOKEN}
 space: DOCS
 docs_root: docs
 git_repo_url: https://github.com/org/repo
-state_file: .ccfm-state.json
 ```
 
 With a config file in place:
 
 ```bash
-ccfm --directory docs --plan
-ccfm --directory docs
+ccfm deploy --directory docs --plan
+ccfm deploy --directory docs
 ```
 
 **Security note:** `ccfm.yaml` is a trusted-author file. Any environment variable
@@ -268,7 +378,7 @@ docker run --rm \
   -e CONFLUENCE_TOKEN=your-token \
   -v $(pwd)/docs:/docs \
   ghcr.io/stevesimpson418/ccfm-convert:latest \
-  --space DOCS --directory /docs
+  deploy --space DOCS --directory /docs
 ```
 
 ---
@@ -284,6 +394,76 @@ docker run --rm \
     space:  DOCS
     directory: docs
     args: --changed-only
+```
+
+---
+
+## CI/CD
+
+Store credentials as secrets: `CONFLUENCE_DOMAIN`, `CONFLUENCE_EMAIL`, `CONFLUENCE_TOKEN`.
+
+### Pipeline overview
+
+Every PR targeting `main` runs three gates:
+
+| Check | When | Blocks merge? |
+| --- | --- | --- |
+| Lint + unit tests (100% coverage) | Every push / PR commit | Yes |
+| Smoke tests against CCFMDEV space | PRs + pushes touching `src/` or `tests/smoke/` | Yes |
+| Markdown lint | Every push / PR commit | Yes |
+
+Smoke tests auto-cleanup Confluence pages after each run. For manual inspection
+runs (leave pages in Confluence), use **Actions > Smoke Tests > Run workflow** and
+uncheck *Delete Confluence pages after tests*.
+
+Set these required status checks in GitHub > Settings > Branches > main:
+
+- `Lint`, `Test`, `Markdown Lint`, `Smoke Tests (CCFMDEV)`
+
+### Deploying your docs via GitHub Actions
+
+```yaml
+name: Deploy Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install ccfm-convert
+      - env:
+          CONFLUENCE_DOMAIN: ${{ secrets.CONFLUENCE_DOMAIN }}
+          CONFLUENCE_EMAIL: ${{ secrets.CONFLUENCE_EMAIL }}
+          CONFLUENCE_TOKEN: ${{ secrets.CONFLUENCE_TOKEN }}
+        run: |
+          # Ensure management page exists (idempotent)
+          ccfm \
+            --domain "$CONFLUENCE_DOMAIN" \
+            --email "$CONFLUENCE_EMAIL" \
+            --token "$CONFLUENCE_TOKEN" \
+            --space DOCS \
+            init
+
+          # Deploy with lock ID for CI traceability
+          ccfm \
+            --domain "$CONFLUENCE_DOMAIN" \
+            --email "$CONFLUENCE_EMAIL" \
+            --token "$CONFLUENCE_TOKEN" \
+            --space DOCS \
+            deploy \
+            --directory docs \
+            --git-repo-url "https://github.com/${{ github.repository }}/blob/main" \
+            --changed-only \
+            --lock-id "${{ github.run_id }}"
 ```
 
 ---
@@ -315,65 +495,6 @@ custom titles.
 
 ---
 
-## CI/CD
-
-Store credentials as secrets: `CONFLUENCE_DOMAIN`, `CONFLUENCE_EMAIL`, `CONFLUENCE_TOKEN`.
-
-### Pipeline overview
-
-Every PR targeting `main` runs three gates:
-
-| Check | When | Blocks merge? |
-| --- | --- | --- |
-| Lint + unit tests (100% coverage) | Every push / PR commit | Yes |
-| Smoke tests against CCFMDEV space | PRs + pushes touching `src/` or `tests/smoke/` | Yes |
-| Markdown lint | Every push / PR commit | Yes |
-
-Smoke tests auto-cleanup Confluence pages after each run. For manual inspection
-runs (leave pages in Confluence), use **Actions → Smoke Tests → Run workflow** and
-uncheck *Delete Confluence pages after tests*.
-
-Set these required status checks in GitHub → Settings → Branches → main:
-
-- `Lint`, `Test`, `Markdown Lint`, `Smoke Tests (CCFMDEV)`
-
-### Deploying your docs via GitHub Actions
-
-```yaml
-name: Deploy Docs
-
-on:
-  push:
-    branches: [main]
-    paths:
-      - 'docs/**'
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: pip install ccfm-convert
-      - env:
-          CONFLUENCE_DOMAIN: ${{ secrets.CONFLUENCE_DOMAIN }}
-          CONFLUENCE_EMAIL: ${{ secrets.CONFLUENCE_EMAIL }}
-          CONFLUENCE_TOKEN: ${{ secrets.CONFLUENCE_TOKEN }}
-        run: |
-          ccfm \
-            --domain "$CONFLUENCE_DOMAIN" \
-            --email "$CONFLUENCE_EMAIL" \
-            --token "$CONFLUENCE_TOKEN" \
-            --space DOCS \
-            --directory docs \
-            --git-repo-url "https://github.com/${{ github.repository }}/blob/main" \
-            --changed-only
-```
-
----
-
 ## Project Structure
 
 ```text
@@ -386,24 +507,26 @@ jobs:
 │       │   ├── blocks.py         # Block markdown parsing
 │       │   └── converter.py      # Orchestration; convert() entry point
 │       ├── deploy/               # Confluence API and deployment logic
-│       │   ├── api.py            # ConfluenceAPI class (REST v2 + v1 for attachments)
+│       │   ├── api.py            # ConfluenceAPI class (REST v2 + v1 for attachments/properties)
 │       │   ├── frontmatter.py    # YAML frontmatter parsing
 │       │   ├── orchestration.py  # deploy_page(), deploy_tree(), archive_page()
 │       │   └── transforms.py     # CI banner, page link resolution, attachment media nodes
-│       ├── state/                # Deployment state persistence
-│       │   └── manager.py        # StateManager — filepath → page_id mapping, content hashing
+│       ├── state/                # Remote state and locking
+│       │   ├── backend.py        # StateBackend protocol + ConfluenceBackend
+│       │   ├── manager.py        # StateManager — filepath → page_id mapping, content hashing
+│       │   ├── lock.py           # LockManager — Terraform-style deploy locking
+│       │   └── init.py           # init_remote_state() — one-time space setup
 │       ├── config/               # Project config file loader
 │       │   └── loader.py         # ccfm.yaml loader with ${ENV_VAR} interpolation
 │       ├── plan/                 # Plan/diff mode
 │       │   └── planner.py        # compute_plan(), DeployPlan — terraform-style diff output
-│       └── main.py               # CLI entry point (argparse)
+│       └── main.py               # CLI entry point (argparse subcommands)
 ├── tests/
 │   ├── smoke/                # End-to-end smoke tests (real Confluence space)
 │   │   ├── conftest.py       # Credentials, cleanup hook, ccfm_run fixture
 │   │   ├── docs/             # Fixture markdown files deployed during smoke tests
 │   │   └── test_*.py         # Smoke test modules
 │   └── test_*.py             # Unit tests (100% coverage, all mocked)
-├── .ccfm-state.json          # Deployment state (commit this alongside your docs)
 ├── ccfm.yaml                 # Optional project config (credentials, space, docs_root)
 ├── CCFM.md                   # Complete CCFM syntax and ADF mapping reference
 ├── requirements.txt          # Runtime dependencies
@@ -460,7 +583,7 @@ pytest tests/smoke/ --no-cov -v --no-cleanup
 pytest tests/smoke/ --no-cov -v --cleanup-only
 ```
 
-**GitHub Actions:** Go to Actions → Smoke Tests → Run workflow (manual trigger).
+**GitHub Actions:** Go to Actions > Smoke Tests > Run workflow (manual trigger).
 Requires `CONFLUENCE_DOMAIN`, `CONFLUENCE_EMAIL`, and `CONFLUENCE_TOKEN` secrets.
 Uncheck "Delete Confluence pages after tests" to leave pages for manual inspection.
 
@@ -499,6 +622,16 @@ No I/O, no network calls. Entry point: `convert(markdown: str) -> dict`.
 - `transforms.py` — Post-conversion ADF mutations: CI banner injection, internal page link
   resolution, attachment media node rewriting
 
+### `src/ccfm_convert/state/` — Remote state and locking
+
+- `backend.py` — `StateBackend` protocol with `load()`/`save()` methods;
+  `ConfluenceBackend` stores state as a JSON attachment on the management page
+- `manager.py` — `StateManager` tracks deployed pages, computes content hashes,
+  detects orphaned pages. Backend-agnostic via `StateBackend` protocol
+- `lock.py` — `LockManager` implements Terraform-style locking using Confluence content
+  properties with optimistic concurrency (409 Conflict = race condition)
+- `init.py` — `init_remote_state()` creates the `_ccfm` management infrastructure
+
 ### Attachment upload flow
 
 Confluence's v2 API lacks an attachment POST endpoint, so the deploy tool uses a multi-step
@@ -521,6 +654,19 @@ create/edit permissions in the target space.
 **Space not found**
 Use the space **key** (e.g., `DOCS`), not the display name. The key appears in the URL:
 `/wiki/spaces/DOCS/`.
+
+**"Run `ccfm init` first"**
+The management page was not found in your space. Run `ccfm init` to create the `_ccfm`
+container and state management page.
+
+**Deploy blocked by lock**
+Another deploy is in progress (or a previous deploy crashed without releasing the lock).
+Check the lock status and force-release if the lock is stale:
+
+```bash
+ccfm --domain ... --email ... --token ... --space DOCS lock status
+ccfm --domain ... --email ... --token ... --space DOCS lock release
+```
 
 **Image not rendering after redeploy**
 The Confluence v1 attachment update endpoint returns a different response shape than the create

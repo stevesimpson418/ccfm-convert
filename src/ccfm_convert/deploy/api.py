@@ -3,11 +3,24 @@
 import json
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # Default timeout (seconds) for all Confluence API calls.
 # Prevents CI jobs hanging indefinitely when the API is slow or unresponsive.
 REQUEST_TIMEOUT = 30
 UPLOAD_TIMEOUT = 60  # File uploads may be slower for large attachments
+
+# Retry configuration for transient network errors and server-side rate limiting.
+# POST is intentionally excluded: create_page and other POSTs are non-idempotent
+# and retrying on 5xx would silently create duplicate pages.
+_RETRY_STRATEGY = Retry(
+    total=3,
+    backoff_factor=1,
+    status_forcelist=[429, 500, 502, 503, 504],
+    allowed_methods=["HEAD", "GET", "PUT", "DELETE", "OPTIONS"],
+    raise_on_status=False,
+)
 
 
 class ConfluenceAPI:
@@ -19,13 +32,17 @@ class ConfluenceAPI:
         self.token = token
         self.base_url = f"https://{domain}/wiki/api/v2"
         self.auth = (email, token)
+        adapter = HTTPAdapter(max_retries=_RETRY_STRATEGY)
+        self._session = requests.Session()
+        self._session.mount("https://", adapter)
+        self._session.mount("http://", adapter)
 
     def get_space_id(self, space_key):
         """Get space ID from space key."""
         url = f"{self.base_url}/spaces"
         params = {"keys": space_key}
 
-        response = requests.get(
+        response = self._session.get(
             url,
             params=params,
             auth=self.auth,
@@ -50,7 +67,7 @@ class ConfluenceAPI:
         url = f"{self.base_url}/pages"
         params = {"space-id": space_id, "title": title, "limit": 1}
 
-        response = requests.get(
+        response = self._session.get(
             url,
             params=params,
             auth=self.auth,
@@ -78,7 +95,7 @@ class ConfluenceAPI:
         url = f"{self.base_url}/pages"
         params = {"space-id": space_id, "title": title, "limit": 1}
 
-        response = requests.get(
+        response = self._session.get(
             url,
             params=params,
             auth=self.auth,
@@ -111,7 +128,7 @@ class ConfluenceAPI:
         if parent_id:
             data["parentId"] = parent_id
 
-        response = requests.post(
+        response = self._session.post(
             url,
             json=data,
             auth=self.auth,
@@ -136,7 +153,7 @@ class ConfluenceAPI:
         """Update an existing page."""
         # Get current version
         url = f"{self.base_url}/pages/{page_id}"
-        response = requests.get(
+        response = self._session.get(
             url,
             auth=self.auth,
             headers={"Accept": "application/json"},
@@ -161,7 +178,7 @@ class ConfluenceAPI:
             },
         }
 
-        response = requests.put(
+        response = self._session.put(
             update_url,
             json=data,
             auth=self.auth,
@@ -187,7 +204,7 @@ class ConfluenceAPI:
 
         label_data = [{"prefix": "global", "name": label} for label in all_labels]
 
-        response = requests.post(
+        response = self._session.post(
             url,
             json=label_data,
             auth=self.auth,
@@ -216,7 +233,7 @@ class ConfluenceAPI:
         """
         url = f"{self.base_url}/attachments/{attachment_id}"
 
-        response = requests.get(
+        response = self._session.get(
             url,
             auth=self.auth,
             headers={"Accept": "application/json"},
@@ -244,7 +261,7 @@ class ConfluenceAPI:
             requests.HTTPError: if the API returns a non-2xx response.
         """
         url = f"{self.base_url}/pages/{page_id}"
-        response = requests.delete(
+        response = self._session.delete(
             url,
             auth=self.auth,
             headers={"Accept": "application/json"},
@@ -252,7 +269,164 @@ class ConfluenceAPI:
         )
         response.raise_for_status()
 
-    def upload_attachment(self, page_id, filepath, alt_text=None):
+    # ------------------------------------------------------------------
+    # Content properties (v1 API) — used for state locking
+    # ------------------------------------------------------------------
+
+    def get_content_property(self, page_id, key):
+        """Get a content property by key.
+
+        Returns:
+            Property dict (contains 'value' and 'version') or None if not found.
+        """
+        url = f"https://{self.domain}/wiki/rest/api/content/{page_id}/property/{key}"
+        response = self._session.get(
+            url,
+            auth=self.auth,
+            headers={"Accept": "application/json"},
+            timeout=REQUEST_TIMEOUT,
+        )
+        if response.status_code == 404:
+            return None
+        response.raise_for_status()
+        return response.json()
+
+    def set_content_property(self, page_id, key, value, version=None):
+        """Create or update a content property.
+
+        When version is None, creates (POST). When version is provided, updates
+        (PUT) with optimistic concurrency — Confluence returns 409 if the version
+        has been changed by another process.
+        """
+        url = f"https://{self.domain}/wiki/rest/api/content/{page_id}/property/{key}"
+        data = {"key": key, "value": value}
+        if version is not None:
+            data["version"] = {"number": version, "minorEdit": True}
+            response = self._session.put(
+                url,
+                json=data,
+                auth=self.auth,
+                headers={"Accept": "application/json", "Content-Type": "application/json"},
+                timeout=REQUEST_TIMEOUT,
+            )
+        else:
+            response = self._session.post(
+                url,
+                json=data,
+                auth=self.auth,
+                headers={"Accept": "application/json", "Content-Type": "application/json"},
+                timeout=REQUEST_TIMEOUT,
+            )
+        response.raise_for_status()
+
+    def delete_content_property(self, page_id, key):
+        """Delete a content property. No-op if already absent."""
+        url = f"https://{self.domain}/wiki/rest/api/content/{page_id}/property/{key}"
+        response = self._session.delete(
+            url,
+            auth=self.auth,
+            headers={"Accept": "application/json"},
+            timeout=REQUEST_TIMEOUT,
+        )
+        if response.status_code == 404:
+            return
+        response.raise_for_status()
+
+    # ------------------------------------------------------------------
+    # Attachment download (v1 API) — used for remote state
+    # ------------------------------------------------------------------
+
+    def download_attachment(self, page_id, filename):
+        """Download an attachment's content by filename.
+
+        Returns:
+            Raw bytes of the attachment, or None if not found.
+        """
+        list_url = f"https://{self.domain}/wiki/rest/api/content/{page_id}/child/attachment"
+        resp = self._session.get(
+            list_url,
+            params={"filename": filename},
+            auth=self.auth,
+            headers={"Accept": "application/json"},
+            timeout=REQUEST_TIMEOUT,
+        )
+        resp.raise_for_status()
+        results = resp.json().get("results", [])
+        if not results:
+            return None
+
+        download_path = results[0]["_links"]["download"]
+        download_url = f"https://{self.domain}/wiki{download_path}"
+        resp = self._session.get(download_url, auth=self.auth, timeout=UPLOAD_TIMEOUT)
+        resp.raise_for_status()
+        return resp.content
+
+    # ------------------------------------------------------------------
+    # Page discovery by parent/child (v2 API) — used to find management page
+    # ------------------------------------------------------------------
+
+    def find_child_page_by_title(self, parent_id: str, title: str) -> str | None:
+        """Find a direct child page of parent_id by exact title.
+
+        Paginates through children if needed (cursor-based). Returns the first
+        match, or None if no child with that title exists.
+
+        Returns:
+            Page ID if found, None otherwise.
+        """
+        url = f"{self.base_url}/pages/{parent_id}/children"
+        params: dict = {"limit": 50}
+        while True:
+            response = self._session.get(
+                url,
+                params=params,
+                auth=self.auth,
+                headers={"Accept": "application/json"},
+                timeout=REQUEST_TIMEOUT,
+            )
+            response.raise_for_status()
+            data = response.json()
+            for page in data.get("results", []):
+                if page.get("title") == title:
+                    return page["id"]
+            next_url = data.get("_links", {}).get("next")
+            if not next_url:
+                break
+            # next_url is a relative path; prepend the base wiki URL
+            url = f"https://{self.domain}/wiki{next_url}"
+            params = {}
+        return None
+
+    # ------------------------------------------------------------------
+    # Page discovery by label (v1 API) — retained for external tooling
+    # ------------------------------------------------------------------
+
+    def find_page_by_label(self, space_key, label):
+        """Find a page by label in a space.
+
+        Returns:
+            Page ID if found, None otherwise.
+        """
+        url = f"https://{self.domain}/wiki/rest/api/content"
+        params = {"type": "page", "spaceKey": space_key, "label": label, "limit": 1}
+        response = self._session.get(
+            url,
+            params=params,
+            auth=self.auth,
+            headers={"Accept": "application/json"},
+            timeout=REQUEST_TIMEOUT,
+        )
+        response.raise_for_status()
+        results = response.json().get("results", [])
+        if not results:
+            return None
+        return results[0]["id"]
+
+    # ------------------------------------------------------------------
+    # Attachments
+    # ------------------------------------------------------------------
+
+    def upload_attachment(self, page_id, filepath, alt_text=None, name=None):
         """
         Upload attachment to page using v1 API.
 
@@ -265,11 +439,12 @@ class ConfluenceAPI:
             Dict with v1 attachment response (contains 'id' but not 'fileId')
         """
         url = f"https://{self.domain}/wiki/rest/api/content/{page_id}/child/attachment"
+        attachment_name = name or filepath.name
 
         # Check if attachment already exists
-        response = requests.get(
+        response = self._session.get(
             url,
-            params={"filename": filepath.name},
+            params={"filename": attachment_name},
             auth=self.auth,
             timeout=REQUEST_TIMEOUT,
         )
@@ -287,8 +462,8 @@ class ConfluenceAPI:
             upload_url = url
 
         with open(filepath, "rb") as fh:
-            files = {"file": (filepath.name, fh)}
-            response = requests.post(
+            files = {"file": (attachment_name, fh)}
+            response = self._session.post(
                 upload_url,
                 files=files,
                 auth=self.auth,
@@ -297,7 +472,9 @@ class ConfluenceAPI:
             )
 
         if response.status_code not in [200, 201]:
-            print(f"   ⚠ Warning: Could not upload {filepath.name} (status {response.status_code})")
+            print(
+                f"   ⚠ Warning: Could not upload {attachment_name} (status {response.status_code})"
+            )
             return None
 
         result = response.json()

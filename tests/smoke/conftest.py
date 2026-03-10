@@ -10,7 +10,7 @@ Leave pages in Confluence for manual inspection (no cleanup):
 
     pytest tests/smoke/ --no-cov -v --no-cleanup
 
-Delete pages from a previous --no-cleanup run without re-running tests:
+Delete pages from a previous --no-cleanup run (skips re-running tests):
 
     pytest tests/smoke/ --no-cov -v --cleanup-only
 
@@ -23,7 +23,6 @@ Environment variables required
 Or: copy .env.smoke.example to .env, fill in values, then ``source .env``.
 """
 
-import json
 import os
 import subprocess
 import sys
@@ -37,7 +36,6 @@ import requests
 # ---------------------------------------------------------------------------
 
 SMOKE_DIR = Path(__file__).parent
-SMOKE_STATE = SMOKE_DIR / ".ccfm-smoke-state.json"
 SMOKE_DOCS = SMOKE_DIR / "docs"
 PROJECT_ROOT = SMOKE_DIR.parent.parent
 
@@ -63,7 +61,7 @@ def pytest_addoption(parser):
         default=False,
         help=(
             "Delete all pages from a previous smoke run without re-running tests. "
-            "Reads from the existing smoke state file."
+            "Cleans up the _ccfm management page and any deployed pages."
         ),
     )
 
@@ -84,66 +82,282 @@ def pytest_collection_modifyitems(config, items):
 
 
 def pytest_sessionfinish(session, exitstatus):
-    """Delete all Confluence pages tracked in the smoke state file."""
+    """Delete deployed pages and the _ccfm management infrastructure."""
     try:
         no_cleanup = session.config.getoption("--no-cleanup", default=False)
     except ValueError:
         no_cleanup = False
 
     if no_cleanup:
-        print(
-            f"\n\nSmoke state preserved at: {SMOKE_STATE}"
-            "\nRun with --cleanup-only to delete pages later."
-        )
+        print("\n\nSmoke pages preserved in Confluence.")
+        print("Run with --cleanup-only to delete pages later.")
         return
 
     _delete_smoke_pages()
 
 
 def _delete_smoke_pages():
-    """Permanently delete all Confluence pages tracked in the smoke state file."""
-    if not SMOKE_STATE.exists():
-        return
+    """Delete deployed pages via remote state and reset state to empty.
 
-    try:
-        data = json.loads(SMOKE_STATE.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return
-
+    The _ccfm container and CCFM State Management page are preserved —
+    they are one-time infrastructure and should not be torn down between runs.
+    """
     domain = os.environ.get("CONFLUENCE_DOMAIN", "")
     email = os.environ.get("CONFLUENCE_EMAIL", "")
     token = os.environ.get("CONFLUENCE_TOKEN", "")
 
     if not (domain and email and token):
-        print("\nWarning: credentials not available for smoke cleanup — state file left in place.")
+        print("\nWarning: credentials not available for smoke cleanup.")
         return
 
     auth = (email, token)
-    pages = data.get("pages", {})
-    deleted = 0
-    failed = 0
+    space_key = SMOKE_SPACE
 
-    print(f"\n\nCleaning up {len(pages)} smoke test page(s)...")
-    for rel_path, entry in pages.items():
-        page_id = entry.get("page_id")
-        title = entry.get("title", rel_path)
-        if not page_id:
-            continue
-        url = f"https://{domain}/wiki/api/v2/pages/{page_id}"
-        try:
-            resp = requests.delete(url, auth=auth, timeout=15)
-            if resp.status_code in (200, 204, 404):
-                print(f"  ✓ Deleted: {title} (ID: {page_id})")
-                deleted += 1
-            else:
-                print(f"  ✗ Failed to delete: {title} ({resp.status_code})")
-                failed += 1
-        except requests.RequestException as e:
-            print(f"  ✗ Error deleting {title}: {e}")
-            failed += 1
+    # Step 1: Find space ID, container, and management page via container→child lookup.
+    space_id = _get_space_id(domain, auth, space_key)
+    if not space_id:
+        print("\nWarning: could not look up space ID — skipping cleanup.")
+        return
 
-    SMOKE_STATE.unlink(missing_ok=True)
-    print(f"Cleanup complete: {deleted} deleted, {failed} failed.")
+    container_id = _find_page_by_title_in_space(domain, auth, space_id, "_ccfm")
+    if not container_id:
+        print("\nNo _ccfm container found — nothing to clean up.")
+        return
+
+    mgmt_page_id = _find_child_by_title(domain, auth, container_id, "CCFM State Management")
+    if not mgmt_page_id:
+        print("\nNo CCFM State Management page found — skipping state cleanup.")
+    else:
+        # Step 2: Download remote state and delete all tracked pages
+        state_data = _download_state(domain, auth, mgmt_page_id)
+        if state_data:
+            pages = state_data.get("pages", {})
+            deleted = 0
+            failed = 0
+            print(f"\n\nCleaning up {len(pages)} smoke test page(s)...")
+            for rel_path, entry in pages.items():
+                page_id = entry.get("page_id")
+                title = entry.get("title", rel_path)
+                if not page_id:
+                    continue
+                url = f"https://{domain}/wiki/api/v2/pages/{page_id}"
+                try:
+                    resp = requests.delete(url, auth=auth, timeout=15)
+                    if resp.status_code in (200, 204, 404):
+                        print(f"  ✓ Deleted: {title} (ID: {page_id})")
+                        deleted += 1
+                    else:
+                        print(f"  ✗ Failed to delete: {title} ({resp.status_code})")
+                        failed += 1
+                except requests.RequestException as e:
+                    print(f"  ✗ Error deleting {title}: {e}")
+                    failed += 1
+            print(f"Pages cleanup: {deleted} deleted, {failed} failed.")
+
+        # Step 3: Reset state to empty — preserves the management page for next run.
+        _reset_state(domain, auth, mgmt_page_id)
+
+    # Step 4: Delete hierarchy pages not tracked in state (created by ensure_page_hierarchy).
+    # Must delete children before parent — Confluence v2 does not cascade-delete.
+    # Note: hierarchy pages are now tracked in state and deleted in step 2.
+    # This step handles any remaining hierarchy root pages not caught by state.
+    ccfm_example_id = _find_page_by_title_in_space(domain, auth, space_id, "CCFM Example")
+    if ccfm_example_id:
+        _delete_all_children(domain, auth, ccfm_example_id)
+        _delete_page(domain, auth, ccfm_example_id, '"CCFM Example"')
+
+    print("  ✓ _ccfm container and management page preserved for next run.")
+
+
+def _get_space_id(domain, auth, space_key):
+    """Return the numeric space ID for a space key, or None on failure."""
+    try:
+        resp = requests.get(
+            f"https://{domain}/wiki/api/v2/spaces",
+            params={"keys": space_key},
+            auth=auth,
+            headers={"Accept": "application/json"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        results = resp.json().get("results", [])
+        return results[0]["id"] if results else None
+    except requests.RequestException:
+        return None
+
+
+def _find_page_by_title_in_space(domain, auth, space_id, title):
+    """Find a page by exact title within a space using v2 API."""
+    try:
+        resp = requests.get(
+            f"https://{domain}/wiki/api/v2/pages",
+            params={"space-id": space_id, "title": title, "limit": 1},
+            auth=auth,
+            headers={"Accept": "application/json"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        results = resp.json().get("results", [])
+        return results[0]["id"] if results else None
+    except requests.RequestException:
+        return None
+
+
+def _find_child_by_title(domain, auth, parent_id, title):
+    """Find a direct child page of parent_id by exact title."""
+    try:
+        url = f"https://{domain}/wiki/api/v2/pages/{parent_id}/children"
+        params: dict = {"limit": 50}
+        while True:
+            resp = requests.get(
+                url, params=params, auth=auth, headers={"Accept": "application/json"}, timeout=15
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            for page in data.get("results", []):
+                if page.get("title") == title:
+                    return page["id"]
+            next_url = data.get("_links", {}).get("next")
+            if not next_url:
+                break
+            url = f"https://{domain}/wiki{next_url}"
+            params = {}
+        return None
+    except requests.RequestException:
+        return None
+
+
+def _delete_page(domain, auth, page_id, label="page"):
+    """Delete a page by ID. Accepts 404 as success."""
+    url = f"https://{domain}/wiki/api/v2/pages/{page_id}"
+    try:
+        resp = requests.delete(url, auth=auth, timeout=15)
+        if resp.status_code in (200, 204, 404):
+            print(f"  ✓ Deleted {label} (ID: {page_id})")
+        else:
+            print(f"  ✗ Failed to delete {label} ({resp.status_code})")
+    except requests.RequestException as e:
+        print(f"  ✗ Error deleting {label}: {e}")
+
+
+def _delete_page_by_title(domain, auth, space_id, title):
+    """Find a page by title and delete it."""
+    page_id = _find_page_by_title_in_space(domain, auth, space_id, title)
+    if page_id:
+        _delete_page(domain, auth, page_id, f'"{title}"')
+
+
+def _delete_all_children(domain, auth, parent_id):
+    """Recursively delete all descendants of parent_id.
+
+    Confluence v2 API does not cascade-delete children, so nested hierarchies
+    must be deleted bottom-up. This function recurses into each child before
+    deleting it, ensuring grandchildren are removed first.
+    """
+    try:
+        url = f"https://{domain}/wiki/api/v2/pages/{parent_id}/children"
+        params: dict = {"limit": 50}
+        children = []
+        while True:
+            resp = requests.get(
+                url,
+                params=params,
+                auth=auth,
+                headers={"Accept": "application/json"},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            children.extend(data.get("results", []))
+            if not data.get("_links", {}).get("next"):
+                break
+            url = f"https://{domain}/wiki{data['_links']['next']}"
+            params = {}
+        for page in children:
+            _delete_all_children(domain, auth, page["id"])
+            _delete_page(domain, auth, page["id"], f'"{page.get("title", page["id"])}"')
+    except requests.RequestException as e:
+        print(f"  ✗ Error listing children of {parent_id}: {e}")
+
+
+def _reset_state(domain, auth, mgmt_page_id):
+    """Upload an empty state JSON to the management page, resetting state for the next run.
+
+    Checks whether the ccfm-state.json attachment already exists:
+    - If yes, updates via POST .../attachment/{id}/data
+    - If no, creates via POST .../attachment
+    """
+    import io
+    import json
+
+    empty_state = json.dumps({"version": "1", "pages": {}}, indent=2).encode()
+    base_url = f"https://{domain}/wiki/rest/api/content/{mgmt_page_id}/child/attachment"
+    headers = {"X-Atlassian-Token": "nocheck"}
+
+    try:
+        # Check if the attachment already exists
+        resp = requests.get(
+            base_url,
+            params={"filename": "ccfm-state.json"},
+            auth=auth,
+            headers={"Accept": "application/json"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        existing = resp.json().get("results", [])
+        if existing:
+            upload_url = f"{base_url}/{existing[0]['id']}/data"
+        else:
+            upload_url = base_url
+
+        resp = requests.post(
+            upload_url,
+            files={"file": ("ccfm-state.json", io.BytesIO(empty_state), "application/json")},
+            headers=headers,
+            auth=auth,
+            timeout=30,
+        )
+        if resp.status_code in (200, 201):
+            print("  ✓ State reset to empty")
+        else:
+            print(f"  ✗ Failed to reset state ({resp.status_code})")
+    except requests.RequestException as e:
+        print(f"  ✗ Error resetting state: {e}")
+
+
+def _find_container_page(domain, auth, space_key):
+    """Find the _ccfm container page by title (kept for backward compatibility)."""
+    space_id = _get_space_id(domain, auth, space_key)
+    if not space_id:
+        return None
+    return _find_page_by_title_in_space(domain, auth, space_id, "_ccfm")
+
+
+def _download_state(domain, auth, mgmt_page_id):
+    """Download the ccfm-state.json attachment from the management page."""
+    import json
+
+    list_url = f"https://{domain}/wiki/rest/api/content/{mgmt_page_id}/child/attachment"
+    try:
+        resp = requests.get(
+            list_url,
+            params={"filename": "ccfm-state.json"},
+            auth=auth,
+            headers={"Accept": "application/json"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        results = resp.json().get("results", [])
+        if not results:
+            return None
+
+        download_path = results[0]["_links"]["download"]
+        download_url = f"https://{domain}/wiki{download_path}"
+        resp = requests.get(download_url, auth=auth, timeout=30)
+        resp.raise_for_status()
+        return json.loads(resp.content)
+    except (requests.RequestException, json.JSONDecodeError):
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -243,13 +457,13 @@ def confluence_live(smoke_creds):
 
 @pytest.fixture(scope="session")
 def ccfm_run(smoke_creds):
-    """Return a callable that invokes src/main.py with smoke credentials.
+    """Return a callable that invokes ccfm_convert with smoke credentials.
 
-    All invocations share the same state file (``SMOKE_STATE``) so page IDs
-    are preserved across test functions within the session.
+    Uses the subcommand CLI structure. The first positional arg should be
+    the subcommand (init, deploy, state, lock).
 
     Args:
-        *extra_args: Additional CLI arguments passed after the base credential flags.
+        *extra_args: CLI arguments including subcommand.
         check (bool): If True (default), raise CalledProcessError on non-zero exit.
 
     Returns:
@@ -269,8 +483,6 @@ def ccfm_run(smoke_creds):
             smoke_creds["token"],
             "--space",
             smoke_creds["space"],
-            "--state",
-            str(SMOKE_STATE),
             *extra_args,
         ]
         return subprocess.run(
@@ -284,10 +496,58 @@ def ccfm_run(smoke_creds):
     return _run
 
 
-@pytest.fixture(scope="session")
-def smoke_state():
-    """Return the path to the shared smoke state file."""
-    return SMOKE_STATE
+@pytest.fixture(scope="session", autouse=True)
+def _require_space_initialized(smoke_creds):
+    """Exit early if the CCFM space infrastructure has not been initialised.
+
+    The ``_ccfm`` container and ``CCFM State Management`` page are one-time
+    prerequisites — they must exist before any smoke test can run.  If they are
+    absent, the session exits immediately with a clear error message rather than
+    producing confusing test failures.
+
+    Run once manually to initialise:
+
+        ccfm init --domain <domain> --email <email> --token <token> --space <space>
+
+    See README.md → "Initial Setup" for full instructions.
+    """
+    domain = smoke_creds.get("domain", "")
+    email = smoke_creds.get("email", "")
+    token = smoke_creds.get("token", "")
+
+    if not (domain and email and token):
+        # Credentials missing — existing confluence_live fixture handles this per-test.
+        return
+
+    auth = (email, token)
+    space_key = smoke_creds["space"]
+
+    space_id = _get_space_id(domain, auth, space_key)
+    if not space_id:
+        return  # Network/credential issue — let individual tests fail with context.
+
+    container_id = _find_page_by_title_in_space(domain, auth, space_id, "_ccfm")
+    if not container_id:
+        pytest.exit(
+            f"\n\nCCFM space '{space_key}' is not initialised.\n"
+            "Run `ccfm init` to create the required management infrastructure:\n\n"
+            f"    ccfm --domain {domain} --email {email} "
+            "--token <token> --space " + space_key + " init\n\n"
+            "See README.md → 'Initial Setup' for full instructions.\n",
+            returncode=1,
+        )
+
+    mgmt_page_id = _find_child_by_title(domain, auth, container_id, "CCFM State Management")
+    if not mgmt_page_id:
+        pytest.exit(
+            f"\n\nCCFM space '{space_key}' is partially initialised "
+            "(_ccfm container found but CCFM State Management page is missing).\n"
+            "Re-run `ccfm init` to repair the infrastructure:\n\n"
+            f"    ccfm --domain {domain} --email {email} "
+            "--token <token> --space " + space_key + " init\n\n"
+            "See README.md → 'Initial Setup' for full instructions.\n",
+            returncode=1,
+        )
 
 
 @pytest.fixture(scope="session")
