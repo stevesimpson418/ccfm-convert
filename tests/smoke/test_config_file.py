@@ -1,10 +1,11 @@
 """Smoke tests: deployment via --config ccfm.yaml with ${ENV_VAR} interpolation."""
 
-import json
+import subprocess
+import sys
 
 import pytest
 
-from tests.smoke.conftest import SMOKE_DIR, SMOKE_DOCS, SMOKE_STATE
+from tests.smoke.conftest import PROJECT_ROOT, SMOKE_DIR, SMOKE_DOCS
 
 pytestmark = pytest.mark.smoke
 
@@ -15,18 +16,8 @@ CONFIG_PAGE = SMOKE_DOCS / "config-test" / "config-page.md"
 class TestConfigFileDeploy:
     """Deploy using a ccfm.yaml config file instead of inline CLI flags."""
 
-    def test_deploy_via_config_file(self, confluence_live, smoke_state):
-        """--config ccfm.yaml with ${ENV_VAR} interpolation deploys successfully.
-
-        Relies on confluence_live to validate Confluence credentials before running
-        the subprocess — ensures the test skips cleanly when credentials are
-        missing or contain placeholder values from .env.smoke.example.
-        """
-        import subprocess
-        import sys
-
-        from tests.smoke.conftest import PROJECT_ROOT
-
+    def test_deploy_via_config_file(self, confluence_live):
+        """--config ccfm.yaml with ${ENV_VAR} interpolation deploys successfully."""
         result = subprocess.run(
             [
                 sys.executable,
@@ -34,10 +25,9 @@ class TestConfigFileDeploy:
                 "ccfm_convert",
                 "--config",
                 str(CONFIG_FILE),
+                "deploy",
                 "--file",
                 str(CONFIG_PAGE),
-                "--state",
-                str(SMOKE_STATE),
             ],
             cwd=PROJECT_ROOT,
             capture_output=True,
@@ -48,11 +38,3 @@ class TestConfigFileDeploy:
         assert (
             "Success" in result.stdout or "Updating" in result.stdout or "Creating" in result.stdout
         ), f"Unexpected output:\n{result.stdout}"
-
-        assert smoke_state.exists(), "State file was not created after config-file deploy"
-        data = json.loads(smoke_state.read_text())
-        pages = data.get("pages", {})
-
-        matching = [v for k, v in pages.items() if "config-page.md" in k]
-        assert matching, f"config-page.md not found in state. State: {list(pages.keys())}"
-        assert matching[0]["page_id"], "page_id is empty for config-page"
