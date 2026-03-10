@@ -794,6 +794,64 @@ class TestPathTraversalProtection:
 class TestEdgeCases:
     """Test edge cases and error scenarios."""
 
+    def test_files_param_deploys_only_specified_files(self, mock_api, tmp_path):
+        """deploy_tree with files= deploys only the provided files, not all in directory."""
+        docs_root = tmp_path / "docs"
+        docs_root.mkdir()
+
+        file_a = docs_root / "alpha.md"
+        file_b = docs_root / "beta.md"
+        file_a.write_text("# Alpha")
+        file_b.write_text("# Beta")
+
+        mock_api.find_page_by_title.return_value = None
+        mock_api.create_page.return_value = "page-123"
+
+        # Only pass file_a — file_b should NOT be deployed
+        deploy_tree(mock_api, "space123", docs_root, docs_root, files=[file_a])
+
+        # Exactly one page created (alpha only)
+        assert mock_api.create_page.call_count == 1
+
+    def test_files_param_none_uses_rglob(self, mock_api, tmp_path):
+        """deploy_tree with files=None discovers all .md files via rglob."""
+        docs_root = tmp_path / "docs"
+        docs_root.mkdir()
+
+        (docs_root / "one.md").write_text("# One")
+        (docs_root / "two.md").write_text("# Two")
+
+        mock_api.find_page_by_title.return_value = None
+        mock_api.create_page.return_value = "page-123"
+
+        deploy_tree(mock_api, "space123", docs_root, docs_root, files=None)
+
+        # Both files discovered and deployed
+        assert mock_api.create_page.call_count == 2
+
+    def test_files_param_preserves_hierarchy(self, mock_api, tmp_path):
+        """deploy_tree with files= still creates parent pages for nested files."""
+        docs_root = tmp_path / "docs"
+        subdir = docs_root / "section"
+        subdir.mkdir(parents=True)
+
+        nested = subdir / "page.md"
+        nested.write_text("# Nested Page")
+
+        call_count = [0]
+
+        def mock_create(space_id, parent_id, title, body, status="current"):
+            call_count[0] += 1
+            return f"page-{call_count[0]}"
+
+        mock_api.create_page.side_effect = mock_create
+        mock_api.find_page_by_title.return_value = None
+
+        deploy_tree(mock_api, "space123", docs_root, docs_root, files=[nested])
+
+        # Should create container page for "section" + the actual page
+        assert mock_api.create_page.call_count == 2
+
     def test_empty_directory(self, mock_api, tmp_path):
         """Test deploying empty directory."""
         docs_root = tmp_path / "docs"

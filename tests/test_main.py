@@ -1105,6 +1105,15 @@ class TestDeployChangedOnly:
         captured = capsys.readouterr()
         assert "--changed-only: 1 file(s) with changes" in captured.out
 
+        # deploy_tree must receive only the changed file via files= kwarg
+        mock_deploy_tree.assert_called_once()
+        call_kwargs = mock_deploy_tree.call_args
+        files_arg = call_kwargs[1].get("files") if call_kwargs[1] else None
+        assert files_arg is not None, "deploy_tree must be called with files= when --changed-only"
+        file_names = [f.name for f in files_arg]
+        assert "changed.md" in file_names
+        assert "unchanged.md" not in file_names
+
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
     @patch("ccfm_convert.main.ConfluenceBackend")

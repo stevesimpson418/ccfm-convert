@@ -302,7 +302,12 @@ def _handle_deploy(args, parser):
 
         elif hasattr(args, "directory") and args.directory:
             results, hierarchy_pages = deploy_tree(
-                api, space_id, args.directory, args.docs_root, git_repo_url
+                api,
+                space_id,
+                args.directory,
+                args.docs_root,
+                git_repo_url,
+                files=target_files if getattr(args, "changed_only", False) else None,
             )
             for h_rel_path, h_page_id, h_title in hierarchy_pages:
                 state.set_page(
