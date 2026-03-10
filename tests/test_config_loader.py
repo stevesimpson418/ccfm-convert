@@ -102,16 +102,14 @@ class TestLoadConfig:
 
 class TestMergeConfigWithArgs:
     def test_config_fills_missing_cli_arg(self):
-        """Config value is applied when CLI arg is None (lines 94-99)."""
+        """Config value is applied when CLI arg is None."""
         config = {"domain": "from-config.atlassian.net"}
-        args = Namespace(
-            domain=None, email=None, token=None, space=None, docs_root=None, state=None
-        )
+        args = Namespace(domain=None, email=None, token=None, space=None, docs_root=None)
         merged = merge_config_with_args(config, args)
         assert merged.domain == "from-config.atlassian.net"
 
     def test_cli_arg_takes_precedence_over_config(self):
-        """Explicit CLI value is NOT overwritten by config (line 98 guard)."""
+        """Explicit CLI value is NOT overwritten by config."""
         config = {"domain": "from-config.atlassian.net"}
         args = Namespace(
             domain="cli.atlassian.net",
@@ -119,26 +117,21 @@ class TestMergeConfigWithArgs:
             token=None,
             space=None,
             docs_root=None,
-            state=None,
         )
         merged = merge_config_with_args(config, args)
         assert merged.domain == "cli.atlassian.net"
 
     def test_config_key_not_present_is_skipped(self):
-        """Missing config keys leave args unchanged (line 95-96)."""
+        """Missing config keys leave args unchanged."""
         config = {}
-        args = Namespace(
-            domain=None, email=None, token=None, space=None, docs_root=None, state=None
-        )
+        args = Namespace(domain=None, email=None, token=None, space=None, docs_root=None)
         merged = merge_config_with_args(config, args)
         assert merged.domain is None
 
     def test_docs_root_string_coerced_to_path(self):
-        """docs_root string from config is converted to Path (lines 102-103)."""
+        """docs_root string from config is converted to Path."""
         config = {"docs_root": "my/docs"}
-        args = Namespace(
-            domain=None, email=None, token=None, space=None, docs_root=None, state=None
-        )
+        args = Namespace(domain=None, email=None, token=None, space=None, docs_root=None)
         merged = merge_config_with_args(config, args)
         assert merged.docs_root == Path("my/docs")
         assert isinstance(merged.docs_root, Path)
@@ -152,28 +145,15 @@ class TestMergeConfigWithArgs:
             token=None,
             space=None,
             docs_root=Path("already/a/path"),
-            state=None,
         )
         merged = merge_config_with_args(config, args)
         assert merged.docs_root == Path("already/a/path")
 
-    def test_state_file_mapped_from_config_state_file_key(self):
-        """Config key 'state_file' maps to args.state (line 46: 'state_file': 'state')."""
-        config = {"state_file": ".my-state.json"}
-        args = Namespace(
-            domain=None, email=None, token=None, space=None, docs_root=None, state=None
-        )
-        merged = merge_config_with_args(config, args)
-        assert merged.state == ".my-state.json"
-
     def test_original_namespace_is_not_mutated(self):
         """merge_config_with_args returns a new Namespace, not mutating input."""
         config = {"domain": "new.atlassian.net"}
-        args = Namespace(
-            domain=None, email=None, token=None, space=None, docs_root=None, state=None
-        )
+        args = Namespace(domain=None, email=None, token=None, space=None, docs_root=None)
         merge_config_with_args(config, args)
-        # original should be unchanged
         assert args.domain is None
 
     def test_all_config_keys_are_applied(self):
@@ -185,7 +165,6 @@ class TestMergeConfigWithArgs:
             "space": "SP",
             "docs_root": "docs",
             "git_repo_url": "https://github.com/org/repo",
-            "state_file": ".state.json",
         }
         args = Namespace(
             domain=None,
@@ -194,7 +173,6 @@ class TestMergeConfigWithArgs:
             space=None,
             docs_root=None,
             git_repo_url=None,
-            state=None,
         )
         merged = merge_config_with_args(config, args)
         assert merged.domain == "d.atlassian.net"
@@ -203,4 +181,11 @@ class TestMergeConfigWithArgs:
         assert merged.space == "SP"
         assert merged.docs_root == Path("docs")
         assert merged.git_repo_url == "https://github.com/org/repo"
-        assert merged.state == ".state.json"
+
+    def test_state_file_key_is_ignored(self):
+        """state_file config key is no longer mapped (removed in remote state migration)."""
+        config = {"state_file": ".my-state.json"}
+        args = Namespace(domain=None, email=None, token=None, space=None, docs_root=None)
+        merged = merge_config_with_args(config, args)
+        # state_file should not be mapped to any arg
+        assert not hasattr(merged, "state") or merged.state is None

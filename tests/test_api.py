@@ -32,7 +32,7 @@ class TestAPIInitialization:
 class TestGetSpaceId:
     """Test space ID retrieval."""
 
-    @patch("ccfm_convert.deploy.api.requests.get")
+    @patch("requests.Session.get")
     def test_get_space_id_success(self, mock_get, api):
         """Test successful space ID retrieval."""
         mock_response = Mock()
@@ -45,7 +45,7 @@ class TestGetSpaceId:
         assert space_id == "123456"
         mock_get.assert_called_once()
 
-    @patch("ccfm_convert.deploy.api.requests.get")
+    @patch("requests.Session.get")
     def test_get_space_id_not_found(self, mock_get, api):
         """Test space not found."""
         mock_response = Mock()
@@ -60,7 +60,7 @@ class TestGetSpaceId:
 class TestFindPageByTitle:
     """Test page lookup by title."""
 
-    @patch("ccfm_convert.deploy.api.requests.get")
+    @patch("requests.Session.get")
     def test_find_page_found(self, mock_get, api):
         """Test finding existing page."""
         mock_response = Mock()
@@ -72,7 +72,7 @@ class TestFindPageByTitle:
 
         assert page_id == "789"
 
-    @patch("ccfm_convert.deploy.api.requests.get")
+    @patch("requests.Session.get")
     def test_find_page_not_found(self, mock_get, api):
         """Test page not found."""
         mock_response = Mock()
@@ -84,7 +84,7 @@ class TestFindPageByTitle:
 
         assert page_id is None
 
-    @patch("ccfm_convert.deploy.api.requests.get")
+    @patch("requests.Session.get")
     def test_find_page_http_error(self, mock_get, api):
         """Test HTTP error handling."""
         mock_response = Mock()
@@ -98,7 +98,7 @@ class TestFindPageByTitle:
 class TestCreatePage:
     """Test page creation."""
 
-    @patch("ccfm_convert.deploy.api.requests.post")
+    @patch("requests.Session.post")
     def test_create_page_success(self, mock_post, api):
         """Test successful page creation."""
         mock_response = Mock()
@@ -112,7 +112,7 @@ class TestCreatePage:
         assert page_id == "999"
         mock_post.assert_called_once()
 
-    @patch("ccfm_convert.deploy.api.requests.post")
+    @patch("requests.Session.post")
     def test_create_page_with_parent(self, mock_post, api):
         """Test page creation with parent."""
         mock_response = Mock()
@@ -129,7 +129,7 @@ class TestCreatePage:
         request_data = call_args[1]["json"]
         assert request_data["parentId"] == "456"
 
-    @patch("ccfm_convert.deploy.api.requests.post")
+    @patch("requests.Session.post")
     def test_create_page_draft(self, mock_post, api):
         """Test creating draft page."""
         mock_response = Mock()
@@ -149,8 +149,8 @@ class TestCreatePage:
 class TestUpdatePage:
     """Test page updates."""
 
-    @patch("ccfm_convert.deploy.api.requests.get")
-    @patch("ccfm_convert.deploy.api.requests.put")
+    @patch("requests.Session.get")
+    @patch("requests.Session.put")
     def test_update_page_success(self, mock_put, mock_get, api):
         """Test successful page update."""
         # Mock GET for current version
@@ -170,8 +170,8 @@ class TestUpdatePage:
         mock_get.assert_called_once()
         mock_put.assert_called_once()
 
-    @patch("ccfm_convert.deploy.api.requests.get")
-    @patch("ccfm_convert.deploy.api.requests.put")
+    @patch("requests.Session.get")
+    @patch("requests.Session.put")
     def test_update_page_increments_version(self, mock_put, mock_get, api):
         """Test that version is incremented."""
         mock_get_response = Mock()
@@ -195,7 +195,7 @@ class TestUpdatePage:
 class TestAddLabels:
     """Test label management."""
 
-    @patch("ccfm_convert.deploy.api.requests.post")
+    @patch("requests.Session.post")
     def test_add_labels_success(self, mock_post, api):
         """Test adding labels."""
         mock_response = Mock()
@@ -207,7 +207,7 @@ class TestAddLabels:
         # FIX: API may batch labels or call individually - check it was called
         assert mock_post.call_count >= 1
 
-    @patch("ccfm_convert.deploy.api.requests.post")
+    @patch("requests.Session.post")
     def test_add_empty_labels(self, mock_post, api):
         """Test adding empty label list."""
         api.add_labels("789", [])
@@ -215,7 +215,7 @@ class TestAddLabels:
         # Should not make any calls
         mock_post.assert_not_called()
 
-    @patch("ccfm_convert.deploy.api.requests.post")
+    @patch("requests.Session.post")
     def test_add_labels_with_existing(self, mock_post, api):
         """Test adding labels when some already exist."""
         # API may batch or call individually
@@ -232,8 +232,8 @@ class TestAddLabels:
 class TestUploadAttachment:
     """Test attachment uploads."""
 
-    @patch("ccfm_convert.deploy.api.requests.get")
-    @patch("ccfm_convert.deploy.api.requests.post")
+    @patch("requests.Session.get")
+    @patch("requests.Session.post")
     @patch("builtins.open", new_callable=mock_open, read_data=b"file content")
     def test_upload_new_attachment(self, mock_file, mock_post, mock_get, api):
         """Test uploading new attachment."""
@@ -255,8 +255,8 @@ class TestUploadAttachment:
         assert result is not None
         assert result["results"][0]["id"] == "att123"
 
-    @patch("ccfm_convert.deploy.api.requests.get")
-    @patch("ccfm_convert.deploy.api.requests.post")
+    @patch("requests.Session.get")
+    @patch("requests.Session.post")
     @patch("builtins.open", new_callable=mock_open, read_data=b"file content")
     def test_update_existing_attachment(self, mock_file, mock_post, mock_get, api):
         """Test updating existing attachment."""
@@ -277,8 +277,8 @@ class TestUploadAttachment:
 
         assert result is not None
 
-    @patch("ccfm_convert.deploy.api.requests.get")
-    @patch("ccfm_convert.deploy.api.requests.post")
+    @patch("requests.Session.get")
+    @patch("requests.Session.post")
     @patch("builtins.open", new_callable=mock_open, read_data=b"file content")
     def test_upload_attachment_failure(self, mock_file, mock_post, mock_get, api):
         """Test attachment upload failure."""
@@ -301,7 +301,7 @@ class TestUploadAttachment:
 class TestGetAttachmentFileId:
     """Test fetching attachment fileId."""
 
-    @patch("ccfm_convert.deploy.api.requests.get")
+    @patch("requests.Session.get")
     def test_get_fileid_success(self, mock_get, api):
         """Test successful fileId retrieval."""
         mock_response = Mock()
@@ -317,7 +317,7 @@ class TestGetAttachmentFileId:
 
         assert file_id == "uuid-abc-123-def"
 
-    @patch("ccfm_convert.deploy.api.requests.get")
+    @patch("requests.Session.get")
     def test_get_fileid_not_found(self, mock_get, api):
         """Test fileId not found."""
         mock_response = Mock()
@@ -328,7 +328,7 @@ class TestGetAttachmentFileId:
 
         assert file_id is None
 
-    @patch("ccfm_convert.deploy.api.requests.get")
+    @patch("requests.Session.get")
     def test_get_fileid_no_fileid_field(self, mock_get, api):
         """Test response without fileId field."""
         mock_response = Mock()
@@ -348,7 +348,7 @@ class TestGetAttachmentFileId:
 class TestFindPageWebuiUrl:
     """Test find_page_webui_url (lines 65-78)."""
 
-    @patch("ccfm_convert.deploy.api.requests.get")
+    @patch("requests.Session.get")
     def test_find_page_webui_url_found(self, mock_get, api):
         """Returns full https URL when page is found with _links.webui."""
         mock_response = Mock()
@@ -367,7 +367,7 @@ class TestFindPageWebuiUrl:
 
         assert url == "https://example.atlassian.net/wiki/spaces/KEY/pages/123/My+Page"
 
-    @patch("ccfm_convert.deploy.api.requests.get")
+    @patch("requests.Session.get")
     def test_find_page_webui_url_not_found_returns_none(self, mock_get, api):
         """Returns None when no results are returned."""
         mock_response = Mock()
@@ -379,7 +379,7 @@ class TestFindPageWebuiUrl:
 
         assert url is None
 
-    @patch("ccfm_convert.deploy.api.requests.get")
+    @patch("requests.Session.get")
     def test_find_page_webui_url_missing_webui_link_returns_none(self, mock_get, api):
         """Returns None when result has no _links.webui."""
         mock_response = Mock()
@@ -395,7 +395,7 @@ class TestFindPageWebuiUrl:
 class TestDeletePage:
     """Tests for delete_page (v2 DELETE endpoint)."""
 
-    @patch("ccfm_convert.deploy.api.requests.delete")
+    @patch("requests.Session.delete")
     def test_delete_page_success(self, mock_delete, api):
         """delete_page calls DELETE /pages/{id} and does not raise on success."""
         mock_response = Mock()
@@ -413,7 +413,7 @@ class TestDeletePage:
         )
         mock_response.raise_for_status.assert_called_once()
 
-    @patch("ccfm_convert.deploy.api.requests.delete")
+    @patch("requests.Session.delete")
     def test_delete_page_raises_on_http_error(self, mock_delete, api):
         """delete_page propagates HTTP errors from raise_for_status."""
         mock_response = Mock()
@@ -427,7 +427,7 @@ class TestDeletePage:
 class TestCreatePageErrorPath:
     """Test create_page error-printing branch (lines 105-111)."""
 
-    @patch("ccfm_convert.deploy.api.requests.post")
+    @patch("requests.Session.post")
     def test_create_page_prints_error_detail_on_failure(self, mock_post, api):
         """When response is not ok, error details are printed and raise_for_status re-raises."""
         mock_response = Mock()
@@ -442,7 +442,7 @@ class TestCreatePageErrorPath:
         with pytest.raises(Exception, match="400 Bad Request"):
             api.create_page("space-123", None, "Test Page", body)
 
-    @patch("ccfm_convert.deploy.api.requests.post")
+    @patch("requests.Session.post")
     def test_create_page_error_with_non_json_response(self, mock_post, api):
         """When error response body is not valid JSON, the inner exception is silently swallowed."""
         mock_response = Mock()
@@ -461,7 +461,7 @@ class TestCreatePageErrorPath:
 class TestAddLabelsWarning:
     """Test add_labels status-code warning branch (line 175)."""
 
-    @patch("ccfm_convert.deploy.api.requests.post")
+    @patch("requests.Session.post")
     def test_add_labels_unexpected_status_prints_warning(self, mock_post, api):
         """When status code is not 200 or 400, a warning is printed."""
         mock_response = Mock()
@@ -478,8 +478,8 @@ class TestAddLabelsWarning:
 class TestUploadAttachmentNormalisation:
     """Test upload_attachment response normalisation (lines 248-249)."""
 
-    @patch("ccfm_convert.deploy.api.requests.get")
-    @patch("ccfm_convert.deploy.api.requests.post")
+    @patch("requests.Session.get")
+    @patch("requests.Session.post")
     @patch(
         "builtins.open",
         new_callable=__import__("unittest.mock", fromlist=["mock_open"]).mock_open,
@@ -512,8 +512,8 @@ class TestUploadAttachmentNormalisation:
         assert "results" in result
         assert result["results"][0]["id"] == "att456"
 
-    @patch("ccfm_convert.deploy.api.requests.get")
-    @patch("ccfm_convert.deploy.api.requests.post")
+    @patch("requests.Session.get")
+    @patch("requests.Session.post")
     @patch(
         "builtins.open",
         new_callable=__import__("unittest.mock", fromlist=["mock_open"]).mock_open,
@@ -546,10 +546,302 @@ class TestUploadAttachmentNormalisation:
         assert result["results"][0]["id"] == "att789"
 
 
+class TestGetContentProperty:
+    """Test get_content_property (v1 content properties)."""
+
+    @patch("requests.Session.get")
+    def test_returns_property_dict_when_found(self, mock_get, api):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "value": {"locked": True, "owner": "alice@host"},
+            "version": {"number": 3},
+        }
+        mock_response.raise_for_status = Mock()
+        mock_get.return_value = mock_response
+
+        result = api.get_content_property("page-1", "ccfm-lock")
+
+        assert result["value"]["locked"] is True
+        assert result["version"]["number"] == 3
+        mock_get.assert_called_once()
+        call_url = mock_get.call_args[0][0]
+        assert "/content/page-1/property/ccfm-lock" in call_url
+
+    @patch("requests.Session.get")
+    def test_returns_none_when_not_found(self, mock_get, api):
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_get.return_value = mock_response
+
+        result = api.get_content_property("page-1", "no-such-key")
+
+        assert result is None
+
+    @patch("requests.Session.get")
+    def test_raises_on_server_error(self, mock_get, api):
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("500")
+        mock_get.return_value = mock_response
+
+        with pytest.raises(requests.exceptions.HTTPError):
+            api.get_content_property("page-1", "key")
+
+
+class TestSetContentProperty:
+    """Test set_content_property (v1 content properties)."""
+
+    @patch("requests.Session.post")
+    def test_creates_property_when_no_version(self, mock_post, api):
+        mock_response = Mock()
+        mock_response.raise_for_status = Mock()
+        mock_post.return_value = mock_response
+
+        api.set_content_property("page-1", "ccfm-lock", {"locked": True})
+
+        mock_post.assert_called_once()
+        call_data = mock_post.call_args[1]["json"]
+        assert call_data["key"] == "ccfm-lock"
+        assert call_data["value"] == {"locked": True}
+        assert "version" not in call_data
+
+    @patch("requests.Session.put")
+    def test_updates_property_with_version(self, mock_put, api):
+        mock_response = Mock()
+        mock_response.raise_for_status = Mock()
+        mock_put.return_value = mock_response
+
+        api.set_content_property("page-1", "ccfm-lock", {"locked": True}, version=5)
+
+        mock_put.assert_called_once()
+        call_data = mock_put.call_args[1]["json"]
+        assert call_data["version"]["number"] == 5
+        assert call_data["version"]["minorEdit"] is True
+
+    @patch("requests.Session.put")
+    def test_raises_on_conflict(self, mock_put, api):
+        mock_response = Mock()
+        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("409")
+        mock_put.return_value = mock_response
+
+        with pytest.raises(requests.exceptions.HTTPError):
+            api.set_content_property("page-1", "key", {"x": 1}, version=2)
+
+
+class TestDeleteContentProperty:
+    """Test delete_content_property (v1 content properties)."""
+
+    @patch("requests.Session.delete")
+    def test_deletes_existing_property(self, mock_delete, api):
+        mock_response = Mock()
+        mock_response.status_code = 204
+        mock_response.raise_for_status = Mock()
+        mock_delete.return_value = mock_response
+
+        api.delete_content_property("page-1", "ccfm-lock")
+
+        mock_delete.assert_called_once()
+        call_url = mock_delete.call_args[0][0]
+        assert "/content/page-1/property/ccfm-lock" in call_url
+
+    @patch("requests.Session.delete")
+    def test_no_op_when_not_found(self, mock_delete, api):
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_delete.return_value = mock_response
+
+        api.delete_content_property("page-1", "missing-key")
+        # Should not raise
+
+    @patch("requests.Session.delete")
+    def test_raises_on_server_error(self, mock_delete, api):
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("500")
+        mock_delete.return_value = mock_response
+
+        with pytest.raises(requests.exceptions.HTTPError):
+            api.delete_content_property("page-1", "key")
+
+
+class TestDownloadAttachment:
+    """Test download_attachment (v1 attachment download)."""
+
+    @patch("requests.Session.get")
+    def test_downloads_attachment_content(self, mock_get, api):
+        list_response = Mock()
+        list_response.raise_for_status = Mock()
+        list_response.json.return_value = {
+            "results": [{"_links": {"download": "/download/attachments/123/state.json"}}]
+        }
+
+        download_response = Mock()
+        download_response.raise_for_status = Mock()
+        download_response.content = b'{"version":"1","pages":{}}'
+
+        mock_get.side_effect = [list_response, download_response]
+
+        result = api.download_attachment("page-1", "ccfm-state.json")
+
+        assert result == b'{"version":"1","pages":{}}'
+        assert mock_get.call_count == 2
+        # Second call should use the download link
+        download_url = mock_get.call_args_list[1][0][0]
+        assert "download/attachments/123/state.json" in download_url
+
+    @patch("requests.Session.get")
+    def test_returns_none_when_attachment_not_found(self, mock_get, api):
+        mock_response = Mock()
+        mock_response.raise_for_status = Mock()
+        mock_response.json.return_value = {"results": []}
+        mock_get.return_value = mock_response
+
+        result = api.download_attachment("page-1", "missing.json")
+
+        assert result is None
+        mock_get.assert_called_once()
+
+
+class TestFindPageByLabel:
+    """Test find_page_by_label (v1 content search)."""
+
+    @patch("requests.Session.get")
+    def test_returns_page_id_when_found(self, mock_get, api):
+        mock_response = Mock()
+        mock_response.raise_for_status = Mock()
+        mock_response.json.return_value = {
+            "results": [{"id": "mgmt-page-42", "title": "CCFM State Management"}]
+        }
+        mock_get.return_value = mock_response
+
+        result = api.find_page_by_label("DOCS", "ccfm-internal")
+
+        assert result == "mgmt-page-42"
+        call_params = mock_get.call_args[1]["params"]
+        assert call_params["spaceKey"] == "DOCS"
+        assert call_params["label"] == "ccfm-internal"
+
+    @patch("requests.Session.get")
+    def test_returns_none_when_no_results(self, mock_get, api):
+        mock_response = Mock()
+        mock_response.raise_for_status = Mock()
+        mock_response.json.return_value = {"results": []}
+        mock_get.return_value = mock_response
+
+        result = api.find_page_by_label("DOCS", "ccfm-internal")
+
+        assert result is None
+
+
+class TestFindChildPageByTitle:
+    """Test find_child_page_by_title (v2 children API)."""
+
+    @patch("requests.Session.get")
+    def test_returns_page_id_when_child_found(self, mock_get, api):
+        """Returns page ID when a child with matching title exists."""
+        mock_response = Mock()
+        mock_response.raise_for_status = Mock()
+        mock_response.json.return_value = {
+            "results": [
+                {"id": "child-1", "title": "Other Page"},
+                {"id": "child-2", "title": "CCFM State Management"},
+            ],
+            "_links": {},
+        }
+        mock_get.return_value = mock_response
+
+        result = api.find_child_page_by_title("container-42", "CCFM State Management")
+
+        assert result == "child-2"
+        url = mock_get.call_args[0][0]
+        assert "container-42/children" in url
+
+    @patch("requests.Session.get")
+    def test_returns_none_when_no_matching_child(self, mock_get, api):
+        """Returns None when no child has the requested title."""
+        mock_response = Mock()
+        mock_response.raise_for_status = Mock()
+        mock_response.json.return_value = {
+            "results": [{"id": "child-1", "title": "Unrelated Page"}],
+            "_links": {},
+        }
+        mock_get.return_value = mock_response
+
+        result = api.find_child_page_by_title("container-42", "CCFM State Management")
+
+        assert result is None
+
+    @patch("requests.Session.get")
+    def test_returns_none_when_no_children(self, mock_get, api):
+        """Returns None when the parent has no children."""
+        mock_response = Mock()
+        mock_response.raise_for_status = Mock()
+        mock_response.json.return_value = {"results": [], "_links": {}}
+        mock_get.return_value = mock_response
+
+        result = api.find_child_page_by_title("container-42", "CCFM State Management")
+
+        assert result is None
+
+    @patch("requests.Session.get")
+    def test_paginates_until_match_found(self, mock_get, api):
+        """Follows the 'next' cursor link to find a child on the second page."""
+        first_response = Mock()
+        first_response.raise_for_status = Mock()
+        first_response.json.return_value = {
+            "results": [{"id": "child-1", "title": "Page A"}],
+            "_links": {"next": "/wiki/api/v2/pages/container-42/children?cursor=abc"},
+        }
+        second_response = Mock()
+        second_response.raise_for_status = Mock()
+        second_response.json.return_value = {
+            "results": [{"id": "child-2", "title": "CCFM State Management"}],
+            "_links": {},
+        }
+        mock_get.side_effect = [first_response, second_response]
+
+        result = api.find_child_page_by_title("container-42", "CCFM State Management")
+
+        assert result == "child-2"
+        assert mock_get.call_count == 2
+
+
+class TestUploadAttachmentNameParam:
+    """Test upload_attachment name parameter override."""
+
+    @patch("requests.Session.get")
+    @patch("requests.Session.post")
+    @patch("builtins.open", new_callable=mock_open, read_data=b"state data")
+    def test_name_overrides_filepath_name(self, mock_file, mock_post, mock_get, api):
+        """When name is provided, it's used instead of filepath.name."""
+        mock_get_response = Mock()
+        mock_get_response.status_code = 200
+        mock_get_response.json.return_value = {"results": []}
+        mock_get.return_value = mock_get_response
+
+        mock_post_response = Mock()
+        mock_post_response.status_code = 201
+        mock_post_response.json.return_value = {
+            "results": [{"id": "att-new", "title": "ccfm-state.json"}]
+        }
+        mock_post.return_value = mock_post_response
+
+        result = api.upload_attachment("page-1", Path("/tmp/abc123.tmp"), name="ccfm-state.json")
+
+        assert result is not None
+        # GET should query by the custom name
+        get_params = mock_get.call_args[1]["params"]
+        assert get_params["filename"] == "ccfm-state.json"
+        # POST file tuple should use custom name
+        post_files = mock_post.call_args[1]["files"]
+        assert post_files["file"][0] == "ccfm-state.json"
+
+
 class TestErrorHandling:
     """Test error handling across API methods."""
 
-    @patch("ccfm_convert.deploy.api.requests.get")
+    @patch("requests.Session.get")
     def test_network_error(self, mock_get, api):
         """Test network error handling."""
         mock_get.side_effect = requests.exceptions.ConnectionError("Network error")
@@ -557,7 +849,7 @@ class TestErrorHandling:
         with pytest.raises(requests.exceptions.ConnectionError):
             api.get_space_id("TEST")
 
-    @patch("ccfm_convert.deploy.api.requests.post")
+    @patch("requests.Session.post")
     def test_authentication_error(self, mock_post, api):
         """Test authentication error."""
         mock_response = Mock()
@@ -569,7 +861,7 @@ class TestErrorHandling:
             body = {"version": 1, "type": "doc", "content": []}
             api.create_page("123", None, "Page", body)
 
-    @patch("ccfm_convert.deploy.api.requests.get")
+    @patch("requests.Session.get")
     def test_rate_limit_error(self, mock_get, api):
         """Test rate limit handling."""
         mock_response = Mock()
@@ -582,7 +874,7 @@ class TestErrorHandling:
         with pytest.raises(requests.exceptions.HTTPError):
             api.get_space_id("TEST")
 
-    @patch("ccfm_convert.deploy.api.requests.post")
+    @patch("requests.Session.post")
     def test_server_error(self, mock_post, api):
         """Test server error handling."""
         mock_response = Mock()
