@@ -138,7 +138,7 @@ def ensure_page_hierarchy(api, space_id, filepath, docs_root, git_repo_url=""):
     return current_parent_id, hierarchy_pages
 
 
-def deploy_tree(api, space_id, root_path, docs_root, git_repo_url="", dump=False):
+def deploy_tree(api, space_id, root_path, docs_root, git_repo_url="", dump=False, files=None):
     """
     Deploy an entire directory tree.
 
@@ -149,13 +149,19 @@ def deploy_tree(api, space_id, root_path, docs_root, git_repo_url="", dump=False
         docs_root: Root documentation directory
         git_repo_url: Git repository URL for CI banner
         dump: If True, write ADF JSON files and skip deployment
+        files: Optional pre-filtered list of files to deploy. When provided,
+            only these files are deployed instead of discovering all .md files
+            via rglob. Used by --changed-only to limit deployment scope.
 
     Returns:
         Tuple of (results, hierarchy_pages) where results is a list of
         (filepath, page_id) tuples and hierarchy_pages is a deduplicated list of
         (rel_path, page_id, title) for each directory container page.
     """
-    md_files = sorted(root_path.rglob("*.md"))
+    if files is not None:
+        md_files = sorted(files)
+    else:
+        md_files = sorted(root_path.rglob("*.md"))
 
     # Filter out .page_content.md files (these are used for container pages)
     md_files = [f for f in md_files if f.name != ".page_content.md"]

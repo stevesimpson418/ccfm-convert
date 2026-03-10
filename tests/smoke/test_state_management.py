@@ -89,6 +89,11 @@ class TestChangedOnly:
                 f"Expected page-alpha to appear in --changed-only output.\n"
                 f"stdout: {result.stdout}"
             )
+            # Unchanged page-beta must NOT be deployed (issue #6)
+            assert "page-beta" not in result.stdout, (
+                f"Unchanged page-beta should NOT be deployed with --changed-only.\n"
+                f"stdout: {result.stdout}"
+            )
         finally:
             # Always restore the original content
             PAGE_ALPHA.write_text(original_content, encoding="utf-8")
