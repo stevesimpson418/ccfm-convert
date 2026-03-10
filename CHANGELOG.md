@@ -4,6 +4,38 @@ All notable changes to CCFM are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-03-10
+
+### Added
+
+- Remote state backend: state stored as a versioned JSON attachment on the CCFM
+  management page in Confluence, replacing the local `.ccfm-state.json` file
+- Distributed locking: `ccfm lock acquire/status/release` and automatic
+  lock acquire/release around all state-writing operations (`deploy`,
+  `state rm`, `state push`) to prevent concurrent torn-state scenarios
+- `ccfm init`: idempotent bootstrap command that creates the `_ccfm` container
+  page and `CCFM State Management` child page in a Confluence space
+- `ccfm state pull`: print remote state JSON to stdout (pipe-friendly)
+- `ccfm state push <file>`: overwrite remote state from a local JSON file
+  (validates schema and `page_id` format before acquiring lock)
+- `ccfm state show <path>`: display the state entry for a specific tracked path
+- Hierarchy container pages tracked in state so they are not falsely flagged
+  as orphans on subsequent deploys
+- HTTP retry adapter on all API calls (GET/PUT/DELETE only — POST excluded
+  to prevent duplicate page creation on transient 5xx errors)
+- Symlink escape guard in `ensure_page_hierarchy` rejects paths that resolve
+  outside the docs root
+- README Initial Setup section and full CLI reference for all subcommands
+
+### Changed
+
+- `all_pages` and `raw_state` now return deep copies, preventing callers from
+  accidentally mutating internal state through the returned dicts
+- Orphan archive loop batches the single `state.save()` call after all
+  removals instead of saving once per deleted page
+- Smoke test teardown resets the state attachment to empty rather than
+  deleting management infrastructure, making test runs idempotent
+
 ## [0.2.1] - 2026-03-06
 
 _Re-release of 0.2.0 — PyPI rejected the re-uploaded artifacts after a tag
@@ -58,6 +90,7 @@ fix; no code changes._
 - `ccfm.yaml` project config file with `${ENV_VAR}` interpolation
 - 100% unit test coverage; end-to-end smoke tests against real Confluence
 
+[0.3.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.1.1...v0.1.2
