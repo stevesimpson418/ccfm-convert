@@ -12,7 +12,6 @@ Supported schema:
     space: DOCS
     docs_root: docs
     git_repo_url: https://github.com/org/repo
-    state_file: .ccfm-state.json
 
     # Optional multi-space routing
     deployments:
@@ -46,7 +45,6 @@ _CONFIG_TO_ARG = {
     "space": "space",
     "docs_root": "docs_root",
     "git_repo_url": "git_repo_url",
-    "state_file": "state",
 }
 
 

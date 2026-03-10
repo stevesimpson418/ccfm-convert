@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+from unittest.mock import Mock
 
 from ccfm_convert.plan.planner import DeployPlan, OrphanAction, PageAction, compute_plan
 from ccfm_convert.state.manager import StateManager
@@ -12,7 +13,9 @@ from ccfm_convert.state.manager import StateManager
 
 
 def _make_state(tmp_path) -> StateManager:
-    return StateManager(tmp_path / ".ccfm-state.json")
+    backend = Mock()
+    backend.load.return_value = {"version": "1", "pages": {}}
+    return StateManager(backend)
 
 
 def _write_md(directory: Path, name: str, content: str = "# Hello") -> Path:

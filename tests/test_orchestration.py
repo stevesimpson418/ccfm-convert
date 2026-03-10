@@ -36,7 +36,7 @@ class TestEnsurePageHierarchy:
 
         filepath = docs_root / "page.md"
 
-        parent_id = ensure_page_hierarchy(mock_api, "space123", filepath, docs_root)
+        parent_id, _ = ensure_page_hierarchy(mock_api, "space123", filepath, docs_root)
 
         # Should return None (no parent needed)
         assert parent_id is None
@@ -52,7 +52,7 @@ class TestEnsurePageHierarchy:
         mock_api.find_page_by_title.return_value = None
         mock_api.create_page.return_value = "parent-123"
 
-        parent_id = ensure_page_hierarchy(mock_api, "space123", filepath, docs_root)
+        parent_id, _ = ensure_page_hierarchy(mock_api, "space123", filepath, docs_root)
 
         # Should create parent page and return its ID
         assert parent_id == "parent-123"
@@ -91,7 +91,7 @@ class TestEnsurePageHierarchy:
         # Parent already exists
         mock_api.find_page_by_title.return_value = "existing-123"
 
-        parent_id = ensure_page_hierarchy(mock_api, "space123", filepath, docs_root)
+        parent_id, _ = ensure_page_hierarchy(mock_api, "space123", filepath, docs_root)
 
         # Should return existing page ID
         assert parent_id == "existing-123"
@@ -377,7 +377,7 @@ class TestEnsurePageHierarchyCoverage:
         # Simulate page already exists
         mock_api.find_page_by_title.return_value = "existing-team-page"
 
-        parent_id = ensure_page_hierarchy(mock_api, "space123", filepath, docs_root)
+        parent_id, _ = ensure_page_hierarchy(mock_api, "space123", filepath, docs_root)
 
         # Should update the existing page
         mock_api.update_page.assert_called_once()
@@ -431,6 +431,21 @@ class TestEnsurePageHierarchyCoverage:
 class TestEnsurePageHierarchyEdgeCases:
     """Tests targeting remaining edge cases in ensure_page_hierarchy."""
 
+    def test_symlink_escaping_docs_root_raises(self, mock_api, tmp_path):
+        """Symlink inside docs_root that resolves outside it raises ValueError."""
+        docs_root = tmp_path / "docs"
+        docs_root.mkdir()
+
+        # Create a symlink inside docs_root pointing to parent (outside docs_root)
+        evil_link = docs_root / "escape"
+        evil_link.symlink_to(tmp_path)
+
+        # filepath appears to be inside docs/escape/
+        filepath = evil_link / "page.md"
+
+        with pytest.raises(ValueError, match="resolves outside docs_root"):
+            ensure_page_hierarchy(mock_api, "space123", filepath, docs_root)
+
     def test_filepath_not_under_docs_root_returns_none(self, mock_api, tmp_path):
         """Lines 33-35: when filepath is not relative to docs_root, returns None."""
         docs_root = tmp_path / "docs"
@@ -441,7 +456,7 @@ class TestEnsurePageHierarchyEdgeCases:
         other_dir.mkdir()
         filepath = other_dir / "page.md"
 
-        result = ensure_page_hierarchy(mock_api, "space123", filepath, docs_root)
+        result, _ = ensure_page_hierarchy(mock_api, "space123", filepath, docs_root)
 
         assert result is None
         mock_api.create_page.assert_not_called()

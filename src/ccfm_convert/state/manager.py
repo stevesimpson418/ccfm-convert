@@ -1,27 +1,25 @@
-"""CCFM state manager — persists filepath → page_id mappings between deployments."""
+"""CCFM state manager — persists filepath -> page_id mappings between deployments."""
 
+import copy
 import hashlib
-import json
-import os
 from datetime import UTC, datetime
 from pathlib import Path
 
+from ccfm_convert.state.backend import StateBackend
+
 
 class StateManager:
-    """Tracks deployed pages across runs via a local JSON state file.
+    """Tracks deployed pages across runs via a remote state backend.
 
-    The state file maps relative file paths (from the working directory) to their
+    The state maps relative file paths (from the working directory) to their
     Confluence page metadata, enabling changed-files-only deployment, orphan detection,
     and plan/diff mode.
-
-    The state file is intended to be committed alongside documentation so that CI
-    pipelines and team members share the same deployment history.
     """
 
     STATE_VERSION = "1"
 
-    def __init__(self, path: Path):
-        self.path = path
+    def __init__(self, backend: StateBackend) -> None:
+        self._backend = backend
         self._state: dict = {"version": self.STATE_VERSION, "pages": {}}
 
     # ------------------------------------------------------------------
@@ -29,29 +27,12 @@ class StateManager:
     # ------------------------------------------------------------------
 
     def load(self) -> None:
-        """Load state from disk. Silent no-op if the file does not exist."""
-        if not self.path.exists():
-            return
-        with open(self.path, encoding="utf-8") as fh:
-            data = json.load(fh)
-        if not isinstance(data, dict) or not isinstance(data.get("pages"), dict):
-            raise ValueError(f"State file has unexpected schema: {self.path}")
-        self._state = data
+        """Load state from the backend."""
+        self._state = self._backend.load()
 
     def save(self) -> None:
-        """Atomically write state to disk (write-then-rename).
-
-        Creates parent directories if they do not exist. The temporary file is
-        written with mode 0o600 (owner read/write only) to avoid exposing space
-        IDs and page titles to other users on shared systems.
-        """
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".json.tmp")
-        payload = json.dumps(self._state, indent=2, sort_keys=True)
-        fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            fh.write(payload)
-        tmp.rename(self.path)
+        """Persist state via the backend."""
+        self._backend.save(self._state)
 
     # ------------------------------------------------------------------
     # Page records
@@ -86,8 +67,17 @@ class StateManager:
 
     @property
     def all_pages(self) -> dict:
-        """Return a shallow copy of all page entries keyed by relative path."""
-        return dict(self._state["pages"])
+        """Return a deep copy of all page entries keyed by relative path."""
+        return copy.deepcopy(self._state["pages"])
+
+    @property
+    def raw_state(self) -> dict:
+        """Return a deep copy of the full state dict (version + pages).
+
+        A deep copy prevents callers from accidentally mutating internal state
+        through the returned pages dict.
+        """
+        return copy.deepcopy(self._state)
 
     # ------------------------------------------------------------------
     # Content hashing
@@ -139,6 +129,9 @@ class StateManager:
         current_rel = {_to_rel(f) for f in current_files}
         orphans = []
         for rel_path in self._state["pages"]:
+            # Skip directory container pages (no .md extension) — they are not files on disk
+            if not rel_path.endswith(".md"):
+                continue
             # Only flag orphans that were under the docs_root being deployed
             try:
                 Path(rel_path).relative_to(docs_root_rel)
