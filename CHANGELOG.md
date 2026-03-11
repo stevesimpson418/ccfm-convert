@@ -4,6 +4,17 @@ All notable changes to CCFM are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-03-11
+
+### Added
+
+- `deploy_page: false` in frontmatter now generates a **destroy** action for
+  previously deployed pages, removing them from Confluence on next `apply`
+  ([#8](https://github.com/stevesimpson418/ccfm-convert/issues/8))
+- Container pages are also destroyed when all their children have
+  `deploy_page: false`
+- Manual test steps (5.7–5.12) for `deploy_page: false` destroy workflow
+
 ## [0.4.0] - 2026-03-11
 
 ### Added
@@ -117,6 +128,7 @@ fix; no code changes._
 - `ccfm.yaml` project config file with `${ENV_VAR}` interpolation
 - 100% unit test coverage; end-to-end smoke tests against real Confluence
 
+[0.5.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.2.0...v0.2.1
