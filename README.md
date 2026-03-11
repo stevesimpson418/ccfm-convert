@@ -158,6 +158,11 @@ deploy_config:
 ---
 ```
 
+> **Note:** Setting `deploy_page: false` on a previously deployed page will **destroy** that page
+> on the next `apply`. If every child page under a directory container has `deploy_page: false`,
+> the container page itself is also destroyed. This lets you remove pages from Confluence without
+> deleting the source file from your repository.
+
 See [CCFM.md — Front matter](CCFM.md#front-matter) for the complete field reference.
 
 ---

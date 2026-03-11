@@ -484,6 +484,91 @@ class TestComputePlan:
 
         assert str(f) == plan.page_actions[0].rel_path
 
+    # -----------------------------------------------------------------------
+    # deploy_page: false → destroy or skip
+    # -----------------------------------------------------------------------
+
+    def test_deploy_page_false_with_state_entry_generates_destroy(self, tmp_path):
+        """File on disk with deploy_page: false that exists in state → destroy action."""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        fm = "---\ndeploy_config:\n  deploy_page: false\n---\n# Content"
+        f = _write_md(docs, "retired.md", fm)
+        state = _make_state(tmp_path)
+
+        old_cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            rel = str(f.relative_to(tmp_path))
+            state.set_page(rel, "p-old", "Retired", "SP", "s", "sha256:prev")
+            plan = compute_plan(state, [f], docs)
+        finally:
+            os.chdir(old_cwd)
+
+        assert len(plan.page_actions) == 0, "should NOT appear in page_actions"
+        assert len(plan.destroy_actions) == 1
+        assert plan.destroy_actions[0].page_id == "p-old"
+        assert plan.destroy_actions[0].action == "destroy"
+
+    def test_deploy_page_false_without_state_entry_skipped(self, tmp_path):
+        """File on disk with deploy_page: false and no state entry → no action at all."""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        fm = "---\ndeploy_config:\n  deploy_page: false\n---\n# Never deployed"
+        f = _write_md(docs, "local-only.md", fm)
+        state = _make_state(tmp_path)
+
+        old_cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            plan = compute_plan(state, [f], docs)
+        finally:
+            os.chdir(old_cwd)
+
+        assert len(plan.page_actions) == 0
+        assert len(plan.destroy_actions) == 0
+
+    def test_deploy_page_true_explicit_unchanged(self, tmp_path):
+        """Explicit deploy_page: true behaves same as default (normal add)."""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        fm = "---\ndeploy_config:\n  deploy_page: true\n---\n# Deploy me"
+        f = _write_md(docs, "active.md", fm)
+        state = _make_state(tmp_path)
+
+        old_cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            plan = compute_plan(state, [f], docs)
+        finally:
+            os.chdir(old_cwd)
+
+        assert len(plan.page_actions) == 1
+        assert plan.page_actions[0].action == "add"
+
+    def test_container_destroyed_when_only_child_has_deploy_page_false(self, tmp_path):
+        """Container page destroyed when its only child has deploy_page: false."""
+        docs = tmp_path / "docs"
+        (docs / "team").mkdir(parents=True)
+        fm = "---\ndeploy_config:\n  deploy_page: false\n---\n# Retired"
+        f = _write_md(docs / "team", "page.md", fm)
+        state = _make_state(tmp_path)
+
+        old_cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            rel = str(f.relative_to(tmp_path))
+            state.set_page("docs/team", "dir-1", "Team", "SP", "s", "")
+            state.set_page(rel, "p1", "Page", "SP", "s", "sha256:x")
+            plan = compute_plan(state, [f], docs)
+        finally:
+            os.chdir(old_cwd)
+
+        destroy_paths = [a.rel_path for a in plan.destroy_actions]
+        assert "docs/team/page.md" in destroy_paths
+        assert "docs/team" in destroy_paths
+        assert len(plan.page_actions) == 0
+
     def test_empty_files_list_produces_empty_plan(self, tmp_path):
         """compute_plan with no files returns empty page_actions."""
         docs = tmp_path / "docs"
