@@ -5,14 +5,18 @@ import json
 import os
 import re
 import sys
+import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 
 from ccfm_convert.config import load_config, merge_config_with_args
 from ccfm_convert.deploy import (
     ConfluenceAPI,
-    archive_page,
     deploy_page,
     deploy_tree,
+    destroy_pages,
+    dump_page,
+    dump_tree,
     ensure_page_hierarchy,
 )
 from ccfm_convert.deploy.frontmatter import parse_frontmatter
@@ -66,56 +70,72 @@ def _add_global_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--space", default=None, help="Space key")
 
 
+def _add_target_args(parser: argparse.ArgumentParser) -> None:
+    """Add --file, --directory, --docs-root, --git-repo-url shared by plan and apply."""
+    parser.add_argument("--file", type=Path, help="Single markdown file to target")
+    parser.add_argument("--directory", type=Path, help="Directory to target (recursive)")
+    parser.add_argument(
+        "--docs-root",
+        type=Path,
+        default=None,
+        help="Root documentation directory (default: docs)",
+    )
+    parser.add_argument("--git-repo-url", default="", help="Git repo URL for CI banner")
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Deploy markdown to Confluence Cloud")
     _add_global_args(parser)
 
     subparsers = parser.add_subparsers(dest="command")
 
-    # -- deploy ----------------------------------------------------------
-    deploy_parser = subparsers.add_parser("deploy", help="Deploy markdown to Confluence")
-    deploy_parser.add_argument("--file", type=Path, help="Single markdown file to deploy")
-    deploy_parser.add_argument("--directory", type=Path, help="Directory to deploy (recursive)")
-    deploy_parser.add_argument(
-        "--docs-root",
-        type=Path,
-        default=None,
-        help="Root documentation directory (default: docs)",
-    )
-    deploy_parser.add_argument("--git-repo-url", default="", help="Git repo URL for CI banner")
-    deploy_parser.add_argument(
-        "--dump",
-        action="store_true",
-        help="Write ADF to .adf.json files and skip deployment",
-    )
-    deploy_parser.add_argument(
-        "--plan",
-        action="store_true",
-        help="Show what would be deployed without making any changes",
-    )
-    deploy_parser.add_argument(
+    # -- init ------------------------------------------------------------
+    subparsers.add_parser("init", help="Initialize remote state infrastructure in the space")
+
+    # -- plan ------------------------------------------------------------
+    plan_parser = subparsers.add_parser("plan", help="Show what ccfm would do without applying")
+    _add_target_args(plan_parser)
+    plan_parser.add_argument(
         "--plan-exit-code",
         action="store_true",
-        help="With --plan, exit 2 when changes are pending (Terraform-style)",
+        help="Exit 2 when changes are pending (useful for CI gating)",
     )
-    deploy_parser.add_argument(
-        "--changed-only",
+    plan_parser.add_argument(
+        "--force",
         action="store_true",
-        help="Only deploy files whose content has changed since last deploy",
+        help="Treat all files as new (force re-deploy on next apply)",
     )
-    deploy_parser.add_argument(
-        "--archive-orphans",
+
+    # -- apply -----------------------------------------------------------
+    apply_parser = subparsers.add_parser("apply", help="Apply changes to Confluence")
+    _add_target_args(apply_parser)
+    apply_parser.add_argument(
+        "--auto-approve",
         action="store_true",
-        help="Archive Confluence pages for markdown files that no longer exist on disk",
+        help="Skip interactive confirmation prompt (for CI/CD)",
     )
-    deploy_parser.add_argument(
+    apply_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force re-deploy of all files regardless of state",
+    )
+    apply_parser.add_argument(
         "--lock-id",
         default=None,
         help="Lock identifier for CI traceability (default: user@hostname)",
     )
 
-    # -- init ------------------------------------------------------------
-    subparsers.add_parser("init", help="Initialize remote state infrastructure in the space")
+    # -- dump ------------------------------------------------------------
+    dump_parser = subparsers.add_parser(
+        "dump", help="Convert markdown to ADF JSON files for inspection (no API calls)"
+    )
+    _add_target_args(dump_parser)
+    dump_parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Output directory for .adf.json files (default: .ccfm/dumps/<timestamp>/)",
+    )
 
     # -- state -----------------------------------------------------------
     state_parser = subparsers.add_parser("state", help="Inspect or modify remote state")
@@ -185,6 +205,24 @@ def _find_management_page(api, space_id):
     return page_id
 
 
+def _resolve_target_files(args):
+    """Resolve target files from --file or --directory. Returns list of paths or exits."""
+    if hasattr(args, "file") and args.file:
+        if not args.file.exists():
+            print(f"Error: File not found: {args.file}", file=sys.stderr)
+            sys.exit(1)
+        return [args.file]
+    elif hasattr(args, "directory") and args.directory:
+        if not args.directory.exists():
+            print(f"Error: Directory not found: {args.directory}", file=sys.stderr)
+            sys.exit(1)
+        all_md = sorted(args.directory.rglob("*.md"))
+        return [f for f in all_md if f.name != ".page_content.md"]
+    else:
+        print("Error: Specify either --file or --directory")
+        sys.exit(1)
+
+
 # ======================================================================
 # Subcommand handlers
 # ======================================================================
@@ -198,160 +236,181 @@ def _handle_init(args, parser):
     space_id = api.get_space_id(args.space)
     init_remote_state(api, args.space, space_id)
     print("\nInitialization complete!")
+    print("\nAll files inside your docs_root directory will be managed by ccfm.")
+    print("Removing files or folders will result in destroy operations on the next apply.")
 
 
-def _handle_deploy(args, parser):
-    """Handle the 'deploy' subcommand."""
-    # Apply deploy-specific defaults
+def _handle_plan(args, parser):
+    """Handle the 'plan' subcommand."""
     if not hasattr(args, "docs_root") or args.docs_root is None:
         args.docs_root = Path("docs")
 
-    # Resolve target files
-    if hasattr(args, "file") and args.file:
-        target_files = [args.file]
-    elif hasattr(args, "directory") and args.directory:
-        all_md = sorted(args.directory.rglob("*.md"))
-        target_files = [f for f in all_md if f.name != ".page_content.md"]
-    else:
-        print("Error: Specify either --file or --directory")
-        sys.exit(1)
+    target_files = _resolve_target_files(args)
 
-    # Snapshot all files before --changed-only filtering (for orphan detection)
-    all_files = list(target_files)
-
-    # --dump mode: no API, no state, no lock
-    if hasattr(args, "dump") and args.dump:
-        print("Dump mode — ADF will be written to .adf.json files, no deployment")
-        git_repo_url = getattr(args, "git_repo_url", "")
-        if hasattr(args, "file") and args.file:
-            deploy_page(None, None, None, args.file, git_repo_url, dump=True)
-        elif hasattr(args, "directory") and args.directory:
-            deploy_tree(None, None, args.directory, args.docs_root, git_repo_url, dump=True)
-        return
-
-    # All non-dump paths need credentials and API
     _require_credentials(args, parser)
     api = _create_api(args)
     print(f"Looking up space: {args.space}")
     space_id = api.get_space_id(args.space)
     print(f"   Space ID: {space_id}")
 
-    # Find management page for state + locking
     mgmt_page_id = _find_management_page(api, space_id)
     backend = ConfluenceBackend(api, mgmt_page_id)
     state = StateManager(backend)
     state.load()
 
-    # --plan mode: read-only, no lock needed
-    if hasattr(args, "plan") and args.plan:
-        plan = compute_plan(
-            state=state,
-            files=target_files,
-            docs_root=args.docs_root,
-            archive_orphans=getattr(args, "archive_orphans", False),
-        )
-        plan.print_summary()
-        if getattr(args, "plan_exit_code", False):
-            sys.exit(2 if plan.has_changes() else 0)
-        sys.exit(0)
+    force = getattr(args, "force", False)
+    plan = compute_plan(state=state, files=target_files, docs_root=args.docs_root, force=force)
+    plan.print_summary()
 
-    # --changed-only filter
-    if getattr(args, "changed_only", False):
-        target_files = [f for f in target_files if state.has_changed(_rel_path(f), f)]
-        print(f"--changed-only: {len(target_files)} file(s) with changes")
-        if not target_files:
-            print("No changes to deploy.")
+    if getattr(args, "plan_exit_code", False):
+        sys.exit(2 if plan.has_changes() else 0)
+
+
+def _handle_dump(args, parser):
+    """Handle the 'dump' subcommand."""
+    if not hasattr(args, "docs_root") or args.docs_root is None:
+        args.docs_root = Path("docs")
+
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    output_dir = args.output_dir or Path(".ccfm") / "dumps" / f"{timestamp}_{uuid.uuid4().hex[:8]}"
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        print(f"Error: Cannot create output directory '{output_dir}': {e}", file=sys.stderr)
+        sys.exit(1)
+
+    git_repo_url = getattr(args, "git_repo_url", "")
+
+    if hasattr(args, "file") and args.file:
+        if not args.file.exists():
+            parser.error(f"File not found: {args.file}")
+        dump_page(args.file, output_dir, git_repo_url)
+    elif hasattr(args, "directory") and args.directory:
+        if not args.directory.exists():
+            parser.error(f"Directory not found: {args.directory}")
+        dump_tree(args.directory, args.docs_root, output_dir, git_repo_url)
+    else:
+        print("Error: Specify either --file or --directory")
+        sys.exit(1)
+
+    print(f"\nDump complete! ADF files written to: {output_dir}")
+
+
+def _handle_apply(args, parser):
+    """Handle the 'apply' subcommand."""
+    if not hasattr(args, "docs_root") or args.docs_root is None:
+        args.docs_root = Path("docs")
+
+    target_files = _resolve_target_files(args)
+
+    _require_credentials(args, parser)
+    api = _create_api(args)
+    print(f"Looking up space: {args.space}")
+    space_id = api.get_space_id(args.space)
+    print(f"   Space ID: {space_id}")
+
+    mgmt_page_id = _find_management_page(api, space_id)
+    backend = ConfluenceBackend(api, mgmt_page_id)
+    state = StateManager(backend)
+    state.load()
+
+    # Compute plan
+    force = getattr(args, "force", False)
+    plan = compute_plan(state=state, files=target_files, docs_root=args.docs_root, force=force)
+    plan.print_summary()
+
+    if not plan.has_changes():
+        print("No changes to apply.")
+        return
+
+    # Confirmation prompt
+    auto_approve = getattr(args, "auto_approve", False)
+    if not auto_approve:
+        if not sys.stdin.isatty():
+            print(
+                "Error: apply requires confirmation. Use --auto-approve for non-interactive mode."
+            )
+            sys.exit(1)
+        answer = input("\nDo you want to apply these changes? Only 'yes' will be accepted: ")
+        if answer.strip().lower() != "yes":
+            print("Apply cancelled.")
             return
 
-    # Acquire lock for live deployment
+    # Acquire lock
     lock_mgr = LockManager(api, mgmt_page_id)
     lock_id = getattr(args, "lock_id", None)
     try:
-        lock_mgr.acquire(operation="deploy", lock_id=lock_id)
+        lock_mgr.acquire(operation="apply", lock_id=lock_id)
     except LockError as e:
         print(f"Error: {e}")
         sys.exit(1)
 
     git_repo_url = getattr(args, "git_repo_url", "")
     try:
-        # Live deployment
-        if hasattr(args, "file") and args.file:
-            parent_id, hierarchy_pages = ensure_page_hierarchy(
-                api, space_id, args.file, args.docs_root, git_repo_url
-            )
-            page_id = deploy_page(api, space_id, parent_id, args.file, git_repo_url)
-            for h_rel_path, h_page_id, h_title in hierarchy_pages:
-                state.set_page(
-                    rel_path=h_rel_path,
-                    page_id=h_page_id,
-                    title=h_title,
-                    space_key=args.space,
-                    space_id=space_id,
-                    content_hash="",
+        # Execute adds/changes
+        actionable = [a for a in plan.page_actions if a.action != "no-op"]
+        if actionable:
+            actionable_files = [a.filepath for a in actionable]
+            if hasattr(args, "file") and args.file:
+                target = actionable_files[0]
+                parent_id, hierarchy_pages = ensure_page_hierarchy(
+                    api, space_id, target, args.docs_root, git_repo_url
                 )
-            if page_id:
-                state.set_page(
-                    rel_path=_rel_path(args.file),
-                    page_id=page_id,
-                    title=_derive_title(args.file),
-                    space_key=args.space,
-                    space_id=space_id,
-                    content_hash=state.compute_hash(args.file),
-                )
-            state.save()
-
-        elif hasattr(args, "directory") and args.directory:
-            results, hierarchy_pages = deploy_tree(
-                api,
-                space_id,
-                args.directory,
-                args.docs_root,
-                git_repo_url,
-                files=target_files if getattr(args, "changed_only", False) else None,
-            )
-            for h_rel_path, h_page_id, h_title in hierarchy_pages:
-                state.set_page(
-                    rel_path=h_rel_path,
-                    page_id=h_page_id,
-                    title=h_title,
-                    space_key=args.space,
-                    space_id=space_id,
-                    content_hash="",
-                )
-            for filepath, page_id in results:
-                if page_id:
+                page_id = deploy_page(api, space_id, parent_id, target, git_repo_url)
+                for h_rel_path, h_page_id, h_title in hierarchy_pages:
                     state.set_page(
-                        rel_path=_rel_path(filepath),
-                        page_id=page_id,
-                        title=_derive_title(filepath),
+                        rel_path=h_rel_path,
+                        page_id=h_page_id,
+                        title=h_title,
                         space_key=args.space,
                         space_id=space_id,
-                        content_hash=state.compute_hash(filepath),
+                        content_hash="",
                     )
-            state.save()
+                if page_id:
+                    state.set_page(
+                        rel_path=_rel_path(target),
+                        page_id=page_id,
+                        title=_derive_title(target),
+                        space_key=args.space,
+                        space_id=space_id,
+                        content_hash=state.compute_hash(target),
+                    )
+            elif hasattr(args, "directory") and args.directory:
+                results, hierarchy_pages = deploy_tree(
+                    api,
+                    space_id,
+                    args.directory,
+                    args.docs_root,
+                    git_repo_url,
+                    files=actionable_files,
+                )
+                for h_rel_path, h_page_id, h_title in hierarchy_pages:
+                    state.set_page(
+                        rel_path=h_rel_path,
+                        page_id=h_page_id,
+                        title=h_title,
+                        space_key=args.space,
+                        space_id=space_id,
+                        content_hash="",
+                    )
+                for filepath, page_id in results:
+                    if page_id:
+                        state.set_page(
+                            rel_path=_rel_path(filepath),
+                            page_id=page_id,
+                            title=_derive_title(filepath),
+                            space_key=args.space,
+                            space_id=space_id,
+                            content_hash=state.compute_hash(filepath),
+                        )
 
-        # Archive orphaned pages
-        if getattr(args, "archive_orphans", False):
-            orphans = state.find_orphans(all_files, args.docs_root)
-            if orphans:
-                print(f"\nArchiving {len(orphans)} orphaned page(s)...")
-                archived_any = False
-                for rel_path in orphans:
-                    entry = state.get_page(rel_path)
-                    if entry:
-                        success = archive_page(api, entry["page_id"], entry["title"])
-                        if success:
-                            state.remove_page(rel_path)
-                            archived_any = True
-                if archived_any:
-                    # If save() throws here, in-memory state has orphans removed but
-                    # remote state has not been updated. Re-run --archive-orphans to
-                    # retry. The lock will be released normally by the outer finally.
-                    state.save()
-            else:
-                print("\nNo orphaned pages found.")
+        # Execute destroys
+        if plan.destroy_actions:
+            print(f"\nDestroying {len(plan.destroy_actions)} page(s)...")
+            destroy_pages(api, state, plan.destroy_actions)
 
-        print("\nDeployment complete!")
+        state.save()
+        print("\nApply complete!")
     finally:
         lock_mgr.release()
 
@@ -503,8 +562,12 @@ def main():
     # Route to subcommand handler
     if args.command == "init":
         _handle_init(args, parser)
-    elif args.command == "deploy":
-        _handle_deploy(args, parser)
+    elif args.command == "plan":
+        _handle_plan(args, parser)
+    elif args.command == "apply":
+        _handle_apply(args, parser)
+    elif args.command == "dump":
+        _handle_dump(args, parser)
     elif args.command == "state":
         _handle_state(args, parser)
     elif args.command == "lock":

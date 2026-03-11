@@ -460,7 +460,7 @@ def ccfm_run(smoke_creds):
     """Return a callable that invokes ccfm_convert with smoke credentials.
 
     Uses the subcommand CLI structure. The first positional arg should be
-    the subcommand (init, deploy, state, lock).
+    the subcommand (init, plan, apply, state, lock).
 
     Args:
         *extra_args: CLI arguments including subcommand.

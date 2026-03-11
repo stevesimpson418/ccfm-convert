@@ -62,7 +62,7 @@ class StateManager:
         }
 
     def remove_page(self, rel_path: str) -> None:
-        """Remove a page entry (called after archiving an orphaned page)."""
+        """Remove a page entry (called after destroying a page)."""
         self._state["pages"].pop(rel_path, None)
 
     @property
@@ -107,8 +107,8 @@ class StateManager:
         """Return relative paths that are tracked in state but have no corresponding
         file on disk within docs_root.
 
-        An orphan means the markdown source was deleted — the Confluence page may
-        need to be archived.
+        An orphan means the markdown source was deleted — the Confluence page will
+        be destroyed on the next ``ccfm apply``.
 
         docs_root may be absolute or relative; it is normalised to a relative path
         from cwd so comparisons against stored rel_paths are consistent.

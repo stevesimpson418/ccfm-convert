@@ -16,7 +16,7 @@ CONFIG_PAGE = SMOKE_DOCS / "config-test" / "config-page.md"
 class TestConfigFileDeploy:
     """Deploy using a ccfm.yaml config file instead of inline CLI flags."""
 
-    def test_deploy_via_config_file(self, confluence_live):
+    def test_apply_via_config_file(self, confluence_live):
         """--config ccfm.yaml with ${ENV_VAR} interpolation deploys successfully."""
         result = subprocess.run(
             [
@@ -25,7 +25,8 @@ class TestConfigFileDeploy:
                 "ccfm_convert",
                 "--config",
                 str(CONFIG_FILE),
-                "deploy",
+                "apply",
+                "--auto-approve",
                 "--file",
                 str(CONFIG_PAGE),
             ],
@@ -34,7 +35,7 @@ class TestConfigFileDeploy:
             text=True,
         )
 
-        assert result.returncode == 0, f"Config-file deploy failed:\n{result.stderr}"
+        assert result.returncode == 0, f"Config-file apply failed:\n{result.stderr}"
         assert (
             "Success" in result.stdout or "Updating" in result.stdout or "Creating" in result.stdout
         ), f"Unexpected output:\n{result.stdout}"

@@ -138,7 +138,7 @@ def ensure_page_hierarchy(api, space_id, filepath, docs_root, git_repo_url=""):
     return current_parent_id, hierarchy_pages
 
 
-def deploy_tree(api, space_id, root_path, docs_root, git_repo_url="", dump=False, files=None):
+def deploy_tree(api, space_id, root_path, docs_root, git_repo_url="", files=None):
     """
     Deploy an entire directory tree.
 
@@ -148,10 +148,9 @@ def deploy_tree(api, space_id, root_path, docs_root, git_repo_url="", dump=False
         root_path: Path to deploy (can be docs root or subfolder)
         docs_root: Root documentation directory
         git_repo_url: Git repository URL for CI banner
-        dump: If True, write ADF JSON files and skip deployment
         files: Optional pre-filtered list of files to deploy. When provided,
             only these files are deployed instead of discovering all .md files
-            via rglob. Used by --changed-only to limit deployment scope.
+            via rglob. Used by apply to limit deployment to actionable files.
 
     Returns:
         Tuple of (results, hierarchy_pages) where results is a list of
@@ -174,20 +173,15 @@ def deploy_tree(api, space_id, root_path, docs_root, git_repo_url="", dump=False
 
     for filepath in md_files:
         try:
-            # Ensure page hierarchy exists
-            if not dump:
-                parent_id, h_pages = ensure_page_hierarchy(
-                    api, space_id, filepath, root_path, git_repo_url
-                )
-                for hp in h_pages:
-                    if hp[0] not in seen_dirs:
-                        all_hierarchy_pages.append(hp)
-                        seen_dirs.add(hp[0])
-            else:
-                parent_id = None
+            parent_id, h_pages = ensure_page_hierarchy(
+                api, space_id, filepath, root_path, git_repo_url
+            )
+            for hp in h_pages:
+                if hp[0] not in seen_dirs:
+                    all_hierarchy_pages.append(hp)
+                    seen_dirs.add(hp[0])
 
-            # Deploy the file
-            page_id = deploy_page(api, space_id, parent_id, filepath, git_repo_url, dump=dump)
+            page_id = deploy_page(api, space_id, parent_id, filepath, git_repo_url)
             results.append((filepath, page_id))
         except Exception as e:
             print(f"   ❌ Error: {e}")
@@ -197,13 +191,12 @@ def deploy_tree(api, space_id, root_path, docs_root, git_repo_url="", dump=False
     return results, all_hierarchy_pages
 
 
-def archive_page(api, page_id: str, title: str) -> bool:
-    """Delete an orphaned Confluence page (moves it to the site trash).
+def destroy_page(api, page_id: str, title: str) -> bool:
+    """Delete a Confluence page (moves it to the site trash).
 
     The Confluence Cloud v2 API does not support ``status: archived`` via the
     PUT pages endpoint (only ``CURRENT`` and ``DRAFT`` are accepted). Instead,
-    we use the v2 DELETE endpoint, which moves the page to the site trash and
-    is equivalent to the "Archive" action in the Confluence UI.
+    we use the v2 DELETE endpoint, which moves the page to the site trash.
 
     Used to clean up pages whose source markdown files have been deleted.
 
@@ -217,14 +210,37 @@ def archive_page(api, page_id: str, title: str) -> bool:
     """
     try:
         api.delete_page(page_id)
-        print(f"   🗄️  Archived page: '{title}' (ID: {page_id})")
+        print(f"   🗑️  Destroyed page: '{title}' (ID: {page_id})")
         return True
     except Exception as e:
-        print(f"   ⚠️  Could not archive '{title}' (ID: {page_id}): {e}")
+        print(f"   ⚠️  Could not destroy '{title}' (ID: {page_id}): {e}")
         return False
 
 
-def deploy_page(api, space_id, parent_id, filepath, git_repo_url="", dump=False):
+def destroy_pages(api, state, destroy_actions) -> int:
+    """Execute destroy actions — delete pages and remove from state.
+
+    Actions are expected to be pre-sorted deepest-first by the planner
+    (children before parents) to avoid Confluence errors when deleting
+    parent pages with children.
+
+    Args:
+        api: ConfluenceAPI instance
+        state: StateManager instance
+        destroy_actions: list of DestroyAction objects (pre-sorted by planner)
+
+    Returns:
+        Number of successfully destroyed pages.
+    """
+    destroyed = 0
+    for action in destroy_actions:
+        if destroy_page(api, action.page_id, action.title):
+            state.remove_page(action.rel_path)
+            destroyed += 1
+    return destroyed
+
+
+def deploy_page(api, space_id, parent_id, filepath, git_repo_url=""):
     """
     Deploy a single markdown file to Confluence.
 
@@ -241,7 +257,6 @@ def deploy_page(api, space_id, parent_id, filepath, git_repo_url="", dump=False)
         parent_id: Parent page ID (computed from folder hierarchy)
         filepath: Path to markdown file
         git_repo_url: Git repository URL for CI banner
-        dump: If True, write ADF JSON to .adf.json file and skip deployment
     """
     print(f"\n📄 Processing: {filepath.name}")
 
@@ -268,14 +283,6 @@ def deploy_page(api, space_id, parent_id, filepath, git_repo_url="", dump=False)
 
     # Resolve internal Confluence page links
     body = resolve_page_links(body, api, space_id)
-
-    if dump:
-        # Write ADF JSON to a file for inspection
-        out = filepath.with_suffix(".adf.json")
-        out.write_text(json.dumps(body, indent=2))
-        print(f"   💾 ADF written to: {out}")
-        print("   (Skipping deployment — remove --dump to deploy)")
-        return None
 
     # Frontmatter parent override
     frontmatter_parent = metadata.get("parent")
@@ -375,3 +382,83 @@ def deploy_page(api, space_id, parent_id, filepath, git_repo_url="", dump=False)
 
     print(f"   ✅ Success! Page ID: {page_id}")
     return page_id
+
+
+def dump_page(filepath, output_dir, git_repo_url=""):
+    """Convert a single markdown file to ADF and write to output directory.
+
+    No API calls are made. Page link resolution is skipped (requires API).
+
+    Args:
+        filepath: Path to markdown file
+        output_dir: Directory to write .adf.json files into
+        git_repo_url: Git repository URL for CI banner
+
+    Returns:
+        Path to the written .adf.json file, or None on error.
+    """
+    print(f"\n📄 Processing: {filepath.name}")
+
+    content = filepath.read_text()
+    metadata, markdown = parse_frontmatter(content)
+
+    if not metadata.get("deploy_page", True):
+        print("   ⏭️  Skipping: deploy_page is set to false")
+        return None
+
+    title = metadata.get("title", filepath.stem.replace("-", " ").title())
+    print(f"   Title: {title}")
+
+    file_git_url = f"{git_repo_url}/{filepath}" if git_repo_url else ""
+    body = convert(markdown)
+
+    if metadata.get("ci_banner", True):
+        custom_banner_text = metadata.get("ci_banner_text")
+        body = add_ci_banner(body, file_git_url, banner_text=custom_banner_text, metadata=metadata)
+
+    # Write ADF JSON preserving relative path structure
+    try:
+        rel_path = filepath.relative_to(Path.cwd())
+    except ValueError:
+        rel_path = Path(filepath.name)
+
+    out = output_dir / rel_path.with_suffix(".adf.json")
+    try:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(body, indent=2))
+        print(f"   💾 ADF written to: {out}")
+        return out
+    except OSError as e:
+        print(f"   ❌ Error writing {out}: {e}")
+        return None
+
+
+def dump_tree(root_path, docs_root, output_dir, git_repo_url=""):
+    """Convert all markdown files in a directory tree to ADF and write to output directory.
+
+    No API calls are made. This is a local-only operation for ADF inspection.
+
+    Args:
+        root_path: Path to the directory to scan
+        docs_root: Root documentation directory
+        output_dir: Directory to write .adf.json files into
+        git_repo_url: Git repository URL for CI banner
+
+    Returns:
+        List of output file paths (None entries for failures).
+    """
+    md_files = sorted(root_path.rglob("*.md"))
+    md_files = [f for f in md_files if f.name != ".page_content.md"]
+
+    print(f"\n📚 Found {len(md_files)} markdown files in tree")
+
+    results: list[Path | None] = []
+    for filepath in md_files:
+        try:
+            out = dump_page(filepath, output_dir, git_repo_url)
+            results.append(out)
+        except Exception as e:
+            print(f"   ❌ Error: {e}")
+            results.append(None)
+
+    return results

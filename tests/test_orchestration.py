@@ -5,9 +5,12 @@ from unittest.mock import Mock
 import pytest
 
 from ccfm_convert.deploy.orchestration import (
-    archive_page,
     deploy_page,
     deploy_tree,
+    destroy_page,
+    destroy_pages,
+    dump_page,
+    dump_tree,
     ensure_page_hierarchy,
 )
 
@@ -289,22 +292,6 @@ ci_banner: false
 
         # Should still create page successfully
         assert mock_api.create_page.called
-
-    def test_deploy_dump_mode(self, mock_api, tmp_path):
-        """Test dump mode (no deployment)."""
-        filepath = tmp_path / "test.md"
-        filepath.write_text("# Test")
-
-        page_id = deploy_page(mock_api, "space123", None, filepath, dump=True)
-
-        assert page_id is None
-        # Should not call any API methods
-        mock_api.create_page.assert_not_called()
-        mock_api.update_page.assert_not_called()
-
-        # Should create .adf.json file
-        adf_file = filepath.with_suffix(".adf.json")
-        assert adf_file.exists()
 
     def test_deploy_with_git_url(self, mock_api, tmp_path):
         """Test deploying with git URL."""
@@ -672,19 +659,6 @@ class TestDeployTree:
         # Plus one for the container page created from .page_content.md
         assert mock_api.create_page.call_count >= 1
 
-    def test_deploy_tree_dump_mode_skips_hierarchy(self, mock_api, tmp_path):
-        """Line 147: in dump mode deploy_tree sets parent_id=None without calling ensure_page_hierarchy."""
-        docs_root = tmp_path / "docs"
-        docs_root.mkdir()
-        file1 = docs_root / "test.md"
-        file1.write_text("# Test")
-
-        deploy_tree(mock_api, "space123", docs_root, docs_root, dump=True)
-
-        # In dump mode, hierarchy should NOT be built and no API create/update calls
-        mock_api.create_page.assert_not_called()
-        mock_api.update_page.assert_not_called()
-
     def test_deploy_error_handling(self, mock_api, tmp_path):
         """Test error handling during deployment."""
         docs_root = tmp_path / "docs"
@@ -891,43 +865,271 @@ invalid yaml:
         assert page_id == "page-123"
 
 
-class TestArchivePage:
-    """Tests for archive_page.
+class TestDestroyPage:
+    """Tests for destroy_page.
 
-    archive_page uses api.delete_page() (v2 DELETE) because the Confluence Cloud
-    v2 PUT endpoint only accepts CURRENT or DRAFT as status values — 'archived'
-    is rejected with a 400 error. DELETE moves the page to the site trash, which
-    is the closest available equivalent to archiving via the API.
+    destroy_page uses api.delete_page() (v2 DELETE) because the Confluence Cloud
+    v2 PUT endpoint only accepts CURRENT or DRAFT as status values. DELETE moves
+    the page to the site trash.
     """
 
-    def test_archive_page_success_returns_true(self, mock_api):
-        """archive_page calls api.delete_page and returns True on success."""
-        result = archive_page(mock_api, "page-42", "My Page")
+    def test_destroy_page_success_returns_true(self, mock_api):
+        """destroy_page calls api.delete_page and returns True on success."""
+        result = destroy_page(mock_api, "page-42", "My Page")
 
         assert result is True
         mock_api.delete_page.assert_called_once_with("page-42")
 
-    def test_archive_page_exception_returns_false(self, mock_api):
-        """archive_page catches exceptions from delete_page and returns False."""
+    def test_destroy_page_exception_returns_false(self, mock_api):
+        """destroy_page catches exceptions from delete_page and returns False."""
         mock_api.delete_page.side_effect = RuntimeError("API down")
 
-        result = archive_page(mock_api, "page-99", "Broken Page")
+        result = destroy_page(mock_api, "page-99", "Broken Page")
 
         assert result is False
 
-    def test_archive_page_prints_success_message(self, mock_api, capsys):
-        """archive_page prints confirmation with title and page_id on success."""
-        archive_page(mock_api, "page-1", "Published Title")
+    def test_destroy_page_prints_success_message(self, mock_api, capsys):
+        """destroy_page prints confirmation with title and page_id on success."""
+        destroy_page(mock_api, "page-1", "Published Title")
 
         captured = capsys.readouterr()
         assert "Published Title" in captured.out
         assert "page-1" in captured.out
 
-    def test_archive_page_prints_warning_on_failure(self, mock_api, capsys):
-        """archive_page prints a warning on failure."""
+    def test_destroy_page_prints_warning_on_failure(self, mock_api, capsys):
+        """destroy_page prints a warning on failure."""
         mock_api.delete_page.side_effect = RuntimeError("timeout")
 
-        archive_page(mock_api, "page-2", "Failed Page")
+        destroy_page(mock_api, "page-2", "Failed Page")
 
         captured = capsys.readouterr()
         assert "Failed Page" in captured.out
+
+
+class TestDestroyPages:
+    """Tests for destroy_pages — batch destroy with state removal."""
+
+    def test_destroy_pages_deletes_and_removes_from_state(self, mock_api):
+        """destroy_pages calls destroy_page for each action and removes from state."""
+        from ccfm_convert.plan.planner import DestroyAction
+
+        state = Mock()
+        actions = [
+            DestroyAction(rel_path="docs/page.md", page_id="p1", title="Page"),
+        ]
+
+        count = destroy_pages(mock_api, state, actions)
+
+        assert count == 1
+        mock_api.delete_page.assert_called_once_with("p1")
+        state.remove_page.assert_called_once_with("docs/page.md")
+
+    def test_destroy_pages_preserves_order(self, mock_api):
+        """destroy_pages executes in the order provided (planner pre-sorts deepest-first)."""
+        from ccfm_convert.plan.planner import DestroyAction
+
+        state = Mock()
+        # Pre-sorted deepest-first by the planner
+        actions = [
+            DestroyAction(rel_path="docs/team/sub/page.md", page_id="p1", title="Page"),
+            DestroyAction(rel_path="docs/team/sub", page_id="d2", title="Sub"),
+            DestroyAction(rel_path="docs/team", page_id="d1", title="Team"),
+        ]
+
+        delete_order = []
+        mock_api.delete_page.side_effect = lambda pid: delete_order.append(pid)
+
+        destroy_pages(mock_api, state, actions)
+
+        assert delete_order == ["p1", "d2", "d1"]
+
+    def test_destroy_pages_partial_failure(self, mock_api):
+        """destroy_pages continues on failure and only removes successful entries from state."""
+        from ccfm_convert.plan.planner import DestroyAction
+
+        state = Mock()
+        actions = [
+            DestroyAction(rel_path="docs/a.md", page_id="p1", title="A"),
+            DestroyAction(rel_path="docs/b.md", page_id="p2", title="B"),
+        ]
+
+        # First succeeds, second fails
+        mock_api.delete_page.side_effect = [None, RuntimeError("fail")]
+
+        count = destroy_pages(mock_api, state, actions)
+
+        assert count == 1
+        state.remove_page.assert_called_once_with("docs/a.md")
+
+    def test_destroy_pages_empty_list(self, mock_api):
+        """destroy_pages with empty list returns 0."""
+        state = Mock()
+        count = destroy_pages(mock_api, state, [])
+
+        assert count == 0
+        mock_api.delete_page.assert_not_called()
+
+
+class TestDumpPage:
+    """Tests for dump_page — local ADF generation without API calls."""
+
+    def test_dump_page_writes_adf(self, tmp_path, monkeypatch):
+        """dump_page writes .adf.json file to output directory."""
+        monkeypatch.chdir(tmp_path)
+        filepath = tmp_path / "test.md"
+        filepath.write_text("# Hello World")
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        result = dump_page(filepath, output_dir)
+
+        assert result is not None
+        assert result.exists()
+        assert result.suffix == ".json"
+        import json
+
+        data = json.loads(result.read_text())
+        assert data["type"] == "doc"
+
+    def test_dump_page_preserves_relative_path(self, tmp_path, monkeypatch):
+        """dump_page mirrors source tree structure in output directory."""
+        monkeypatch.chdir(tmp_path)
+        docs_dir = tmp_path / "docs" / "team"
+        docs_dir.mkdir(parents=True)
+        filepath = docs_dir / "api.md"
+        filepath.write_text("# API")
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        result = dump_page(filepath, output_dir)
+
+        assert result is not None
+        assert "docs/team/api.adf.json" in str(result)
+
+    def test_dump_page_skips_deploy_page_false(self, tmp_path, monkeypatch):
+        """dump_page returns None for files with deploy_page: false."""
+        monkeypatch.chdir(tmp_path)
+        filepath = tmp_path / "test.md"
+        filepath.write_text("---\ndeploy_config:\n  deploy_page: false\n---\n# Skip")
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        result = dump_page(filepath, output_dir)
+
+        assert result is None
+
+    def test_dump_page_with_git_repo_url(self, tmp_path, monkeypatch):
+        """dump_page passes git_repo_url for CI banner generation."""
+        monkeypatch.chdir(tmp_path)
+        filepath = tmp_path / "test.md"
+        filepath.write_text("# Test")
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        result = dump_page(filepath, output_dir, git_repo_url="https://github.com/org/repo")
+
+        assert result is not None
+        assert result.exists()
+
+    def test_dump_page_write_error(self, tmp_path, monkeypatch):
+        """dump_page returns None on write failure."""
+        monkeypatch.chdir(tmp_path)
+        filepath = tmp_path / "test.md"
+        filepath.write_text("# Test")
+        # output_dir is a file, not a directory — will cause write error
+        output_dir = tmp_path / "blocker"
+        output_dir.write_text("not a dir")
+
+        result = dump_page(filepath, output_dir)
+
+        assert result is None
+
+    def test_dump_page_no_page_link_resolution(self, tmp_path, monkeypatch):
+        """dump_page does NOT call resolve_page_links (no API needed)."""
+        monkeypatch.chdir(tmp_path)
+        filepath = tmp_path / "test.md"
+        filepath.write_text("# Test with [link](<Some Page>)")
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        # This should NOT crash — no API is passed, resolve_page_links is not called
+        result = dump_page(filepath, output_dir)
+
+        assert result is not None
+        assert result.exists()
+
+    def test_dump_page_filepath_outside_cwd(self, tmp_path, monkeypatch):
+        """dump_page falls back to filename when filepath is outside cwd."""
+        cwd_dir = tmp_path / "workdir"
+        cwd_dir.mkdir()
+        monkeypatch.chdir(cwd_dir)
+
+        other_dir = tmp_path / "elsewhere"
+        other_dir.mkdir()
+        filepath = other_dir / "page.md"
+        filepath.write_text("# Outside CWD")
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        result = dump_page(filepath, output_dir)
+
+        assert result is not None
+        assert result.name == "page.adf.json"
+
+
+class TestDumpTree:
+    """Tests for dump_tree — local ADF generation for a directory."""
+
+    def test_dump_tree_processes_all_files(self, tmp_path, monkeypatch):
+        """dump_tree processes all .md files in the directory."""
+        monkeypatch.chdir(tmp_path)
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "a.md").write_text("# A")
+        (docs / "b.md").write_text("# B")
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        results = dump_tree(docs, docs, output_dir)
+
+        assert len(results) == 2
+        assert all(r is not None for r in results)
+
+    def test_dump_tree_excludes_page_content_md(self, tmp_path, monkeypatch):
+        """dump_tree skips .page_content.md files."""
+        monkeypatch.chdir(tmp_path)
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "page.md").write_text("# Page")
+        (docs / ".page_content.md").write_text("# Container")
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        results = dump_tree(docs, docs, output_dir)
+
+        assert len(results) == 1
+
+    def test_dump_tree_handles_errors_gracefully(self, tmp_path, monkeypatch):
+        """dump_tree continues when individual files fail."""
+        monkeypatch.chdir(tmp_path)
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "good.md").write_text("# Good")
+        bad_file = docs / "bad.md"
+        bad_file.write_text("# Bad")
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        # Make bad_file unreadable after discovery
+        from unittest.mock import patch
+
+        original_read = bad_file.read_text
+
+        def fail_on_bad(*args, **kwargs):
+            raise OSError("permission denied")
+
+        with patch.object(type(bad_file), "read_text", side_effect=[fail_on_bad, original_read]):
+            results = dump_tree(docs, docs, output_dir)
+
+        # Should have attempted both files (one error, one success)
+        assert len(results) == 2
