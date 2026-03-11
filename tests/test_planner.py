@@ -1,10 +1,10 @@
-"""Tests for plan.planner — DeployPlan, PageAction, OrphanAction, compute_plan."""
+"""Tests for plan.planner — DeployPlan, PageAction, DestroyAction, compute_plan."""
 
 import os
 from pathlib import Path
 from unittest.mock import Mock
 
-from ccfm_convert.plan.planner import DeployPlan, OrphanAction, PageAction, compute_plan
+from ccfm_convert.plan.planner import DeployPlan, DestroyAction, PageAction, compute_plan
 from ccfm_convert.state.manager import StateManager
 
 # ---------------------------------------------------------------------------
@@ -31,31 +31,31 @@ def _write_md(directory: Path, name: str, content: str = "# Hello") -> Path:
 
 class TestDeployPlanHasChanges:
     def test_has_changes_false_when_all_no_op(self):
-        """has_changes is False when every action is NO_OP and no orphans (line 50)."""
+        """has_changes is False when every action is no-op and no destroys."""
         plan = DeployPlan(
             page_actions=[
                 PageAction(
                     filepath=Path("a.md"),
                     rel_path="a.md",
-                    action="NO_OP",
+                    action="no-op",
                     title="A",
                     current_hash="sha256:x",
                     stored_hash="sha256:x",
                     page_id="1",
                 )
             ],
-            orphan_actions=[],
+            destroy_actions=[],
         )
         assert plan.has_changes() is False
 
-    def test_has_changes_true_when_create_present(self):
-        """has_changes is True when any action is CREATE."""
+    def test_has_changes_true_when_add_present(self):
+        """has_changes is True when any action is add."""
         plan = DeployPlan(
             page_actions=[
                 PageAction(
                     filepath=Path("a.md"),
                     rel_path="a.md",
-                    action="CREATE",
+                    action="add",
                     title="A",
                     current_hash="sha256:x",
                 )
@@ -63,14 +63,14 @@ class TestDeployPlanHasChanges:
         )
         assert plan.has_changes() is True
 
-    def test_has_changes_true_when_update_present(self):
-        """has_changes is True when any action is UPDATE."""
+    def test_has_changes_true_when_change_present(self):
+        """has_changes is True when any action is change."""
         plan = DeployPlan(
             page_actions=[
                 PageAction(
                     filepath=Path("a.md"),
                     rel_path="a.md",
-                    action="UPDATE",
+                    action="change",
                     title="A",
                     current_hash="sha256:new",
                     stored_hash="sha256:old",
@@ -80,11 +80,11 @@ class TestDeployPlanHasChanges:
         )
         assert plan.has_changes() is True
 
-    def test_has_changes_true_when_orphan_present(self):
-        """has_changes is True when orphan_actions is non-empty (line 51)."""
+    def test_has_changes_true_when_destroy_present(self):
+        """has_changes is True when destroy_actions is non-empty."""
         plan = DeployPlan(
             page_actions=[],
-            orphan_actions=[OrphanAction(rel_path="docs/gone.md", page_id="99", title="Gone")],
+            destroy_actions=[DestroyAction(rel_path="docs/gone.md", page_id="99", title="Gone")],
         )
         assert plan.has_changes() is True
 
@@ -111,20 +111,32 @@ class TestDeployPlanPrintSummary:
             sys.stdout = old
         return buf.getvalue()
 
-    def test_print_summary_empty_plan(self):
-        """Empty plan prints 'No files found' message (lines 68-71)."""
+    def test_print_summary_no_files(self):
+        """Empty plan prints 'No files found' message."""
         plan = DeployPlan()
         output = self._capture(plan)
         assert "No files found" in output
 
-    def test_print_summary_create_action(self):
-        """CREATE actions show '+' symbol (lines 73-76)."""
+    def test_print_summary_no_changes(self):
+        """All no-op plan prints 'up to date' message."""
+        plan = DeployPlan(
+            page_actions=[
+                PageAction(Path("s.md"), "s.md", "no-op", "S", "sha256:s", "sha256:s", "1")
+            ]
+        )
+        output = self._capture(plan)
+        assert "up to date" in output
+        # no-op files should NOT be listed individually
+        assert "s.md" not in output
+
+    def test_print_summary_add_action(self):
+        """add actions show '+' symbol."""
         plan = DeployPlan(
             page_actions=[
                 PageAction(
                     filepath=Path("new.md"),
                     rel_path="docs/new.md",
-                    action="CREATE",
+                    action="add",
                     title="New Page",
                     current_hash="sha256:x",
                 )
@@ -132,17 +144,17 @@ class TestDeployPlanPrintSummary:
         )
         output = self._capture(plan)
         assert "+" in output
-        assert "CREATE" in output
+        assert "(add)" in output
         assert "New Page" in output
 
-    def test_print_summary_update_action(self):
-        """UPDATE actions show '~' symbol."""
+    def test_print_summary_change_action(self):
+        """change actions show '~' symbol."""
         plan = DeployPlan(
             page_actions=[
                 PageAction(
                     filepath=Path("upd.md"),
                     rel_path="docs/upd.md",
-                    action="UPDATE",
+                    action="change",
                     title="Updated",
                     current_hash="sha256:new",
                     stored_hash="sha256:old",
@@ -152,70 +164,39 @@ class TestDeployPlanPrintSummary:
         )
         output = self._capture(plan)
         assert "~" in output
-        assert "UPDATE" in output
+        assert "(change)" in output
 
-    def test_print_summary_no_op_action(self):
-        """NO_OP actions show '·' symbol."""
+    def test_print_summary_destroy_action(self):
+        """Destroy actions show '-' symbol and '(destroy)'."""
         plan = DeployPlan(
-            page_actions=[
-                PageAction(
-                    filepath=Path("same.md"),
-                    rel_path="docs/same.md",
-                    action="NO_OP",
-                    title="Unchanged",
-                    current_hash="sha256:x",
-                    stored_hash="sha256:x",
-                    page_id="1",
-                )
-            ]
+            destroy_actions=[DestroyAction(rel_path="docs/gone.md", page_id="7", title="Gone Page")]
         )
         output = self._capture(plan)
-        assert "·" in output
-        assert "NO-OP" in output
-
-    def test_print_summary_orphan_action(self):
-        """Orphan actions show '-' symbol and '(file removed)' (lines 78-81)."""
-        plan = DeployPlan(
-            orphan_actions=[OrphanAction(rel_path="docs/gone.md", page_id="7", title="Gone Page")]
-        )
-        output = self._capture(plan)
-        assert "ARCHIVE" in output
-        assert "file removed" in output
+        assert "-" in output
+        assert "(destroy)" in output
         assert "Gone Page" in output
 
     def test_print_summary_plan_line_with_all_action_types(self):
-        """Plan summary line lists creates, updates, archives, unchanged (lines 83-99)."""
+        """Plan summary line lists adds, changes, destroys, unchanged."""
         plan = DeployPlan(
             page_actions=[
-                PageAction(Path("c.md"), "c.md", "CREATE", "C", "sha256:c"),
-                PageAction(Path("u.md"), "u.md", "UPDATE", "U", "sha256:u", "sha256:old", "1"),
-                PageAction(Path("n.md"), "n.md", "NO_OP", "N", "sha256:n", "sha256:n", "2"),
+                PageAction(Path("c.md"), "c.md", "add", "C", "sha256:c"),
+                PageAction(Path("u.md"), "u.md", "change", "U", "sha256:u", "sha256:old", "1"),
+                PageAction(Path("n.md"), "n.md", "no-op", "N", "sha256:n", "sha256:n", "2"),
             ],
-            orphan_actions=[OrphanAction(rel_path="o.md", page_id="3", title="O")],
+            destroy_actions=[DestroyAction(rel_path="o.md", page_id="3", title="O")],
         )
         output = self._capture(plan)
-        assert "1 to create" in output
-        assert "1 to update" in output
-        assert "1 to archive" in output
+        assert "1 to add" in output
+        assert "1 to change" in output
+        assert "1 to destroy" in output
         assert "1 unchanged" in output
 
-    def test_print_summary_shows_run_without_plan_when_changes(self):
-        """'Run without --plan to apply.' appears when has_changes() is True (lines 101-103)."""
-        plan = DeployPlan(
-            page_actions=[PageAction(Path("x.md"), "x.md", "CREATE", "X", "sha256:x")]
-        )
+    def test_print_summary_shows_actions_header_when_changes(self):
+        """'ccfm will perform the following actions' appears when has_changes() is True."""
+        plan = DeployPlan(page_actions=[PageAction(Path("x.md"), "x.md", "add", "X", "sha256:x")])
         output = self._capture(plan)
-        assert "Run without --plan to apply." in output
-
-    def test_print_summary_no_run_prompt_when_all_no_op(self):
-        """'Run without --plan' is suppressed when has_changes() is False."""
-        plan = DeployPlan(
-            page_actions=[
-                PageAction(Path("s.md"), "s.md", "NO_OP", "S", "sha256:s", "sha256:s", "1")
-            ]
-        )
-        output = self._capture(plan)
-        assert "Run without --plan" not in output
+        assert "ccfm will perform the following actions" in output
 
 
 # ---------------------------------------------------------------------------
@@ -225,10 +206,7 @@ class TestDeployPlanPrintSummary:
 
 class TestDeriveTitleViaComputePlan:
     def test_title_from_frontmatter(self, tmp_path):
-        """_derive_title returns the frontmatter title when present (lines 112-113).
-
-        The frontmatter parser reads titles from page_meta.title, not a top-level title key.
-        """
+        """_derive_title returns the frontmatter title when present."""
         docs = tmp_path / "docs"
         docs.mkdir()
         f = _write_md(docs, "guide.md", "---\npage_meta:\n  title: My Guide\n---\n# Content")
@@ -244,7 +222,7 @@ class TestDeriveTitleViaComputePlan:
         assert plan.page_actions[0].title == "My Guide"
 
     def test_title_derived_from_stem_when_no_frontmatter(self, tmp_path):
-        """_derive_title generates from stem when no frontmatter title (line 117)."""
+        """_derive_title generates from stem when no frontmatter title."""
         docs = tmp_path / "docs"
         docs.mkdir()
         f = _write_md(docs, "my-cool-page.md", "# No frontmatter here")
@@ -260,7 +238,7 @@ class TestDeriveTitleViaComputePlan:
         assert plan.page_actions[0].title == "My Cool Page"
 
     def test_title_falls_back_on_oserror(self, tmp_path):
-        """_derive_title catches OSError and falls back to stem (lines 115-116)."""
+        """_derive_title catches OSError and falls back to stem."""
         from unittest.mock import patch
 
         docs = tmp_path / "docs"
@@ -272,7 +250,6 @@ class TestDeriveTitleViaComputePlan:
         old_cwd = os.getcwd()
         os.chdir(tmp_path)
         try:
-            # Patch Path.read_text on the specific instance to raise OSError
             with patch(
                 "ccfm_convert.plan.planner.Path.read_text", side_effect=OSError("disk error")
             ):
@@ -289,8 +266,8 @@ class TestDeriveTitleViaComputePlan:
 
 
 class TestComputePlan:
-    def test_create_when_no_state_entry(self, tmp_path):
-        """File with no state entry gets CREATE action (lines 150-159)."""
+    def test_add_when_no_state_entry(self, tmp_path):
+        """File with no state entry gets add action."""
         docs = tmp_path / "docs"
         docs.mkdir()
         f = _write_md(docs, "new.md")
@@ -304,11 +281,11 @@ class TestComputePlan:
             os.chdir(old_cwd)
 
         assert len(plan.page_actions) == 1
-        assert plan.page_actions[0].action == "CREATE"
+        assert plan.page_actions[0].action == "add"
         assert plan.page_actions[0].page_id is None
 
-    def test_update_when_hash_changed(self, tmp_path):
-        """File with mismatched hash gets UPDATE action (lines 160-171)."""
+    def test_change_when_hash_changed(self, tmp_path):
+        """File with mismatched hash gets change action."""
         docs = tmp_path / "docs"
         docs.mkdir()
         f = _write_md(docs, "changed.md", "# Version 1")
@@ -318,18 +295,17 @@ class TestComputePlan:
         os.chdir(tmp_path)
         try:
             rel = str(f.relative_to(tmp_path))
-            # Set stale hash
             state.set_page(rel, "p1", "Changed", "SP", "s", "sha256:stale")
             plan = compute_plan(state, [f], docs)
         finally:
             os.chdir(old_cwd)
 
-        assert plan.page_actions[0].action == "UPDATE"
+        assert plan.page_actions[0].action == "change"
         assert plan.page_actions[0].page_id == "p1"
         assert plan.page_actions[0].stored_hash == "sha256:stale"
 
     def test_no_op_when_hash_unchanged(self, tmp_path):
-        """File with matching hash gets NO_OP action (lines 172-183)."""
+        """File with matching hash gets no-op action."""
         docs = tmp_path / "docs"
         docs.mkdir()
         f = _write_md(docs, "same.md", "# Stable")
@@ -345,11 +321,11 @@ class TestComputePlan:
         finally:
             os.chdir(old_cwd)
 
-        assert plan.page_actions[0].action == "NO_OP"
+        assert plan.page_actions[0].action == "no-op"
         assert plan.page_actions[0].stored_hash == current_hash
 
-    def test_no_orphans_when_archive_orphans_false(self, tmp_path):
-        """Orphan detection is skipped when archive_orphans=False (line 185)."""
+    def test_destroys_detected_by_default(self, tmp_path):
+        """Files tracked in state but absent from disk are destroy actions (always on)."""
         docs = tmp_path / "docs"
         docs.mkdir()
         state = _make_state(tmp_path)
@@ -357,24 +333,39 @@ class TestComputePlan:
         old_cwd = os.getcwd()
         os.chdir(tmp_path)
         try:
-            # rel_path will be "docs/deleted.md" (relative to cwd=tmp_path)
             deleted = docs / "deleted.md"
             rel = str(deleted.relative_to(tmp_path))
-            state.set_page(rel, "old", "Deleted", "SP", "s", "sha256:x")
+            state.set_page(rel, "old-page", "Deleted", "SP", "s", "sha256:x")
 
-            # docs_root must be Path("docs") so find_orphans' relative_to check works
-            plan = compute_plan(state, [], Path("docs"), archive_orphans=False)
+            plan = compute_plan(state, [], Path("docs"))
         finally:
             os.chdir(old_cwd)
 
-        assert plan.orphan_actions == []
+        assert len(plan.destroy_actions) == 1
+        assert plan.destroy_actions[0].page_id == "old-page"
+        assert plan.destroy_actions[0].action == "destroy"
 
-    def test_orphans_detected_when_archive_orphans_true(self, tmp_path):
-        """Orphan entries are added when archive_orphans=True (lines 185-195).
+    def test_force_classifies_existing_as_add(self, tmp_path):
+        """force=True makes all files show as add regardless of state."""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        f = _write_md(docs, "existing.md", "# Content")
+        state = _make_state(tmp_path)
 
-        docs_root must be the relative form matching the rel_path prefix for the
-        find_orphans relative_to check to pass.
-        """
+        old_cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            rel = str(f.relative_to(tmp_path))
+            current_hash = state.compute_hash(f)
+            state.set_page(rel, "p1", "Existing", "SP", "s", current_hash)
+            plan = compute_plan(state, [f], docs, force=True)
+        finally:
+            os.chdir(old_cwd)
+
+        assert plan.page_actions[0].action == "add"
+
+    def test_directory_container_destroyed_when_no_children_remain(self, tmp_path):
+        """Directory container pages are destroyed when no .md files remain under them."""
         docs = tmp_path / "docs"
         docs.mkdir()
         state = _make_state(tmp_path)
@@ -382,20 +373,82 @@ class TestComputePlan:
         old_cwd = os.getcwd()
         os.chdir(tmp_path)
         try:
-            deleted = docs / "deleted.md"
-            rel = str(deleted.relative_to(tmp_path))  # "docs/deleted.md"
-            state.set_page(rel, "old-page", "Deleted", "SP", "s", "sha256:x")
+            # Track a directory container and its child file in state
+            state.set_page("docs/team", "dir-1", "Team", "SP", "s", "")
+            state.set_page("docs/team/page.md", "p1", "Page", "SP", "s", "sha256:x")
 
-            plan = compute_plan(state, [], Path("docs"), archive_orphans=True)
+            # No files on disk — both should be destroyed
+            plan = compute_plan(state, [], Path("docs"))
         finally:
             os.chdir(old_cwd)
 
-        assert len(plan.orphan_actions) == 1
-        assert plan.orphan_actions[0].page_id == "old-page"
-        assert plan.orphan_actions[0].action == "ARCHIVE"
+        destroy_paths = [a.rel_path for a in plan.destroy_actions]
+        assert "docs/team/page.md" in destroy_paths
+        assert "docs/team" in destroy_paths
+
+    def test_directory_container_kept_when_children_exist(self, tmp_path):
+        """Directory container pages are NOT destroyed when children still exist on disk."""
+        docs = tmp_path / "docs"
+        (docs / "team").mkdir(parents=True)
+        f = _write_md(docs / "team", "page.md", "# Content")
+        state = _make_state(tmp_path)
+
+        old_cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            rel = str(f.relative_to(tmp_path))
+            current_hash = state.compute_hash(f)
+            state.set_page("docs/team", "dir-1", "Team", "SP", "s", "")
+            state.set_page(rel, "p1", "Page", "SP", "s", current_hash)
+
+            plan = compute_plan(state, [f], Path("docs"))
+        finally:
+            os.chdir(old_cwd)
+
+        assert len(plan.destroy_actions) == 0
+
+    def test_destroys_sorted_deepest_first(self, tmp_path):
+        """Destroy actions are sorted deepest-first (children before parents)."""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        state = _make_state(tmp_path)
+
+        old_cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            state.set_page("docs/a", "d1", "A", "SP", "s", "")
+            state.set_page("docs/a/b", "d2", "B", "SP", "s", "")
+            state.set_page("docs/a/b/page.md", "p1", "Page", "SP", "s", "sha256:x")
+
+            plan = compute_plan(state, [], Path("docs"))
+        finally:
+            os.chdir(old_cwd)
+
+        destroy_paths = [a.rel_path for a in plan.destroy_actions]
+        assert destroy_paths.index("docs/a/b/page.md") < destroy_paths.index("docs/a/b")
+        assert destroy_paths.index("docs/a/b") < destroy_paths.index("docs/a")
+
+    def test_non_empty_hash_non_md_entry_ignored(self, tmp_path):
+        """State entries without .md suffix and with non-empty content_hash are ignored."""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        state = _make_state(tmp_path)
+
+        old_cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            # Simulate a non-directory, non-.md entry with a real hash
+            state.set_page("docs/weird-entry", "p99", "Weird", "SP", "s", "sha256:notempty")
+
+            plan = compute_plan(state, [], Path("docs"))
+        finally:
+            os.chdir(old_cwd)
+
+        # Should not be destroyed (content_hash != "")
+        assert all(a.rel_path != "docs/weird-entry" for a in plan.destroy_actions)
 
     def test_files_sorted_in_output(self, tmp_path):
-        """Files are processed in sorted order (line 140)."""
+        """Files are processed in sorted order."""
         docs = tmp_path / "docs"
         docs.mkdir()
         fb = _write_md(docs, "b.md")
@@ -413,15 +466,12 @@ class TestComputePlan:
         assert rel_paths == sorted(rel_paths)
 
     def test_rel_path_falls_back_to_str_when_outside_cwd(self, tmp_path):
-        """ValueError from relative_to falls back to str(filepath) (lines 143-144)."""
+        """ValueError from relative_to falls back to str(filepath)."""
         docs = tmp_path / "docs"
         docs.mkdir()
         f = _write_md(docs, "page.md")
         state = _make_state(tmp_path)
 
-        # Create a sibling directory that is guaranteed NOT to be an ancestor of
-        # tmp_path on any platform.  Using tmp_path.parent / "unrelated_cwd" ensures
-        # it sits beside (not above) tmp_path, so relative_to() will always raise.
         unrelated_cwd = tmp_path.parent / "unrelated_cwd"
         unrelated_cwd.mkdir(exist_ok=True)
 
@@ -432,7 +482,6 @@ class TestComputePlan:
         finally:
             os.chdir(old_cwd)
 
-        # rel_path should be the full absolute string, not raise
         assert str(f) == plan.page_actions[0].rel_path
 
     def test_empty_files_list_produces_empty_plan(self, tmp_path):
@@ -449,4 +498,4 @@ class TestComputePlan:
             os.chdir(old_cwd)
 
         assert plan.page_actions == []
-        assert plan.orphan_actions == []
+        assert plan.destroy_actions == []

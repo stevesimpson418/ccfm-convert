@@ -2,7 +2,15 @@
 
 from .api import ConfluenceAPI
 from .frontmatter import parse_frontmatter
-from .orchestration import archive_page, deploy_page, deploy_tree, ensure_page_hierarchy
+from .orchestration import (
+    deploy_page,
+    deploy_tree,
+    destroy_page,
+    destroy_pages,
+    dump_page,
+    dump_tree,
+    ensure_page_hierarchy,
+)
 from .transforms import add_ci_banner, create_metadata_expand, resolve_page_links
 
 __all__ = [
@@ -14,5 +22,8 @@ __all__ = [
     "ensure_page_hierarchy",
     "deploy_tree",
     "deploy_page",
-    "archive_page",
+    "destroy_page",
+    "destroy_pages",
+    "dump_page",
+    "dump_tree",
 ]

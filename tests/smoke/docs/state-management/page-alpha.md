@@ -12,8 +12,8 @@ deploy_config:
 
 This page is used by the state management smoke tests to exercise:
 
-- `--changed-only` (this file is modified between runs to trigger an update)
-- `--plan` (shows as CREATE before first deploy, NO-OP after)
+- Change detection (this file is modified between runs to trigger an update)
+- `ccfm plan` (shows as add before first apply, no-op after)
 
 ## Original content
 

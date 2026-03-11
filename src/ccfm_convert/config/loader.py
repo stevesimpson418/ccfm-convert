@@ -88,8 +88,8 @@ def merge_config_with_args(config: dict, args: Namespace) -> Namespace:
 
     A CLI arg is considered explicitly set if its current value is not None.
     Config values fill in gaps left by unset (None) CLI args. Boolean flags
-    (--plan, --dump, --changed-only, --archive-orphans) are not in _CONFIG_TO_ARG
-    and are not overrideable from the config file.
+    (--auto-approve, --dump, --force, --plan-exit-code) are not in _CONFIG_TO_ARG
+    and are not overridable from the config file.
 
     The merged result is returned as a new Namespace.
     """

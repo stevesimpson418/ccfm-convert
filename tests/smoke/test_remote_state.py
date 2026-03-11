@@ -34,10 +34,10 @@ class TestInit:
 
 
 class TestLocking:
-    """Deploy acquires/releases lock automatically; lock commands work."""
+    """Apply acquires/releases lock automatically; lock commands work."""
 
     def test_lock_status_shows_unlocked(self, ccfm_run, confluence_live):
-        """ccfm lock status shows unlocked when no deploy is running."""
+        """ccfm lock status shows unlocked when no apply is running."""
         result = ccfm_run("lock", "status")
 
         assert result.returncode == 0, f"Lock status failed:\n{result.stderr}"
@@ -45,18 +45,18 @@ class TestLocking:
             "unlocked" in result.stdout.lower() or "not locked" in result.stdout.lower()
         ), f"Expected unlocked status.\nstdout: {result.stdout}"
 
-    def test_deploy_acquires_and_releases_lock(self, ccfm_run, confluence_live):
-        """After a deploy completes, the lock is released."""
-        # Deploy a page
-        result = ccfm_run("deploy", "--file", str(SINGLE_PAGE))
-        assert result.returncode == 0, f"Deploy failed:\n{result.stderr}"
+    def test_apply_acquires_and_releases_lock(self, ccfm_run, confluence_live):
+        """After an apply completes, the lock is released."""
+        # Apply a page
+        result = ccfm_run("apply", "--auto-approve", "--file", str(SINGLE_PAGE))
+        assert result.returncode == 0, f"Apply failed:\n{result.stderr}"
 
-        # Lock should be released after deploy
+        # Lock should be released after apply
         result = ccfm_run("lock", "status")
         assert result.returncode == 0
         assert (
             "unlocked" in result.stdout.lower() or "not locked" in result.stdout.lower()
-        ), f"Lock should be released after deploy.\nstdout: {result.stdout}"
+        ), f"Lock should be released after apply.\nstdout: {result.stdout}"
 
     def test_force_release_is_idempotent(self, ccfm_run, confluence_live):
         """lock release succeeds whether locked or unlocked (idempotent).
@@ -75,11 +75,11 @@ class TestLocking:
 
 
 class TestStateCommands:
-    """ccfm state list and ccfm state rm commands."""
+    """ccfm state list, show, pull, push, and rm commands."""
 
     def test_state_list_shows_deployed_pages(self, ccfm_run, confluence_live):
-        """ccfm state list shows pages after a deploy."""
-        ccfm_run("deploy", "--file", str(SINGLE_PAGE))
+        """ccfm state list shows pages after an apply."""
+        ccfm_run("apply", "--auto-approve", "--file", str(SINGLE_PAGE))
 
         result = ccfm_run("state", "list")
 
@@ -88,9 +88,63 @@ class TestStateCommands:
             "single-page" in result.stdout
         ), f"Expected single-page in state list.\nstdout: {result.stdout}"
 
+    def test_state_pull_outputs_json(self, ccfm_run, confluence_live):
+        """ccfm state pull outputs valid JSON to stdout."""
+        ccfm_run("apply", "--auto-approve", "--file", str(SINGLE_PAGE))
+
+        result = ccfm_run("state", "pull")
+        assert result.returncode == 0, f"State pull failed:\n{result.stderr}"
+
+        import json
+
+        state = json.loads(result.stdout)
+        assert "pages" in state, "State JSON missing 'pages' key"
+        assert "version" in state, "State JSON missing 'version' key"
+
+    def test_state_show_displays_entry(self, ccfm_run, confluence_live):
+        """ccfm state show <path> outputs the entry for a specific page."""
+        ccfm_run("apply", "--auto-approve", "--file", str(SINGLE_PAGE))
+
+        # Find the .md state key
+        list_result = ccfm_run("state", "list")
+        state_key = None
+        for line in list_result.stdout.strip().split("\n"):
+            stripped = line.strip()
+            if stripped.endswith("single-page.md"):
+                state_key = stripped.split()[0] if stripped else None
+                break
+
+        assert state_key, f"Could not find single-page.md in state list:\n{list_result.stdout}"
+
+        result = ccfm_run("state", "show", state_key)
+        assert result.returncode == 0, f"State show failed:\n{result.stderr}"
+        assert "page_id" in result.stdout, "State show output missing page_id"
+
+    def test_state_push_round_trip(self, ccfm_run, confluence_live, tmp_path):
+        """state pull -> push round-trip preserves state."""
+        ccfm_run("apply", "--auto-approve", "--file", str(SINGLE_PAGE))
+
+        # Pull current state
+        pull_result = ccfm_run("state", "pull")
+        assert pull_result.returncode == 0
+
+        # Write to a temp file and push it back
+        state_file = tmp_path / "state.json"
+        state_file.write_text(pull_result.stdout)
+
+        push_result = ccfm_run("state", "push", str(state_file))
+        assert push_result.returncode == 0, f"State push failed:\n{push_result.stderr}"
+        assert (
+            "updated" in push_result.stdout.lower()
+        ), f"Expected 'updated' in push output:\n{push_result.stdout}"
+
+        # Verify state is still intact
+        verify_result = ccfm_run("state", "list")
+        assert "single-page" in verify_result.stdout
+
     def test_state_rm_removes_entry(self, ccfm_run, confluence_live):
         """ccfm state rm removes a page entry from remote state."""
-        ccfm_run("deploy", "--file", str(SINGLE_PAGE))
+        ccfm_run("apply", "--auto-approve", "--file", str(SINGLE_PAGE))
 
         # Find the state key by listing
         list_result = ccfm_run("state", "list")
@@ -112,3 +166,26 @@ class TestStateCommands:
             assert state_key not in list_after.stdout, (
                 f"State key {state_key} still present after rm.\n" f"stdout: {list_after.stdout}"
             )
+
+
+class TestLockAcquireAndBlock:
+    """Lock acquire blocks apply, lock release unblocks."""
+
+    def test_lock_acquire_blocks_apply(self, ccfm_run, confluence_live):
+        """Manually acquired lock blocks a subsequent apply."""
+        # Acquire lock manually
+        acquire_result = ccfm_run("lock", "acquire")
+        assert acquire_result.returncode == 0, f"Lock acquire failed:\n{acquire_result.stderr}"
+
+        try:
+            # Apply should fail because lock is held
+            apply_result = ccfm_run(
+                "apply", "--auto-approve", "--force", "--file", str(SINGLE_PAGE), check=False
+            )
+            assert apply_result.returncode != 0, "Apply should fail when lock is held"
+            assert (
+                "locked" in apply_result.stdout.lower() or "locked" in apply_result.stderr.lower()
+            )
+        finally:
+            # Always release lock to avoid blocking other tests
+            ccfm_run("lock", "release", check=False)
