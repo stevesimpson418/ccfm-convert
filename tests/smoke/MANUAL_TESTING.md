@@ -90,6 +90,17 @@ CFG="--config tests/smoke/ccfm-smoke.yaml"
 | 5.5 | Move `single-page.md` back | | |
 | 5.6 | `ccfm $CFG apply --directory tests/smoke/docs --auto-approve` | "Plan: 1 to add." — re-creates page | |
 
+### deploy_page: false destroy
+
+| # | Step | Expected | Pass/Fail |
+| --- | ------ | ---------- | ----------- |
+| 5.7 | Set `deploy_page: false` in single-page.md frontmatter | | |
+| 5.8 | `ccfm $CFG plan --directory tests/smoke/docs` | Shows "to destroy" for single-page (and its container) | |
+| 5.9 | `ccfm $CFG apply --directory tests/smoke/docs --auto-approve` | Destroys single-page, removes from state | |
+| 5.10 | Repeat 5.9 | "No changes to apply." | |
+| 5.11 | Revert single-page.md (remove `deploy_page: false`) | | |
+| 5.12 | `ccfm $CFG apply --directory tests/smoke/docs --auto-approve` | "Plan: 1 to add." — re-creates page | |
+
 ---
 
 ## Phase 6: State Commands

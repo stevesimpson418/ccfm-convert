@@ -312,6 +312,38 @@ mv "$SINGLE_PAGE.bak" "$SINGLE_PAGE"
 run_cmd ccfm $CFG apply --directory "$SMOKE_DOCS" --auto-approve
 verdict
 
+# --- deploy_page: false destroy ---
+
+step_header "5.7-5.8" "Set deploy_page: false and plan" "Shows destroy for single-page"
+manual_note "Injecting deploy_page: false into single-page.md frontmatter..."
+cp "$SINGLE_PAGE" "$SINGLE_PAGE.bak"
+python3 -c "
+p = '$SINGLE_PAGE'
+txt = open(p).read()
+if txt.startswith('---'):
+    parts = txt.split('---', 2)
+    parts[1] = parts[1].rstrip() + '\ndeploy_config:\n  deploy_page: false\n'
+    open(p, 'w').write('---'.join(parts))
+else:
+    open(p, 'w').write('---\ndeploy_config:\n  deploy_page: false\n---\n' + txt)
+"
+run_cmd ccfm $CFG plan --directory "$SMOKE_DOCS"
+verdict
+
+step_header "5.9" "Apply deploy_page: false destroy" "Destroys single-page, removes from state"
+run_cmd ccfm $CFG apply --directory "$SMOKE_DOCS" --auto-approve
+verdict
+
+step_header "5.10" "Re-apply after deploy_page: false destroy" "No changes to apply."
+run_cmd ccfm $CFG apply --directory "$SMOKE_DOCS" --auto-approve
+verdict
+
+step_header "5.11-5.12" "Revert deploy_page: false and re-add" "Plan: 1 to add. Re-creates page"
+manual_note "Reverting single-page.md..."
+mv "$SINGLE_PAGE.bak" "$SINGLE_PAGE"
+run_cmd ccfm $CFG apply --directory "$SMOKE_DOCS" --auto-approve
+verdict
+
 # ===================================================================
 # Phase 6: State Commands
 # ===================================================================

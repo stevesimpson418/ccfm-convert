@@ -30,7 +30,7 @@ class PageAction:
 
 @dataclass
 class DestroyAction:
-    """A planned destroy action for a page whose source file no longer exists."""
+    """A planned destroy for a page whose source was deleted or has deploy_page: false."""
 
     rel_path: str
     page_id: str
@@ -95,6 +95,16 @@ class DeployPlan:
         print()
 
 
+def _read_deploy_flag(filepath: Path) -> bool:
+    """Return the deploy_page frontmatter value for *filepath* (default True)."""
+    try:
+        content = filepath.read_text(encoding="utf-8")
+        metadata, _ = parse_frontmatter(content)
+        return metadata.get("deploy_page", True)
+    except OSError:
+        return True
+
+
 def _derive_title(filepath: Path) -> str:
     """Derive a page title from a markdown file — reads frontmatter if present,
     otherwise generates from the filename stem (same logic as deploy_page)."""
@@ -133,6 +143,20 @@ def compute_plan(
             rel_path = str(filepath.relative_to(cwd))
         except ValueError:
             rel_path = str(filepath)
+
+        # Check deploy_page frontmatter before planning any action
+        if not _read_deploy_flag(filepath):
+            entry = state.get_page(rel_path)
+            if entry is not None:
+                title = _derive_title(filepath)
+                plan.destroy_actions.append(
+                    DestroyAction(
+                        rel_path=rel_path,
+                        page_id=entry["page_id"],
+                        title=title,
+                    )
+                )
+            continue
 
         current_hash = state.compute_hash(filepath)
         entry = state.get_page(rel_path)
