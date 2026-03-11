@@ -26,13 +26,13 @@ inputs:
     description: "Single markdown file to deploy"
     required: false
   args:
-    description: "Additional ccfm arguments (e.g. --changed-only --plan)"
+    description: "ccfm subcommand and arguments (e.g. plan, apply --auto-approve)"
     required: false
     default: ""
   version:
     description: "ccfm-convert PyPI version to install"
     required: false
-    default: "0.1.0"
+    default: "0.5.0"
 
 runs:
   using: "composite"
@@ -59,5 +59,5 @@ runs:
           --email  "${{ inputs.email }}" \
           --token  "${{ inputs.token }}" \
           --space  "${{ inputs.space }}" \
-          $TARGET ${{ inputs.args }}
+          ${{ inputs.args }} $TARGET
       shell: bash
