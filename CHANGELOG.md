@@ -4,6 +4,33 @@ All notable changes to CCFM are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-03-11
+
+### Added
+
+- `ccfm dump` top-level subcommand replacing the old `apply --dump` flag
+  - Converts markdown to ADF JSON locally without API calls
+  - Supports `--file`, `--directory`, and `--output-dir` options
+  - Default output goes to `.ccfm/dumps/<timestamp>_<hash>/` (no more
+    scattered `.ccfm-dump-*` directories at project root)
+- `ccfm plan` top-level subcommand (split out from `apply`)
+  - Supports `--file`, `--directory`, `--plan-exit-code`, and `--force`
+- File and directory existence validation with clear error messages for
+  `plan`, `apply`, and `dump` subcommands
+- Interactive manual test script (`tests/smoke/manual_test.sh`) for
+  walking through all CLI test phases
+- `MANUAL_TESTING.md` runbook documenting 8 phases of manual smoke tests
+- CLI help smoke tests validating all subcommand help output
+
+### Changed
+
+- `plan` and `apply` refactored into separate subcommands sharing a
+  common planner module (previously `apply --plan` was the only way to
+  preview changes)
+- Dump output directory default changed from `.ccfm-dump-<hash>` at
+  project root to `.ccfm/dumps/<timestamp>_<hash>/` for cleaner
+  workspace organisation
+
 ## [0.3.0] - 2026-03-10
 
 ### Added
@@ -90,6 +117,7 @@ fix; no code changes._
 - `ccfm.yaml` project config file with `${ENV_VAR}` interpolation
 - 100% unit test coverage; end-to-end smoke tests against real Confluence
 
+[0.4.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.1.2...v0.2.0
