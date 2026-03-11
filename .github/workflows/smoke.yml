@@ -9,11 +9,13 @@ on:
     paths:
       - "src/**"
       - "tests/smoke/**"
+      - "action.yml"
   push:
     branches: [main]
     paths:
       - "src/**"
       - "tests/smoke/**"
+      - "action.yml"
   workflow_dispatch:
     inputs:
       mode:
