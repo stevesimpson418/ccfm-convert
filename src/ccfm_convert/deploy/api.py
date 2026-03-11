@@ -35,7 +35,6 @@ class ConfluenceAPI:
         adapter = HTTPAdapter(max_retries=_RETRY_STRATEGY)
         self._session = requests.Session()
         self._session.mount("https://", adapter)
-        self._session.mount("http://", adapter)
 
     def get_space_id(self, space_key):
         """Get space ID from space key."""

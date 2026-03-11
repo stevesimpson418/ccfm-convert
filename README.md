@@ -78,35 +78,55 @@ This is **bold** text, this is *italic*.
 ::In Progress::blue::   ::Stable::green::
 ```
 
-### 5. Deploy
+### 5. Preview changes
 
 ```bash
-# Deploy a single file
+# See what would change without touching Confluence
 ccfm \
   --domain your-domain.atlassian.net \
   --email your.email@example.com \
   --token YOUR_API_TOKEN \
   --space YOUR_SPACE_KEY \
-  deploy --file path/to/my-page.md
-
-# Deploy a directory recursively
-ccfm \
-  --domain your-domain.atlassian.net \
-  --email your.email@example.com \
-  --token YOUR_API_TOKEN \
-  --space YOUR_SPACE_KEY \
-  deploy --directory path/to/docs
+  plan --directory path/to/docs
 ```
 
-### 6. Inspect before deploying
-
-Use `--dump` to write ADF JSON files locally without making any API calls:
+### 6. Apply changes
 
 ```bash
-ccfm deploy \
-  --file path/to/my-page.md \
-  --dump
-# Writes path/to/my-page.adf.json for inspection
+# Apply a single file
+ccfm \
+  --domain your-domain.atlassian.net \
+  --email your.email@example.com \
+  --token YOUR_API_TOKEN \
+  --space YOUR_SPACE_KEY \
+  apply --file path/to/my-page.md
+
+# Apply a directory recursively
+ccfm \
+  --domain your-domain.atlassian.net \
+  --email your.email@example.com \
+  --token YOUR_API_TOKEN \
+  --space YOUR_SPACE_KEY \
+  apply --directory path/to/docs
+
+# Skip confirmation prompt (for CI)
+ccfm apply --directory docs --auto-approve
+```
+
+### 7. Inspect ADF output
+
+Use the `dump` subcommand to convert markdown to ADF JSON files locally without making any
+API calls:
+
+```bash
+# Dump a single file (auto-creates .ccfm/dumps/<timestamp>/ output directory)
+ccfm dump --file path/to/my-page.md
+
+# Dump an entire directory
+ccfm dump --directory path/to/docs
+
+# Specify a custom output directory
+ccfm dump --directory path/to/docs --output-dir ./adf-output
 ```
 
 ---
@@ -151,7 +171,9 @@ ccfm [GLOBAL OPTIONS] <command> [COMMAND OPTIONS]
 
 Commands:
   init                   Initialise remote state in a Confluence space
-  deploy                 Deploy markdown files to Confluence
+  plan                   Preview what would change without making modifications
+  apply                  Apply changes to Confluence (add, change, destroy)
+  dump                   Convert markdown to ADF JSON files for inspection (no API calls)
   state list             List all pages tracked in remote state
   state pull             Print remote state JSON to stdout
   state push <file>      Overwrite remote state from a local file
@@ -169,25 +191,56 @@ Global options (apply to all commands):
   --space SPACE          Space key (e.g., DOCS — not the space display name)
 ```
 
-### Deploy options
+### Plan options
 
 ```text
-ccfm deploy [OPTIONS]
+ccfm plan [OPTIONS]
 
-Deployment targets (one required unless --dump):
-  --file PATH            Deploy a single markdown file
-  --directory PATH       Deploy a directory recursively
+Targets (one required):
+  --file PATH            Plan for a single markdown file
+  --directory PATH       Plan for a directory recursively
 
 Options:
   --docs-root PATH       Documentation root directory (default: docs)
   --git-repo-url URL     Git repo URL for CI banner source links
-  --dump                 Write ADF to .adf.json files, skip deployment
-  --plan                 Show what would be deployed without making changes
   --plan-exit-code       Exit 2 when plan detects pending changes (for CI gates)
-  --changed-only         Only deploy files whose content has changed
-  --archive-orphans      Archive pages for markdown files removed from disk
+  --force                Force re-deploy all files regardless of content changes
+```
+
+### Apply options
+
+```text
+ccfm apply [OPTIONS]
+
+Targets (one required):
+  --file PATH            Apply a single markdown file
+  --directory PATH       Apply a directory recursively
+
+Options:
+  --docs-root PATH       Documentation root directory (default: docs)
+  --git-repo-url URL     Git repo URL for CI banner source links
+  --auto-approve         Skip confirmation prompt (required for CI/non-interactive use)
+  --force                Force re-deploy all files regardless of content changes
   --lock-id ID           Lock identifier for CI traceability (e.g., pipeline ID)
 ```
+
+### Dump options
+
+```text
+ccfm dump [OPTIONS]
+
+Targets (one required):
+  --file PATH            Single markdown file to dump
+  --directory PATH       Directory to dump (recursive)
+
+Options:
+  --docs-root PATH       Root documentation directory (default: docs)
+  --git-repo-url URL     Git repo URL for CI banner
+  --output-dir PATH      Output directory for .adf.json files (default: .ccfm/dumps/<timestamp>/)
+```
+
+No credentials are needed — dump is a local-only operation. The output directory mirrors the
+source tree structure (e.g., `docs/team/api.md` becomes `<output-dir>/docs/team/api.adf.json`).
 
 ### Examples
 
@@ -195,20 +248,27 @@ Options:
 # Initialise CCFM in your space (one-time setup)
 ccfm --domain company.atlassian.net --email user@example.com --token abc123 --space DOCS init
 
-# Deploy a single file
+# Preview what would change
 ccfm --domain company.atlassian.net --email user@example.com --token abc123 --space DOCS \
-  deploy --file path/to/api/authentication.md
+  plan --directory path/to/docs
 
-# Deploy entire docs folder
+# Apply a single file (interactive prompt)
 ccfm --domain company.atlassian.net --email user@example.com --token abc123 --space DOCS \
-  deploy --directory path/to/docs
+  apply --file path/to/api/authentication.md
+
+# Apply entire docs folder with auto-approve (for CI)
+ccfm --domain company.atlassian.net --email user@example.com --token abc123 --space DOCS \
+  apply --directory path/to/docs --auto-approve
 
 # With CI banner links back to source files
 ccfm --domain company.atlassian.net --email user@example.com --token abc123 --space DOCS \
-  deploy --directory path/to/docs --git-repo-url "https://github.com/org/repo/blob/main"
+  apply --directory path/to/docs --git-repo-url "https://github.com/org/repo/blob/main" --auto-approve
 
-# Preview changes without deploying (credentials from ccfm.yaml)
-ccfm deploy --directory docs --plan
+# Preview changes (credentials from ccfm.yaml)
+ccfm plan --directory docs
+
+# Force re-deploy all files
+ccfm apply --directory docs --force --auto-approve
 
 # Check lock status
 ccfm --domain company.atlassian.net --email user@example.com --token abc123 --space DOCS \
@@ -229,22 +289,24 @@ page, which lives under a `_ccfm` container page in your space.
 
 This enables:
 
-- **Plan mode** — see what would change before deploying
-- **Changed-only deploys** — skip files with no content changes (faster CI)
-- **Orphan archiving** — archive pages whose source files have been deleted
+- **Plan mode** — see what would change before applying
+- **Change detection** — only deploy files whose content has changed (default behaviour)
+- **Destroy detection** — automatically destroy pages whose source files have been deleted
 - **No checkin loops** — state changes don't trigger CI rebuilds
 - **No merge conflicts** — concurrent deploys don't fight over a state file
 
 ### Initialising
 
-Run `ccfm init` before your first deploy. This creates the management infrastructure
+Run `ccfm init` before your first apply. This creates the management infrastructure
 in your Confluence space:
 
 ```bash
 ccfm --domain company.atlassian.net --email user@example.com --token abc123 --space DOCS init
 ```
 
-The command is idempotent — running it again is a no-op. It is a **one-time per-space** operation; you do not need to run it before every deploy.
+The command is idempotent — running it again is a no-op. It is a **one-time per-space** operation; you do not need to run it before every apply.
+
+> **Note:** All files inside your `docs_root` directory are managed by CCFM. Removing files or folders will result in destroy operations on the next `ccfm apply`.
 
 ### Inspecting and managing state
 
@@ -274,16 +336,24 @@ ccfm --domain ... --email ... --token ... --space DOCS state push state-backup.j
 
 > **Warning:** `state push` overwrites the remote state completely. Use with caution.
 
-### Plan mode
+### Plan and apply workflow
 
 Preview what would change without making any modifications:
 
 ```bash
-ccfm deploy --directory docs --plan
+ccfm plan --directory docs
 ```
 
-Use `--plan-exit-code` to exit with code `2` when there are pending changes — useful
-for CI gates that block merges until docs are deployed.
+Apply changes interactively (prompts for confirmation):
+
+```bash
+ccfm apply --directory docs
+```
+
+Use `--plan-exit-code` with `plan` to exit with code `2` when there are pending changes —
+useful for CI gates that block merges until docs are deployed.
+
+Use `--auto-approve` with `apply` to skip the confirmation prompt (required for CI).
 
 ---
 
@@ -295,9 +365,9 @@ using Confluence's optimistic concurrency (version numbers) to prevent race cond
 
 ### How it works
 
-- `ccfm deploy` automatically acquires a lock before deploying and releases it when done
-- If another deploy is in progress, the command fails immediately with a lock error
-- `--plan` and `--dump` modes do **not** acquire locks (they're read-only)
+- `ccfm apply` automatically acquires a lock before applying and releases it when done
+- If another apply is in progress, the command fails immediately with a lock error
+- `ccfm plan` and `ccfm dump` do **not** acquire locks (they're read-only)
 - Lock owner is auto-detected as `user@hostname`
 
 ### CI traceability
@@ -305,7 +375,7 @@ using Confluence's optimistic concurrency (version numbers) to prevent race cond
 Pass `--lock-id` to associate the lock with a CI pipeline for easier debugging:
 
 ```bash
-ccfm --space DOCS deploy --directory docs --lock-id "$CI_PIPELINE_ID"
+ccfm --space DOCS apply --directory docs --auto-approve --lock-id "$CI_PIPELINE_ID"
 ```
 
 ### Checking lock status
@@ -330,7 +400,7 @@ ccfm --domain ... --email ... --token ... --space DOCS \
 
 ### Recovering from stale locks
 
-If a CI job crashes mid-deploy, the lock may be left in place. Force-release it:
+If a CI job crashes mid-apply, the lock may be left in place. Force-release it:
 
 ```bash
 ccfm --domain ... --email ... --token ... --space DOCS lock release
@@ -357,8 +427,8 @@ git_repo_url: https://github.com/org/repo
 With a config file in place:
 
 ```bash
-ccfm deploy --directory docs --plan
-ccfm deploy --directory docs
+ccfm plan --directory docs
+ccfm apply --directory docs --auto-approve
 ```
 
 **Security note:** `ccfm.yaml` is a trusted-author file. Any environment variable
@@ -378,7 +448,7 @@ docker run --rm \
   -e CONFLUENCE_TOKEN=your-token \
   -v $(pwd)/docs:/docs \
   ghcr.io/stevesimpson418/ccfm-convert:latest \
-  deploy --space DOCS --directory /docs
+  apply --space DOCS --directory /docs --auto-approve
 ```
 
 ---
@@ -393,7 +463,7 @@ docker run --rm \
     token:  ${{ secrets.CONFLUENCE_TOKEN }}
     space:  DOCS
     directory: docs
-    args: --changed-only
+    args: --auto-approve
 ```
 
 ---
@@ -453,16 +523,16 @@ jobs:
             --space DOCS \
             init
 
-          # Deploy with lock ID for CI traceability
+          # Apply with auto-approve and lock ID for CI traceability
           ccfm \
             --domain "$CONFLUENCE_DOMAIN" \
             --email "$CONFLUENCE_EMAIL" \
             --token "$CONFLUENCE_TOKEN" \
             --space DOCS \
-            deploy \
+            apply \
             --directory docs \
             --git-repo-url "https://github.com/${{ github.repository }}/blob/main" \
-            --changed-only \
+            --auto-approve \
             --lock-id "${{ github.run_id }}"
 ```
 
@@ -509,7 +579,7 @@ custom titles.
 │       ├── deploy/               # Confluence API and deployment logic
 │       │   ├── api.py            # ConfluenceAPI class (REST v2 + v1 for attachments/properties)
 │       │   ├── frontmatter.py    # YAML frontmatter parsing
-│       │   ├── orchestration.py  # deploy_page(), deploy_tree(), archive_page()
+│       │   ├── orchestration.py  # deploy_page(), deploy_tree(), destroy_page()
 │       │   └── transforms.py     # CI banner, page link resolution, attachment media nodes
 │       ├── state/                # Remote state and locking
 │       │   ├── backend.py        # StateBackend protocol + ConfluenceBackend
@@ -659,8 +729,8 @@ Use the space **key** (e.g., `DOCS`), not the display name. The key appears in t
 The management page was not found in your space. Run `ccfm init` to create the `_ccfm`
 container and state management page.
 
-**Deploy blocked by lock**
-Another deploy is in progress (or a previous deploy crashed without releasing the lock).
+**Apply blocked by lock**
+Another apply is in progress (or a previous apply crashed without releasing the lock).
 Check the lock status and force-release if the lock is stale:
 
 ```bash
@@ -678,8 +748,8 @@ Ensure markdown files are under the directory passed to `--directory`. Directori
 page's title and content.
 
 **Debugging ADF output**
-Use `--dump` to write `.adf.json` files alongside each markdown file. Inspect these to verify
-the ADF structure before deploying to Confluence.
+Use `ccfm dump` to write `.adf.json` files to a dedicated output directory. Inspect these to
+verify the ADF structure before deploying to Confluence.
 
 ---
 

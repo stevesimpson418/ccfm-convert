@@ -1,3 +1,6 @@
+# CCFM working directory (dumps, etc.)
+.ccfm/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

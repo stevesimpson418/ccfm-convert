@@ -1,10 +1,10 @@
 """Deploy plan computation — show what CCFM would do without deploying.
 
 Usage:
-    plan = compute_plan(state, files, docs_root, archive_orphans=True)
+    plan = compute_plan(state, files, docs_root)
     plan.print_summary()
     if plan.has_changes():
-        # proceed with deploy
+        # proceed with apply
 """
 
 from dataclasses import dataclass, field
@@ -21,82 +21,77 @@ class PageAction:
 
     filepath: Path
     rel_path: str
-    action: Literal["CREATE", "UPDATE", "NO_OP"]
+    action: Literal["add", "change", "no-op"]
     title: str
     current_hash: str
     stored_hash: str | None = None
-    page_id: str | None = None  # None for CREATE actions
+    page_id: str | None = None  # None for add actions
 
 
 @dataclass
-class OrphanAction:
-    """A planned archive action for a page whose source file no longer exists."""
+class DestroyAction:
+    """A planned destroy action for a page whose source file no longer exists."""
 
     rel_path: str
     page_id: str
     title: str
-    action: Literal["ARCHIVE"] = field(default="ARCHIVE")
+    action: Literal["destroy"] = field(default="destroy")
 
 
 @dataclass
 class DeployPlan:
-    """The complete set of actions CCFM would take on the next deploy."""
+    """The complete set of actions CCFM would take on the next apply."""
 
     page_actions: list[PageAction] = field(default_factory=list)
-    orphan_actions: list[OrphanAction] = field(default_factory=list)
+    destroy_actions: list[DestroyAction] = field(default_factory=list)
 
     def has_changes(self) -> bool:
-        """Return True if any deployable action exists (excludes NO_OP)."""
-        return any(a.action != "NO_OP" for a in self.page_actions) or bool(self.orphan_actions)
+        """Return True if any deployable action exists (excludes no-op)."""
+        return any(a.action != "no-op" for a in self.page_actions) or bool(self.destroy_actions)
 
     def print_summary(self) -> None:
         """Print a terraform-style plan summary to stdout."""
-        _SYMBOLS = {"CREATE": "+", "UPDATE": "~", "NO_OP": "·"}
-        _LABELS = {"CREATE": "CREATE ", "UPDATE": "UPDATE ", "NO_OP": "NO-OP  "}
+        _SYMBOLS = {"add": "+", "change": "~"}
 
-        print("\nCCFM Deploy Plan")
-        print("═" * 60)
-        print()
+        actionable = [a for a in self.page_actions if a.action != "no-op"]
+        has_any = bool(actionable) or bool(self.destroy_actions)
 
-        all_actions: list[PageAction | OrphanAction] = [
-            *self.page_actions,
-            *self.orphan_actions,
-        ]
-
-        if not all_actions:
-            print("  No files found to deploy.")
+        if not has_any:
+            no_ops = sum(1 for a in self.page_actions if a.action == "no-op")
+            if no_ops:
+                print("\nNo changes. Your Confluence pages are up to date.")
+            else:
+                print("\nNo files found to process.")
             print()
             return
 
-        for action in self.page_actions:
+        print("\nccfm will perform the following actions:\n")
+
+        for action in actionable:
             symbol = _SYMBOLS[action.action]
-            label = _LABELS[action.action]
-            print(f'  {symbol} {action.rel_path:<45} {label}  "{action.title}"')
+            label = f"({action.action})"
+            print(f'  {symbol} {action.rel_path:<40} {label:<12} "{action.title}"')
 
-        for orphan in self.orphan_actions:
-            print(f'  - {orphan.rel_path:<45} ARCHIVE  "{orphan.title}"  (file removed)')
+        for destroy in self.destroy_actions:
+            print(f'  - {destroy.rel_path:<40} {"(destroy)":<12} "{destroy.title}"')
 
-        creates = sum(1 for a in self.page_actions if a.action == "CREATE")
-        updates = sum(1 for a in self.page_actions if a.action == "UPDATE")
-        no_ops = sum(1 for a in self.page_actions if a.action == "NO_OP")
-        archives = len(self.orphan_actions)
+        adds = sum(1 for a in self.page_actions if a.action == "add")
+        changes = sum(1 for a in self.page_actions if a.action == "change")
+        no_ops = sum(1 for a in self.page_actions if a.action == "no-op")
+        destroys = len(self.destroy_actions)
 
         parts = []
-        if creates:
-            parts.append(f"{creates} to create")
-        if updates:
-            parts.append(f"{updates} to update")
-        if archives:
-            parts.append(f"{archives} to archive")
+        if adds:
+            parts.append(f"{adds} to add")
+        if changes:
+            parts.append(f"{changes} to change")
+        if destroys:
+            parts.append(f"{destroys} to destroy")
         if no_ops:
             parts.append(f"{no_ops} unchanged")
 
         print()
         print(f"Plan: {', '.join(parts)}.")
-
-        if self.has_changes():
-            print()
-            print("Run without --plan to apply.")
         print()
 
 
@@ -117,17 +112,17 @@ def compute_plan(
     state: StateManager,
     files: list[Path],
     docs_root: Path,
-    archive_orphans: bool = False,
+    force: bool = False,
 ) -> DeployPlan:
     """Compute the full deploy plan by comparing files on disk against stored state.
 
     Each file is classified as:
-      CREATE  — no state entry exists (never deployed)
-      UPDATE  — state exists but content hash has changed
-      NO_OP   — state exists and hash is unchanged
+      add     — no state entry exists (never deployed), or force=True
+      change  — state exists but content hash has changed
+      no-op   — state exists and hash is unchanged
 
-    If archive_orphans is True, files tracked in state but absent from disk are
-    added as ARCHIVE actions.
+    Files tracked in state but absent from disk are added as destroy actions.
+    Directory container pages are also destroyed when no files remain under them.
     """
     plan = DeployPlan()
 
@@ -143,12 +138,12 @@ def compute_plan(
         entry = state.get_page(rel_path)
         title = _derive_title(filepath)
 
-        if entry is None:
+        if force or entry is None:
             plan.page_actions.append(
                 PageAction(
                     filepath=filepath,
                     rel_path=rel_path,
-                    action="CREATE",
+                    action="add",
                     title=title,
                     current_hash=current_hash,
                 )
@@ -158,7 +153,7 @@ def compute_plan(
                 PageAction(
                     filepath=filepath,
                     rel_path=rel_path,
-                    action="UPDATE",
+                    action="change",
                     title=title,
                     current_hash=current_hash,
                     stored_hash=entry["content_hash"],
@@ -170,7 +165,7 @@ def compute_plan(
                 PageAction(
                     filepath=filepath,
                     rel_path=rel_path,
-                    action="NO_OP",
+                    action="no-op",
                     title=title,
                     current_hash=current_hash,
                     stored_hash=entry["content_hash"],
@@ -178,16 +173,41 @@ def compute_plan(
                 )
             )
 
-    if archive_orphans:
-        for rel_path in state.find_orphans(files, docs_root):
-            entry = state.get_page(rel_path)
-            if entry:
-                plan.orphan_actions.append(
-                    OrphanAction(
-                        rel_path=rel_path,
-                        page_id=entry["page_id"],
-                        title=entry["title"],
-                    )
+    # Destroy detection — always on
+    # 1. Orphaned .md files (in state but not on disk)
+    for rel_path in state.find_orphans(files, docs_root):
+        entry = state.get_page(rel_path)
+        if entry:
+            plan.destroy_actions.append(
+                DestroyAction(
+                    rel_path=rel_path,
+                    page_id=entry["page_id"],
+                    title=entry["title"],
                 )
+            )
+
+    # 2. Orphaned directory containers (content_hash == "", no .md files remain under them)
+    current_rel_paths = {a.rel_path for a in plan.page_actions}
+    all_pages = state.all_pages
+    for rel_path, entry in all_pages.items():
+        if rel_path.endswith(".md"):
+            continue
+        if entry.get("content_hash") != "":
+            continue
+        # Check if any tracked .md file still exists under this directory
+        has_children = any(
+            child_path.startswith(rel_path + "/") for child_path in current_rel_paths
+        )
+        if not has_children:
+            plan.destroy_actions.append(
+                DestroyAction(
+                    rel_path=rel_path,
+                    page_id=entry["page_id"],
+                    title=entry["title"],
+                )
+            )
+
+    # Sort destroys deepest-first (children before parents)
+    plan.destroy_actions.sort(key=lambda a: a.rel_path.count("/"), reverse=True)
 
     return plan
