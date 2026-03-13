@@ -4,6 +4,25 @@ All notable changes to CCFM are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [1.0.0] - 2026-03-13
+
+### Added
+
+- MkDocs Material documentation site deployed to GitHub Pages
+- CCFM logo in site navigation and favicon
+- GitHub Actions workflow for automatic docs deployment on push to `main`
+
+### Fixed
+
+- GitHub Action argument ordering for v0.4.0 subcommand CLI
+  ([#12](https://github.com/stevesimpson418/ccfm-convert/issues/12))
+
+### Changed
+
+- README slimmed to quickstart; full documentation now lives at
+  [stevesimpson418.github.io/ccfm-convert](https://stevesimpson418.github.io/ccfm-convert/)
+- First stable release
+
 ## [0.5.0] - 2026-03-11
 
 ### Added
@@ -128,6 +147,7 @@ fix; no code changes._
 - `ccfm.yaml` project config file with `${ENV_VAR}` interpolation
 - 100% unit test coverage; end-to-end smoke tests against real Confluence
 
+[1.0.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.5.0...v1.0.0
 [0.5.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.2.1...v0.3.0
