@@ -10,7 +10,7 @@ legacy conversions, no storage format hacks, full editor compatibility.
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Linting: ruff](https://img.shields.io/badge/linting-ruff-red.svg)](https://github.com/astral-sh/ruff)
 [![codecov](https://codecov.io/gh/stevesimpson418/ccfm-convert/branch/main/graph/badge.svg)](https://codecov.io/gh/stevesimpson418/ccfm-convert)
-[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://stevesimpson418.github.io/ccfm-convert/)
+[![Docs](https://img.shields.io/badge/docs-ccfm.io-blue)](https://ccfm.io/)
 
 - **Native ADF output** — Pages open in the Confluence editor without any legacy conversion
 - **Automatic page hierarchy** — Directory structure maps directly to Confluence page hierarchy
@@ -20,7 +20,7 @@ legacy conversions, no storage format hacks, full editor compatibility.
 - **Concurrent deploy protection** — Terraform-style locking prevents conflicting deploys
 - **CI/CD ready** — Deploy documentation on every commit to your main branch
 
-**[Full documentation](https://stevesimpson418.github.io/ccfm-convert/)** |
+**[Full documentation](https://ccfm.io/)** |
 **[Syntax reference](CCFM.md)**
 
 ---
@@ -82,7 +82,7 @@ ccfm apply --directory path/to/docs --auto-approve
 ```
 
 For the full CLI reference, configuration options, and deployment patterns, see the
-[documentation site](https://stevesimpson418.github.io/ccfm-convert/).
+[documentation site](https://ccfm.io/).
 
 ---
 
@@ -115,7 +115,7 @@ docker run --rm \
 ```
 
 For GitHub Action usage and CI/CD pipeline examples, see
-[Docker & CI/CD](https://stevesimpson418.github.io/ccfm-convert/docker/).
+[Docker & CI/CD](https://ccfm.io/docker/).
 
 ---
 

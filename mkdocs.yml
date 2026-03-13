@@ -1,5 +1,5 @@
 site_name: CCFM — Confluence Cloud Flavoured Markdown
-site_url: https://stevesimpson418.github.io/ccfm-convert/
+site_url: https://ccfm.io/
 site_description: >-
   A CLI tool that converts Markdown to Atlassian Document Format (ADF)
   and deploys pages to Confluence Cloud.
