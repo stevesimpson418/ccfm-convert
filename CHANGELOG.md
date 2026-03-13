@@ -20,7 +20,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - README slimmed to quickstart; full documentation now lives at
-  [stevesimpson418.github.io/ccfm-convert](https://stevesimpson418.github.io/ccfm-convert/)
+  [ccfm.io](https://ccfm.io/)
 - First stable release
 
 ## [0.5.0] - 2026-03-11
