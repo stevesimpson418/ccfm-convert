@@ -171,7 +171,7 @@ def convert(markdown_text: str) -> dict:
                 break
             if line.strip().startswith("```"):
                 break
-            if re.match(r"^:::expand\s+", line.strip()):
+            if re.match(r"^:::expand\s+.+$", line.strip()):
                 break
             if re.match(r"^(\-{3,}|\*{3,}|_{3,})\s*$", line.strip()):
                 break

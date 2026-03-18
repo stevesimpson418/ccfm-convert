@@ -620,13 +620,15 @@ class TestFencedExpandDirective:
         assert node["content"][0]["content"][0]["text"] == "Content here"
 
     def test_expand_with_multiple_lines(self):
-        """Test expand with multiple content lines."""
+        """Test expand with multiple consecutive lines produces a single paragraph."""
         markdown = ":::expand Details\nLine 1\nLine 2\nLine 3\n:::"
         result = convert(markdown)
 
         node = result["content"][0]
         assert node["type"] == "expand"
         assert node["attrs"]["title"] == "Details"
+        assert len(node["content"]) == 1
+        assert node["content"][0]["type"] == "paragraph"
 
     def test_expand_with_code_block(self):
         """Test expand containing a fenced code block."""
@@ -684,3 +686,22 @@ class TestFencedExpandDirective:
         node = result["content"][0]
         assert node["type"] == "expand"
         assert node["attrs"]["title"] == "Empty"
+
+    def test_expand_with_inline_formatting(self):
+        """Test inline formatting inside expand body."""
+        markdown = ":::expand Styled\n**bold** and *italic*\n:::"
+        result = convert(markdown)
+
+        node = result["content"][0]
+        assert node["type"] == "expand"
+        para = node["content"][0]
+        texts = [n.get("text", "") for n in para["content"]]
+        assert "bold" in " ".join(texts)
+
+    def test_expand_no_title_is_paragraph(self):
+        """:::expand with no title is not recognized — rendered as paragraph text."""
+        markdown = ":::expand \nContent\n:::"
+        result = convert(markdown)
+
+        # Should NOT produce an expand node
+        assert result["content"][0]["type"] == "paragraph"
