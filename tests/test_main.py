@@ -2,6 +2,7 @@
 
 import json
 import os
+from argparse import Namespace
 from io import StringIO
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -552,6 +553,183 @@ class TestPlanSubcommand:
 
 
 # ---------------------------------------------------------------------------
+class TestDocsRootFallback:
+    """Test that docs_root from config is used when --directory is not provided."""
+
+    @patch("ccfm_convert.main.StateManager")
+    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.compute_plan")
+    @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    def test_plan_falls_back_to_docs_root(
+        self,
+        mock_api_class,
+        mock_find_mgmt,
+        mock_compute_plan,
+        mock_backend_class,
+        mock_state_class,
+        tmp_path,
+    ):
+        """plan uses docs_root when --directory is not provided."""
+        docs_dir = tmp_path / "docs"
+        docs_dir.mkdir()
+        test_file = docs_dir / "page.md"
+        test_file.write_text("# Test")
+
+        mock_api = Mock()
+        mock_api.get_space_id.return_value = "space123"
+        mock_api_class.return_value = mock_api
+
+        mock_plan = _mock_plan_no_changes()
+        mock_compute_plan.return_value = mock_plan
+
+        config_file = tmp_path / "ccfm.yaml"
+        config_file.write_text(
+            f"version: 1\ndomain: d.atlassian.net\nemail: e@e.com\nspace: S\ndocs_root: {docs_dir}\n"
+        )
+
+        original = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            with patch(
+                "sys.argv",
+                ["main.py", "--token", "tok", "plan"],
+            ):
+                main.main()
+        finally:
+            os.chdir(original)
+
+        mock_compute_plan.assert_called_once()
+
+    def test_resolve_directory_sets_args_directory(self, tmp_path):
+        """_resolve_directory sets args.directory so apply dispatch logic works."""
+        docs_dir = tmp_path / "docs"
+        docs_dir.mkdir()
+        args = Namespace(directory=None, docs_root=docs_dir, _docs_root_from_config=True)
+        result = main._resolve_directory(args)
+        assert result == docs_dir
+        assert args.directory == docs_dir  # side effect for apply dispatch
+
+    @patch("ccfm_convert.main.LockManager")
+    @patch("ccfm_convert.main.StateManager")
+    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ensure_page_hierarchy")
+    @patch("ccfm_convert.main.deploy_tree")
+    @patch("ccfm_convert.main.compute_plan")
+    @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    def test_apply_falls_back_to_docs_root_from_config(
+        self,
+        mock_api_class,
+        mock_find_mgmt,
+        mock_compute_plan,
+        mock_deploy_tree,
+        mock_hierarchy,
+        mock_backend_class,
+        mock_state_class,
+        mock_lock_class,
+        tmp_path,
+    ):
+        """apply uses docs_root from config and dispatches to deploy_tree."""
+        docs_dir = tmp_path / "docs"
+        docs_dir.mkdir()
+        test_file = docs_dir / "page.md"
+        test_file.write_text("---\npage_meta:\n  title: Test\n---\n# Test")
+
+        mock_api = Mock()
+        mock_api.get_space_id.return_value = "space123"
+        mock_api_class.return_value = mock_api
+        mock_hierarchy.return_value = (None, [])
+        mock_deploy_tree.return_value = ([], [])
+
+        mock_plan = _mock_plan_with_changes([test_file])
+        mock_compute_plan.return_value = mock_plan
+
+        mock_state = Mock()
+        mock_state_class.return_value = mock_state
+        mock_lock = Mock()
+        mock_lock_class.return_value = mock_lock
+
+        config_file = tmp_path / "ccfm.yaml"
+        config_file.write_text(
+            f"version: 1\ndomain: d.atlassian.net\nemail: e@e.com\nspace: S\ndocs_root: {docs_dir}\n"
+        )
+
+        original = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            with patch(
+                "sys.argv",
+                ["main.py", "--token", "tok", "apply", "--auto-approve"],
+            ):
+                main.main()
+        finally:
+            os.chdir(original)
+
+        # Verify deploy_tree was called (not silently skipped)
+        mock_deploy_tree.assert_called_once()
+
+    def test_resolve_target_files_uses_docs_root_fallback(self, tmp_path):
+        """_resolve_target_files falls back to docs_root when directory is None and flag set."""
+        docs_dir = tmp_path / "docs"
+        docs_dir.mkdir()
+        (docs_dir / "page.md").write_text("# Test")
+        (docs_dir / ".page_content.md").write_text("# Container")
+
+        args = Namespace(file=None, directory=None, docs_root=docs_dir, _docs_root_from_config=True)
+        result = main._resolve_target_files(args)
+        assert len(result) == 1
+        assert result[0].name == "page.md"
+
+    def test_resolve_target_files_ignores_docs_root_without_flag(self, tmp_path):
+        """docs_root is NOT used as fallback when _docs_root_from_config is not set."""
+        docs_dir = tmp_path / "docs"
+        docs_dir.mkdir()
+        (docs_dir / "page.md").write_text("# Test")
+
+        args = Namespace(file=None, directory=None, docs_root=docs_dir)
+        with pytest.raises(SystemExit):
+            main._resolve_target_files(args)
+
+    def test_resolve_target_files_directory_takes_precedence_over_docs_root(self, tmp_path):
+        """Explicit --directory takes precedence over docs_root."""
+        docs_dir = tmp_path / "docs"
+        docs_dir.mkdir()
+        other_dir = tmp_path / "other"
+        other_dir.mkdir()
+        (docs_dir / "a.md").write_text("# A")
+        (other_dir / "b.md").write_text("# B")
+
+        args = Namespace(
+            file=None, directory=other_dir, docs_root=docs_dir, _docs_root_from_config=True
+        )
+        result = main._resolve_target_files(args)
+        assert len(result) == 1
+        assert result[0].name == "b.md"
+
+    def test_resolve_target_files_file_takes_precedence_over_all(self, tmp_path):
+        """Explicit --file takes precedence over --directory and docs_root."""
+        docs_dir = tmp_path / "docs"
+        docs_dir.mkdir()
+        (docs_dir / "a.md").write_text("# A")
+        single = tmp_path / "single.md"
+        single.write_text("# Single")
+
+        args = Namespace(
+            file=single, directory=docs_dir, docs_root=docs_dir, _docs_root_from_config=True
+        )
+        result = main._resolve_target_files(args)
+        assert len(result) == 1
+        assert result[0].name == "single.md"
+
+    def test_resolve_target_files_exits_when_nothing_provided(self):
+        """Exits with error when no file, directory, or docs_root is set."""
+        args = Namespace(file=None, directory=None, docs_root=None)
+        with pytest.raises(SystemExit):
+            main._resolve_target_files(args)
+
+
+# ---------------------------------------------------------------------------
 # Apply subcommand — dump mode
 # ---------------------------------------------------------------------------
 
@@ -673,6 +851,28 @@ class TestDumpSubcommand:
         ):
             with pytest.raises(SystemExit, match="1"):
                 main.main()
+
+
+    @patch("ccfm_convert.main.dump_tree")
+    def test_dump_falls_back_to_docs_root_from_config(self, mock_dump_tree, tmp_path):
+        """dump uses docs_root from config when --directory is not provided."""
+        docs_dir = tmp_path / "docs"
+        docs_dir.mkdir()
+        (docs_dir / "page.md").write_text("# Test")
+
+        config_file = tmp_path / "ccfm.yaml"
+        config_file.write_text(f"version: 1\ndocs_root: {docs_dir}\n")
+
+        original = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            with patch("sys.argv", ["main.py", "dump"]):
+                main.main()
+        finally:
+            os.chdir(original)
+
+        mock_dump_tree.assert_called_once()
+        assert mock_dump_tree.call_args[0][0] == docs_dir
 
 
 # ---------------------------------------------------------------------------
