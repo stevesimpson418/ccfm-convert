@@ -96,8 +96,11 @@ def ensure_page_hierarchy(api, space_id, filepath, docs_root, git_repo_url=""):
             labels = []
             author = None
 
-        # Check if page already exists
-        page_id = api.find_page_by_title(space_id, title)
+        # Check if page already exists — scope to parent when possible
+        if current_parent_id:
+            page_id = api.find_child_page_by_title(current_parent_id, title)
+        else:
+            page_id = api.find_page_by_title(space_id, title)
 
         if page_id:
             print(f"   ✓ Page '{title}' exists (ID: {page_id})")
