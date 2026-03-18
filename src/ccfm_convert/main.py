@@ -171,6 +171,7 @@ def _resolve_config(args):
         except Exception as e:
             print(f"Error loading config file '{config_path}': {e}")
             sys.exit(1)
+    _normalize_domain(args)
     return args
 
 
@@ -183,14 +184,14 @@ def _normalize_domain(args):
     """
     if args.domain:
         domain = args.domain
-        if domain.startswith(("https://", "http://")):
+        if domain.lower().startswith(("https://", "http://")):
             domain = domain.split("://", 1)[1]
-        args.domain = domain.rstrip("/")
+        domain = domain.rstrip("/")
+        args.domain = domain.split("/", 1)[0]
 
 
 def _require_credentials(args, parser):
     """Validate that credentials are set. Exits on missing values."""
-    _normalize_domain(args)
     missing = [f"--{f}" for f in ("domain", "email", "space") if not getattr(args, f, None)]
     if not args.token:
         missing.append("--token (or CONFLUENCE_TOKEN env var)")

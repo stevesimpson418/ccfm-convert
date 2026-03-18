@@ -286,6 +286,30 @@ class TestDomainNormalization:
         main._normalize_domain(args)
         assert args.domain is None
 
+    def test_empty_string_domain_is_unchanged(self):
+        """Empty string domain passes through unchanged."""
+        args = Namespace(domain="")
+        main._normalize_domain(args)
+        assert args.domain == ""
+
+    def test_uppercase_https_prefix_is_stripped(self):
+        """HTTPS:// prefix (uppercase) is removed from domain."""
+        args = Namespace(domain="HTTPS://company.atlassian.net")
+        main._normalize_domain(args)
+        assert args.domain == "company.atlassian.net"
+
+    def test_mixed_case_http_prefix_is_stripped(self):
+        """Http:// prefix (mixed case) is removed from domain."""
+        args = Namespace(domain="Http://company.atlassian.net")
+        main._normalize_domain(args)
+        assert args.domain == "company.atlassian.net"
+
+    def test_path_after_host_is_stripped(self):
+        """Path components after the hostname are removed."""
+        args = Namespace(domain="https://company.atlassian.net/wiki")
+        main._normalize_domain(args)
+        assert args.domain == "company.atlassian.net"
+
     @patch("ccfm_convert.main.init_remote_state")
     @patch("ccfm_convert.main.ConfluenceAPI")
     def test_init_normalizes_domain_with_https(self, mock_api_class, mock_init, capsys):
