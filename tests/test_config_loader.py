@@ -6,7 +6,12 @@ from pathlib import Path
 import pytest
 import yaml
 
-from ccfm_convert.config.loader import interpolate_env, load_config, merge_config_with_args
+from ccfm_convert.config.loader import (
+    ConfigValidationError,
+    interpolate_env,
+    load_config,
+    merge_config_with_args,
+)
 
 
 class TestInterpolateEnv:
@@ -48,17 +53,18 @@ class TestInterpolateRecursive:
         """List string items get env-var substitution (lines 63-64)."""
         monkeypatch.setenv("SPACE_KEY", "MYSPACE")
         cfg_file = tmp_path / "ccfm.yaml"
-        cfg_file.write_text("version: 1\nspaces:\n  - ${SPACE_KEY}\n  - FIXED\n", encoding="utf-8")
+        cfg_file.write_text(
+            "version: 1\ndeployments:\n  - ${SPACE_KEY}\n  - FIXED\n", encoding="utf-8"
+        )
         result = load_config(cfg_file)
-        assert result["spaces"] == ["MYSPACE", "FIXED"]
+        assert result["deployments"] == ["MYSPACE", "FIXED"]
 
     def test_non_string_values_are_returned_unchanged(self, tmp_path):
         """Integers and booleans pass through _interpolate_recursive unchanged (line 65)."""
         cfg_file = tmp_path / "ccfm.yaml"
-        cfg_file.write_text("version: 1\nsome_int: 42\nsome_bool: true\n", encoding="utf-8")
+        cfg_file.write_text("version: 1\n", encoding="utf-8")
         result = load_config(cfg_file)
-        assert result["some_int"] == 42
-        assert result["some_bool"] is True
+        assert result["version"] == 1
 
 
 class TestLoadConfig:
@@ -203,3 +209,89 @@ class TestMergeConfigWithArgs:
         merged = merge_config_with_args(config, args)
         # state_file should not be mapped to any arg
         assert not hasattr(merged, "state") or merged.state is None
+
+
+class TestConfigValidation:
+    def test_valid_config_keys_accepted(self, tmp_path):
+        """All recognised top-level keys pass validation."""
+        cfg = tmp_path / "ccfm.yaml"
+        cfg.write_text(
+            "version: 1\ndomain: x.atlassian.net\nemail: a@b.com\n"
+            "token: tok\nspace: SP\ndocs_root: docs\ngit_repo_url: https://gh.com/o/r\n",
+            encoding="utf-8",
+        )
+        result = load_config(cfg)
+        assert result["domain"] == "x.atlassian.net"
+
+    def test_deployments_key_accepted(self, tmp_path):
+        """The 'deployments' future key is accepted without error."""
+        cfg = tmp_path / "ccfm.yaml"
+        cfg.write_text(
+            "version: 1\ndomain: x.atlassian.net\ndeployments:\n  - space: SP\n",
+            encoding="utf-8",
+        )
+        result = load_config(cfg)
+        assert "deployments" in result
+
+    def test_nested_confluence_key_rejected(self, tmp_path):
+        """Nested 'confluence:' structure raises ConfigValidationError."""
+        cfg = tmp_path / "ccfm.yaml"
+        cfg.write_text(
+            "confluence:\n  domain: x.atlassian.net\n  email: a@b.com\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(
+            ConfigValidationError, match="Unrecognised top-level keys.*'confluence'"
+        ):
+            load_config(cfg)
+
+    def test_multiple_unknown_keys_all_reported(self, tmp_path):
+        """All unrecognised keys are listed in the error message."""
+        cfg = tmp_path / "ccfm.yaml"
+        cfg.write_text(
+            "confluence:\n  domain: x\nspace:\n  key: SP\ndocumentation:\n  root: docs\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ConfigValidationError) as exc_info:
+            load_config(cfg)
+        msg = str(exc_info.value)
+        assert "'confluence'" in msg
+        assert "'documentation'" in msg
+        # 'space' is a valid key — verify it's not in the unrecognised portion
+        unrecognised_part = msg.split("Valid keys")[0]
+        assert "'space'" not in unrecognised_part
+
+    def test_error_message_includes_valid_keys(self, tmp_path):
+        """Error message lists the valid keys for guidance."""
+        cfg = tmp_path / "ccfm.yaml"
+        cfg.write_text("bogus: true\n", encoding="utf-8")
+        with pytest.raises(ConfigValidationError, match="Valid keys are:"):
+            load_config(cfg)
+
+    def test_error_message_includes_docs_url(self, tmp_path):
+        """Error message includes a link to the docs site."""
+        cfg = tmp_path / "ccfm.yaml"
+        cfg.write_text("bogus: true\n", encoding="utf-8")
+        with pytest.raises(ConfigValidationError, match="https://ccfm.io/configuration/"):
+            load_config(cfg)
+
+    def test_empty_config_passes_validation(self, tmp_path):
+        """An empty config file passes validation (no keys to reject)."""
+        cfg = tmp_path / "ccfm.yaml"
+        cfg.write_text("", encoding="utf-8")
+        result = load_config(cfg)
+        assert result == {}
+
+    def test_single_unknown_key_with_valid_keys(self, tmp_path):
+        """One unknown key alongside valid keys is caught."""
+        cfg = tmp_path / "ccfm.yaml"
+        cfg.write_text("version: 1\ndomain: x.atlassian.net\nfoo: bar\n", encoding="utf-8")
+        with pytest.raises(ConfigValidationError, match="'foo'"):
+            load_config(cfg)
+
+    def test_scalar_yaml_skips_validation(self, tmp_path):
+        """A YAML file containing only a scalar value passes validation."""
+        cfg = tmp_path / "ccfm.yaml"
+        cfg.write_text("just a string\n", encoding="utf-8")
+        result = load_config(cfg)
+        assert result == "just a string"

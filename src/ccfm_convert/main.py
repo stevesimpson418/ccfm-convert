@@ -175,7 +175,23 @@ def _resolve_config(args):
         except Exception as e:
             print(f"Error loading config file '{config_path}': {e}")
             sys.exit(1)
+    _normalize_domain(args)
     return args
+
+
+def _normalize_domain(args):
+    """Strip protocol prefix and trailing slashes from the domain.
+
+    Users commonly provide "https://company.atlassian.net" when only the
+    hostname is expected. Without this normalization the requests library
+    tries to resolve "https" as a hostname and raises an opaque error.
+    """
+    if args.domain:
+        domain = args.domain
+        if domain.lower().startswith(("https://", "http://")):
+            domain = domain.split("://", 1)[1]
+        domain = domain.rstrip("/")
+        args.domain = domain.split("/", 1)[0]
 
 
 def _require_credentials(args, parser):

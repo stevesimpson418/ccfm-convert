@@ -47,6 +47,13 @@ _CONFIG_TO_ARG = {
     "git_repo_url": "git_repo_url",
 }
 
+# All recognised top-level keys (mapped args + structural keys)
+_VALID_TOP_LEVEL_KEYS = frozenset(_CONFIG_TO_ARG) | {"version", "deployments"}
+
+
+class ConfigValidationError(Exception):
+    """Raised when a ccfm.yaml file contains unrecognised keys."""
+
 
 def interpolate_env(value: str) -> str:
     """Replace ${VAR_NAME} placeholders with environment variable values.
@@ -67,18 +74,41 @@ def _interpolate_recursive(obj: object) -> object:
     return obj
 
 
+def _validate_config(config: dict, path: Path) -> None:
+    """Check for unrecognised top-level keys and raise a clear error.
+
+    Raises:
+        ConfigValidationError: if unrecognised keys are found.
+    """
+    if not isinstance(config, dict):
+        return
+
+    unknown = sorted(set(config) - _VALID_TOP_LEVEL_KEYS)
+    if unknown:
+        keys_str = ", ".join(f"'{k}'" for k in unknown)
+        valid_str = ", ".join(f"'{k}'" for k in sorted(_VALID_TOP_LEVEL_KEYS))
+        raise ConfigValidationError(
+            f"Unrecognised top-level keys in {path}: {keys_str}. "
+            f"Valid keys are: {valid_str}. "
+            f"See https://ccfm.io/configuration/ for the correct format."
+        )
+
+
 def load_config(path: Path) -> dict:
     """Load and parse a ccfm.yaml file.
 
     Raises:
         FileNotFoundError: if the path does not exist.
         yaml.YAMLError: if the file is not valid YAML.
+        ConfigValidationError: if unrecognised top-level keys are found.
     """
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {path}")
 
     with open(path, encoding="utf-8") as fh:
         raw = yaml.safe_load(fh) or {}
+
+    _validate_config(raw, path)
 
     return _interpolate_recursive(raw)
 
