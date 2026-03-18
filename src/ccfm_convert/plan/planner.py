@@ -123,6 +123,7 @@ def compute_plan(
     files: list[Path],
     docs_root: Path,
     force: bool = False,
+    single_file: bool = False,
 ) -> DeployPlan:
     """Compute the full deploy plan by comparing files on disk against stored state.
 
@@ -197,39 +198,41 @@ def compute_plan(
                 )
             )
 
-    # Destroy detection — always on
-    # 1. Orphaned .md files (in state but not on disk)
-    for rel_path in state.find_orphans(files, docs_root):
-        entry = state.get_page(rel_path)
-        if entry:
-            plan.destroy_actions.append(
-                DestroyAction(
-                    rel_path=rel_path,
-                    page_id=entry["page_id"],
-                    title=entry["title"],
+    # Destroy detection — skip when targeting a single file, since the file list
+    # does not represent the complete set of managed pages.
+    if not single_file:
+        # 1. Orphaned .md files (in state but not on disk)
+        for rel_path in state.find_orphans(files, docs_root):
+            entry = state.get_page(rel_path)
+            if entry:
+                plan.destroy_actions.append(
+                    DestroyAction(
+                        rel_path=rel_path,
+                        page_id=entry["page_id"],
+                        title=entry["title"],
+                    )
                 )
-            )
 
-    # 2. Orphaned directory containers (content_hash == "", no .md files remain under them)
-    current_rel_paths = {a.rel_path for a in plan.page_actions}
-    all_pages = state.all_pages
-    for rel_path, entry in all_pages.items():
-        if rel_path.endswith(".md"):
-            continue
-        if entry.get("content_hash") != "":
-            continue
-        # Check if any tracked .md file still exists under this directory
-        has_children = any(
-            child_path.startswith(rel_path + "/") for child_path in current_rel_paths
-        )
-        if not has_children:
-            plan.destroy_actions.append(
-                DestroyAction(
-                    rel_path=rel_path,
-                    page_id=entry["page_id"],
-                    title=entry["title"],
-                )
+        # 2. Orphaned directory containers (content_hash == "", no .md files remain under them)
+        current_rel_paths = {a.rel_path for a in plan.page_actions}
+        all_pages = state.all_pages
+        for rel_path, entry in all_pages.items():
+            if rel_path.endswith(".md"):
+                continue
+            if entry.get("content_hash") != "":
+                continue
+            # Check if any tracked .md file still exists under this directory
+            has_children = any(
+                child_path.startswith(rel_path + "/") for child_path in current_rel_paths
             )
+            if not has_children:
+                plan.destroy_actions.append(
+                    DestroyAction(
+                        rel_path=rel_path,
+                        page_id=entry["page_id"],
+                        title=entry["title"],
+                    )
+                )
 
     # Sort destroys deepest-first (children before parents)
     plan.destroy_actions.sort(key=lambda a: a.rel_path.count("/"), reverse=True)

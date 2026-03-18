@@ -152,7 +152,7 @@ class TestStateCommands:
         lines = list_result.stdout.strip().split("\n")
         state_key = None
         for line in lines:
-            if "single-page" in line:
+            if "single-page.md" in line:
                 # The state key is typically the first column or the path
                 state_key = line.strip().split()[0] if line.strip() else None
                 break
@@ -164,6 +164,17 @@ class TestStateCommands:
         assert (
             f"Removed '{state_key}' from state." in result.stdout
         ), f"Expected removal confirmation for {state_key}.\nstdout: {result.stdout}"
+
+        # Verify the exact .md path is removed from state
+        list_after = ccfm_run("state", "list")
+        listed_paths = [
+            ln.strip().split()[0]
+            for ln in list_after.stdout.strip().split("\n")
+            if ln.strip() and ln.strip()[0] != " " and not ln.strip().startswith("Tracked")
+        ]
+        assert (
+            state_key not in listed_paths
+        ), f"State key {state_key} still present after rm.\nstdout: {list_after.stdout}"
 
 
 class TestLockAcquireAndBlock:

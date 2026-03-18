@@ -309,7 +309,14 @@ def _handle_plan(args, parser):
     state.load()
 
     force = getattr(args, "force", False)
-    plan = compute_plan(state=state, files=target_files, docs_root=args.docs_root, force=force)
+    single_file = bool(getattr(args, "file", None))
+    plan = compute_plan(
+        state=state,
+        files=target_files,
+        docs_root=args.docs_root,
+        force=force,
+        single_file=single_file,
+    )
     plan.print_summary()
 
     if getattr(args, "plan_exit_code", False):
@@ -368,7 +375,14 @@ def _handle_apply(args, parser):
 
     # Compute plan
     force = getattr(args, "force", False)
-    plan = compute_plan(state=state, files=target_files, docs_root=args.docs_root, force=force)
+    single_file = bool(getattr(args, "file", None))
+    plan = compute_plan(
+        state=state,
+        files=target_files,
+        docs_root=args.docs_root,
+        force=force,
+        single_file=single_file,
+    )
     plan.print_summary()
 
     if not plan.has_changes():
