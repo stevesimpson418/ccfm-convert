@@ -1,16 +1,15 @@
 """Smoke tests: domain normalization strips protocol prefix before API calls."""
 
-import os
 import subprocess
 import sys
 
 import pytest
 
-from tests.smoke.conftest import PROJECT_ROOT, SMOKE_DIR, SMOKE_DOCS
+from tests.smoke.conftest import PROJECT_ROOT, SMOKE_DOCS
 
 pytestmark = pytest.mark.smoke
 
-CONFIG_PAGE = SMOKE_DOCS / "single-page" / "hello.md"
+CONFIG_PAGE = SMOKE_DOCS / "single-page" / "single-page.md"
 
 
 class TestDomainNormalization:
@@ -40,9 +39,9 @@ class TestDomainNormalization:
             text=True,
         )
 
-        assert result.returncode == 0, (
-            f"plan with https:// domain failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
-        )
+        assert (
+            result.returncode == 0
+        ), f"plan with https:// domain failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
 
     def test_plan_with_domain_and_path(self, smoke_creds, confluence_live):
         """plan succeeds when domain includes a /wiki path component."""
@@ -68,6 +67,6 @@ class TestDomainNormalization:
             text=True,
         )
 
-        assert result.returncode == 0, (
-            f"plan with domain/wiki path failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
-        )
+        assert (
+            result.returncode == 0
+        ), f"plan with domain/wiki path failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"

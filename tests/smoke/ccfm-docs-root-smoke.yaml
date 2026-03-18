@@ -1,0 +1,11 @@
+version: 1
+
+# Smoke test config file for docs_root fallback testing.
+# Uses an isolated docs directory to avoid deploying pages
+# that interfere with other smoke tests.
+
+domain: ${CONFLUENCE_DOMAIN}
+email: ${CONFLUENCE_EMAIL}
+token: ${CONFLUENCE_TOKEN}
+space: CCFMDEV
+docs_root: tests/smoke/docs/docs-root-test
