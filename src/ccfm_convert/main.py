@@ -174,8 +174,23 @@ def _resolve_config(args):
     return args
 
 
+def _normalize_domain(args):
+    """Strip protocol prefix and trailing slashes from the domain.
+
+    Users commonly provide "https://company.atlassian.net" when only the
+    hostname is expected. Without this normalization the requests library
+    tries to resolve "https" as a hostname and raises an opaque error.
+    """
+    if args.domain:
+        domain = args.domain
+        if domain.startswith(("https://", "http://")):
+            domain = domain.split("://", 1)[1]
+        args.domain = domain.rstrip("/")
+
+
 def _require_credentials(args, parser):
     """Validate that credentials are set. Exits on missing values."""
+    _normalize_domain(args)
     missing = [f"--{f}" for f in ("domain", "email", "space") if not getattr(args, f, None)]
     if not args.token:
         missing.append("--token (or CONFLUENCE_TOKEN env var)")

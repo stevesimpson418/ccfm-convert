@@ -2,6 +2,7 @@
 
 import json
 import os
+from argparse import Namespace
 from io import StringIO
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -244,6 +245,73 @@ class TestCLIArguments:
                 ["main.py", "apply", "--file", str(test_file), "--auto-approve"],
             ):
                 main.main()
+
+
+class TestDomainNormalization:
+    """Test _normalize_domain strips protocol prefixes and trailing slashes."""
+
+    def test_https_prefix_is_stripped(self):
+        """https:// prefix is removed from domain."""
+        args = Namespace(domain="https://company.atlassian.net")
+        main._normalize_domain(args)
+        assert args.domain == "company.atlassian.net"
+
+    def test_http_prefix_is_stripped(self):
+        """http:// prefix is removed from domain."""
+        args = Namespace(domain="http://company.atlassian.net")
+        main._normalize_domain(args)
+        assert args.domain == "company.atlassian.net"
+
+    def test_trailing_slash_is_stripped(self):
+        """Trailing slashes are removed from domain."""
+        args = Namespace(domain="company.atlassian.net/")
+        main._normalize_domain(args)
+        assert args.domain == "company.atlassian.net"
+
+    def test_https_with_trailing_slash_both_stripped(self):
+        """Both protocol prefix and trailing slash are removed."""
+        args = Namespace(domain="https://company.atlassian.net/")
+        main._normalize_domain(args)
+        assert args.domain == "company.atlassian.net"
+
+    def test_bare_domain_is_unchanged(self):
+        """Domain without protocol or slash passes through unchanged."""
+        args = Namespace(domain="company.atlassian.net")
+        main._normalize_domain(args)
+        assert args.domain == "company.atlassian.net"
+
+    def test_none_domain_is_unchanged(self):
+        """None domain (not yet provided) does not raise."""
+        args = Namespace(domain=None)
+        main._normalize_domain(args)
+        assert args.domain is None
+
+    @patch("ccfm_convert.main.init_remote_state")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    def test_init_normalizes_domain_with_https(self, mock_api_class, mock_init, capsys):
+        """End-to-end: init subcommand strips https:// before creating API."""
+        mock_api = Mock()
+        mock_api.get_space_id.return_value = "space123"
+        mock_api_class.return_value = mock_api
+
+        with patch(
+            "sys.argv",
+            [
+                "main.py",
+                "--domain",
+                "https://example.atlassian.net",
+                "--email",
+                "test@example.com",
+                "--token",
+                "tok",
+                "--space",
+                "TEST",
+                "init",
+            ],
+        ):
+            main.main()
+
+        mock_api_class.assert_called_once_with("example.atlassian.net", "test@example.com", "tok")
 
 
 # ---------------------------------------------------------------------------
