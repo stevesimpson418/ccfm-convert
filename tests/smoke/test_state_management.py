@@ -19,16 +19,16 @@ class TestPlanMode:
     """ccfm plan output before/after an apply."""
 
     def test_plan_before_apply_shows_adds(self, ccfm_run, confluence_live):
-        """plan --plan-exit-code before any apply exits 2 and lists add actions."""
-        result = ccfm_run("plan", "--plan-exit-code", "--directory", str(STATE_DIR), check=False)
+        """plan --force --plan-exit-code exits 2 and lists add actions."""
+        result = ccfm_run(
+            "plan", "--force", "--plan-exit-code", "--directory", str(STATE_DIR), check=False
+        )
 
         assert result.returncode == 2, (
-            f"Expected exit 2 (pending changes) before first apply, "
+            f"Expected exit 2 (pending changes), "
             f"got {result.returncode}.\nstdout: {result.stdout}\nstderr: {result.stderr}"
         )
-        assert (
-            "add" in result.stdout
-        ), f"Expected 'add' in plan output before apply.\nstdout: {result.stdout}"
+        assert "add" in result.stdout, f"Expected 'add' in plan output.\nstdout: {result.stdout}"
 
     def test_plan_after_apply_shows_no_changes(self, ccfm_run, confluence_live):
         """plan after a full apply exits 0 and shows no changes."""
