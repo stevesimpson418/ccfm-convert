@@ -9,7 +9,7 @@ from tests.smoke.conftest import PROJECT_ROOT, SMOKE_DIR
 
 pytestmark = pytest.mark.smoke
 
-CONFIG_FILE = SMOKE_DIR / "ccfm-smoke.yaml"
+CONFIG_FILE = SMOKE_DIR / "ccfm-docs-root-smoke.yaml"
 
 
 class TestDocsRootFallback:
@@ -31,9 +31,9 @@ class TestDocsRootFallback:
             text=True,
         )
 
-        assert result.returncode == 0, (
-            f"plan without --directory failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
-        )
+        assert (
+            result.returncode == 0
+        ), f"plan without --directory failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
         # Should show plan output (either "No changes" or a list of add/change actions)
         assert (
             "No changes" in result.stdout
@@ -58,10 +58,9 @@ class TestDocsRootFallback:
             text=True,
         )
 
-        assert result.returncode == 0, (
-            f"apply without --directory failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
-        )
         assert (
-            "Apply complete" in result.stdout
-            or "No changes" in result.stdout
+            result.returncode == 0
+        ), f"apply without --directory failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
+        assert (
+            "Apply complete" in result.stdout or "No changes" in result.stdout
         ), f"Unexpected apply output:\n{result.stdout}"
