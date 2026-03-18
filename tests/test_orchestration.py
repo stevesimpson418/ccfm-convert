@@ -21,6 +21,7 @@ def mock_api():
     api = Mock()
     api.domain = "example.atlassian.net"
     api.find_page_by_title = Mock(return_value=None)
+    api.find_child_page_by_title = Mock(return_value=None)
     api.create_page = Mock(return_value="new-page-123")
     api.update_page = Mock()
     api.add_labels = Mock()
@@ -432,6 +433,72 @@ class TestEnsurePageHierarchyEdgeCases:
 
         with pytest.raises(ValueError, match="resolves outside docs_root"):
             ensure_page_hierarchy(mock_api, "space123", filepath, docs_root)
+
+    def test_same_child_name_under_different_parents(self, mock_api, tmp_path):
+        """Regression: two directories with the same child name deploy as separate pages.
+
+        Given docs/Team/Engineering/ and docs/Admin/Engineering/, the two
+        "Engineering" pages must be created separately under their respective
+        parents, not collapsed into one because of a space-wide title match.
+        """
+        docs_root = tmp_path / "docs"
+        (docs_root / "Team" / "Engineering").mkdir(parents=True)
+        (docs_root / "Admin" / "Engineering").mkdir(parents=True)
+
+        # Track created pages: title -> list of (parent_id, page_id)
+        created = {}
+        counter = [0]
+
+        def mock_create(space_id, parent_id, title, body, status="current"):
+            counter[0] += 1
+            pid = f"page-{counter[0]}"
+            created.setdefault(title, []).append((parent_id, pid))
+            return pid
+
+        # Space-wide search finds nothing (first-level dirs have no parent)
+        mock_api.find_page_by_title.return_value = None
+        # Child-scoped search finds nothing (each Engineering is new under its parent)
+        mock_api.find_child_page_by_title.return_value = None
+        mock_api.create_page.side_effect = mock_create
+
+        file_team = docs_root / "Team" / "Engineering" / "guide.md"
+        file_admin = docs_root / "Admin" / "Engineering" / "policy.md"
+
+        ensure_page_hierarchy(mock_api, "space123", file_team, docs_root)
+        ensure_page_hierarchy(mock_api, "space123", file_admin, docs_root)
+
+        # "Engineering" should have been created twice, under different parents
+        assert len(created["Engineering"]) == 2
+        team_parent = created["Engineering"][0][0]
+        admin_parent = created["Engineering"][1][0]
+        assert team_parent != admin_parent
+
+        # Verify child lookup was used (not space-wide) for nested "Engineering"
+        assert mock_api.find_child_page_by_title.call_count == 2
+
+    def test_child_page_lookup_used_for_nested_levels(self, mock_api, tmp_path):
+        """ensure_page_hierarchy uses find_child_page_by_title for nested dirs."""
+        docs_root = tmp_path / "docs"
+        (docs_root / "Team" / "Engineering").mkdir(parents=True)
+
+        filepath = docs_root / "Team" / "Engineering" / "page.md"
+
+        counter = [0]
+
+        def mock_create(space_id, parent_id, title, body, status="current"):
+            counter[0] += 1
+            return f"page-{counter[0]}"
+
+        mock_api.find_page_by_title.return_value = None
+        mock_api.find_child_page_by_title.return_value = None
+        mock_api.create_page.side_effect = mock_create
+
+        ensure_page_hierarchy(mock_api, "space123", filepath, docs_root)
+
+        # First level "Team" — no parent, uses find_page_by_title
+        mock_api.find_page_by_title.assert_called_once_with("space123", "Team")
+        # Second level "Engineering" — has parent, uses find_child_page_by_title
+        mock_api.find_child_page_by_title.assert_called_once_with("page-1", "Engineering")
 
     def test_filepath_not_under_docs_root_returns_none(self, mock_api, tmp_path):
         """Lines 33-35: when filepath is not relative to docs_root, returns None."""
