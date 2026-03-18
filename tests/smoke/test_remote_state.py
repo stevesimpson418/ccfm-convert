@@ -157,15 +157,13 @@ class TestStateCommands:
                 state_key = line.strip().split()[0] if line.strip() else None
                 break
 
-        if state_key:
-            result = ccfm_run("state", "rm", state_key)
-            assert result.returncode == 0, f"State rm failed:\n{result.stderr}"
+        assert state_key, f"Could not find single-page key in state list:\n{list_result.stdout}"
 
-            # Verify it's removed
-            list_after = ccfm_run("state", "list")
-            assert state_key not in list_after.stdout, (
-                f"State key {state_key} still present after rm.\n" f"stdout: {list_after.stdout}"
-            )
+        result = ccfm_run("state", "rm", state_key)
+        assert result.returncode == 0, f"State rm failed:\n{result.stderr}"
+        assert (
+            f"Removed '{state_key}' from state." in result.stdout
+        ), f"Expected removal confirmation for {state_key}.\nstdout: {result.stdout}"
 
 
 class TestLockAcquireAndBlock:
