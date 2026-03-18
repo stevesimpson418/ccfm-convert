@@ -188,6 +188,20 @@ class TestMergeConfigWithArgs:
         assert merged.docs_root == Path("docs")
         assert merged.git_repo_url == "https://github.com/org/repo"
 
+    def test_docs_root_from_config_flag_is_set(self):
+        """_docs_root_from_config flag is set when docs_root comes from config."""
+        config = {"docs_root": "docs"}
+        args = Namespace(domain=None, email=None, token=None, space=None, docs_root=None)
+        merged = merge_config_with_args(config, args)
+        assert merged._docs_root_from_config is True
+
+    def test_docs_root_from_config_flag_not_set_when_absent(self):
+        """_docs_root_from_config flag is not set when docs_root is not in config."""
+        config = {"domain": "d.atlassian.net"}
+        args = Namespace(domain=None, email=None, token=None, space=None, docs_root=None)
+        merged = merge_config_with_args(config, args)
+        assert not getattr(merged, "_docs_root_from_config", False)
+
     def test_state_file_key_is_ignored(self):
         """state_file config key is no longer mapped (removed in remote state migration)."""
         config = {"state_file": ".my-state.json"}

@@ -136,4 +136,9 @@ def merge_config_with_args(config: dict, args: Namespace) -> Namespace:
     if isinstance(getattr(merged, "docs_root", None), str):
         merged.docs_root = Path(merged.docs_root)
 
+    # Flag that docs_root was explicitly set via config file so _resolve_target_files
+    # can use it as a fallback for --directory.
+    if "docs_root" in config:
+        merged._docs_root_from_config = True
+
     return merged

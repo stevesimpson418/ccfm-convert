@@ -73,7 +73,11 @@ def _add_global_args(parser: argparse.ArgumentParser) -> None:
 def _add_target_args(parser: argparse.ArgumentParser) -> None:
     """Add --file, --directory, --docs-root, --git-repo-url shared by plan and apply."""
     parser.add_argument("--file", type=Path, help="Single markdown file to target")
-    parser.add_argument("--directory", type=Path, help="Directory to target (recursive)")
+    parser.add_argument(
+        "--directory",
+        type=Path,
+        help="Directory to target, recursive (default: docs_root from ccfm.yaml)",
+    )
     parser.add_argument(
         "--docs-root",
         type=Path,
@@ -221,21 +225,51 @@ def _find_management_page(api, space_id):
     return page_id
 
 
+def _resolve_directory(args):
+    """Return the effective target directory from --directory or docs_root fallback.
+
+    Returns --directory if set, otherwise falls back to docs_root when the
+    _docs_root_from_config flag indicates it came from ccfm.yaml (user intent).
+    Also sets args.directory as a side effect so downstream dispatch logic
+    (e.g., _handle_apply's file-vs-directory branching) sees a consistent value.
+    """
+    directory = getattr(args, "directory", None)
+    if not directory and getattr(args, "_docs_root_from_config", False):
+        docs_root = getattr(args, "docs_root", None)
+        if docs_root:
+            directory = docs_root
+            args.directory = directory
+    return directory
+
+
 def _resolve_target_files(args):
-    """Resolve target files from --file or --directory. Returns list of paths or exits."""
+    """Resolve target files from --file, --directory, or docs_root fallback.
+
+    Precedence order:
+      1. --file (explicit single file)
+      2. --directory (explicit directory)
+      3. docs_root from config when _docs_root_from_config flag is set
+
+    The flag distinguishes a docs_root that came from ccfm.yaml (user intent
+    to deploy that directory) from the handler's internal default of Path("docs")
+    which is only used for hierarchy calculations, not as a deploy target.
+    """
     if hasattr(args, "file") and args.file:
         if not args.file.exists():
             print(f"Error: File not found: {args.file}", file=sys.stderr)
             sys.exit(1)
         return [args.file]
-    elif hasattr(args, "directory") and args.directory:
-        if not args.directory.exists():
-            print(f"Error: Directory not found: {args.directory}", file=sys.stderr)
+
+    directory = _resolve_directory(args)
+
+    if directory:
+        if not directory.exists():
+            print(f"Error: Directory not found: {directory}", file=sys.stderr)
             sys.exit(1)
-        all_md = sorted(args.directory.rglob("*.md"))
+        all_md = sorted(directory.rglob("*.md"))
         return [f for f in all_md if f.name != ".page_content.md"]
     else:
-        print("Error: Specify either --file or --directory")
+        print("Error: Specify either --file or --directory (or set docs_root in ccfm.yaml)")
         sys.exit(1)
 
 
@@ -301,13 +335,15 @@ def _handle_dump(args, parser):
         if not args.file.exists():
             parser.error(f"File not found: {args.file}")
         dump_page(args.file, output_dir, git_repo_url)
-    elif hasattr(args, "directory") and args.directory:
-        if not args.directory.exists():
-            parser.error(f"Directory not found: {args.directory}")
-        dump_tree(args.directory, args.docs_root, output_dir, git_repo_url)
     else:
-        print("Error: Specify either --file or --directory")
-        sys.exit(1)
+        directory = _resolve_directory(args)
+        if directory:
+            if not directory.exists():
+                parser.error(f"Directory not found: {directory}")
+            dump_tree(directory, args.docs_root, output_dir, git_repo_url)
+        else:
+            print("Error: Specify either --file or --directory (or set docs_root in ccfm.yaml)")
+            sys.exit(1)
 
     print(f"\nDump complete! ADF files written to: {output_dir}")
 
