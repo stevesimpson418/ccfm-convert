@@ -15,7 +15,7 @@ class TestSingleFileDeploy:
 
     def test_page_created(self, ccfm_run, confluence_live):
         """apply --file deploys successfully."""
-        result = ccfm_run("apply", "--auto-approve", "--file", str(SINGLE_PAGE))
+        result = ccfm_run("apply", "--auto-approve", "--force", "--file", str(SINGLE_PAGE))
 
         assert result.returncode == 0, f"Apply failed:\n{result.stderr}"
         assert (
