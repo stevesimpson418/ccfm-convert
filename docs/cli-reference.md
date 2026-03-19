@@ -55,6 +55,24 @@ Options:
   --force                Force re-deploy all files regardless of content changes
 ```
 
+### Directory resolution
+
+When neither `--file` nor `--directory` is given, the target directory is resolved
+using this fallback chain:
+
+1. `--directory` CLI flag (explicit)
+2. `docs_root` from `ccfm.yaml` (config fallback)
+3. If neither is set, an error is raised — there is no silent default
+
+The same resolution applies to `plan`, `apply`, and `dump`.
+
+### Single-file mode (`--file`)
+
+When using `--file` to target a single markdown file, **orphan detection is skipped**.
+Normally, plan and apply compare the full set of local files against remote state to
+detect pages that should be destroyed. In single-file mode this check is intentionally
+disabled because deploying one file should never trigger cleanup of unrelated pages.
+
 ---
 
 ## Apply

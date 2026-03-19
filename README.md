@@ -38,6 +38,8 @@ create a token, and note your Atlassian email address.
 pip install ccfm-convert
 ```
 
+> **Note:** The pip package is `ccfm-convert`, but the CLI command is `ccfm`.
+
 ### 3. Initialise your space
 
 ```bash
