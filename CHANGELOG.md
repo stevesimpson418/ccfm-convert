@@ -4,6 +4,35 @@ All notable changes to CCFM are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-03-19
+
+### Added
+
+- `docs_root` config fallback for `--directory` — when no `--directory` flag is
+  provided, `plan`, `apply`, and `dump` now use `docs_root` from `ccfm.yaml`
+  ([#23](https://github.com/stevesimpson418/ccfm-convert/issues/23))
+- Bandit SAST security scan GitHub Actions workflow with SARIF upload
+
+### Fixed
+
+- Orphan detection no longer runs when targeting a single file with `--file`
+  ([#14](https://github.com/stevesimpson418/ccfm-convert/issues/14))
+- Page lookup in `ensure_page_hierarchy` now scoped to parent page, preventing
+  false matches across sibling subtrees
+  ([#15](https://github.com/stevesimpson418/ccfm-convert/issues/15))
+- Domain with `https://` prefix no longer causes connection errors — protocol
+  prefix is stripped automatically
+  ([#20](https://github.com/stevesimpson418/ccfm-convert/issues/20))
+- `:::expand` fenced directive syntax now supported alongside `> [!expand]`
+  blockquote syntax
+  ([#21](https://github.com/stevesimpson418/ccfm-convert/issues/21))
+- Config loader validates top-level keys and rejects unrecognised config format
+  ([#22](https://github.com/stevesimpson418/ccfm-convert/issues/22))
+
+### Changed
+
+- Documentation URLs updated to custom domain [ccfm.io](https://ccfm.io/)
+
 ## [1.0.0] - 2026-03-13
 
 ### Added
@@ -147,6 +176,7 @@ fix; no code changes._
 - `ccfm.yaml` project config file with `${ENV_VAR}` interpolation
 - 100% unit test coverage; end-to-end smoke tests against real Confluence
 
+[1.1.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.5.0...v1.0.0
 [0.5.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.3.0...v0.4.0
