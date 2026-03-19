@@ -300,7 +300,11 @@ def deploy_page(api, space_id, parent_id, filepath, git_repo_url=""):
             )
 
     # STEP 1: Create or update page (images are still external URLs or placeholders)
-    page_id = api.find_page_by_title(space_id, title)
+    # Scope lookup to parent when available to avoid matching same-titled pages elsewhere
+    if parent_id:
+        page_id = api.find_child_page_by_title(parent_id, title)
+    else:
+        page_id = api.find_page_by_title(space_id, title)
 
     if page_id:
         print(f"   ♻️  Updating existing page (ID: {page_id})")
