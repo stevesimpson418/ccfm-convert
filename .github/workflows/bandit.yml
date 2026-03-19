@@ -3,18 +3,46 @@ name: Bandit
 on:
   push:
     branches: [main]
-    paths:
-      - 'src/**'
-      - '.github/workflows/bandit.yml'
   pull_request:
     branches: [main]
-    paths:
-      - 'src/**'
-      - '.github/workflows/bandit.yml'
 
 jobs:
+  changes:
+    name: Detect relevant changes
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.filter.outputs.should_run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for relevant file changes
+        id: filter
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            BASE="${{ github.event.before }}"
+          else
+            BASE="${{ github.event.pull_request.base.sha }}"
+          fi
+
+          # Handle null/missing base SHA (first push, force-push, etc.)
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CHANGED=$(git diff --name-only "$BASE" HEAD -- 'src/' '.github/workflows/bandit.yml')
+          if [ -n "$CHANGED" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   bandit:
     name: Bandit Security Scan
+    needs: [changes]
+    if: needs.changes.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     permissions:
       security-events: write
