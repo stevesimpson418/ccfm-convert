@@ -202,14 +202,6 @@ class TestMergeConfigWithArgs:
         merged = merge_config_with_args(config, args)
         assert not getattr(merged, "_docs_root_from_config", False)
 
-    def test_state_file_key_is_ignored(self):
-        """state_file config key is no longer mapped (removed in remote state migration)."""
-        config = {"state_file": ".my-state.json"}
-        args = Namespace(domain=None, email=None, token=None, space=None, docs_root=None)
-        merged = merge_config_with_args(config, args)
-        # state_file should not be mapped to any arg
-        assert not hasattr(merged, "state") or merged.state is None
-
 
 class TestConfigValidation:
     def test_valid_config_keys_accepted(self, tmp_path):
@@ -281,6 +273,13 @@ class TestConfigValidation:
         cfg.write_text("", encoding="utf-8")
         result = load_config(cfg)
         assert result == {}
+
+    def test_state_file_key_rejected(self, tmp_path):
+        """Legacy state_file config key is rejected by the validator."""
+        cfg = tmp_path / "ccfm.yaml"
+        cfg.write_text("version: 1\nstate_file: .my-state.json\n", encoding="utf-8")
+        with pytest.raises(ConfigValidationError, match="'state_file'"):
+            load_config(cfg)
 
     def test_single_unknown_key_with_valid_keys(self, tmp_path):
         """One unknown key alongside valid keys is caught."""
