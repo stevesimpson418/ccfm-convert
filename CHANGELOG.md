@@ -4,7 +4,7 @@ All notable changes to CCFM are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.2] - 2026-03-19
 
 ### Removed
 
@@ -203,6 +203,7 @@ fix; no code changes._
 - `ccfm.yaml` project config file with `${ENV_VAR}` interpolation
 - 100% unit test coverage; end-to-end smoke tests against real Confluence
 
+[1.1.2]: https://github.com/stevesimpson418/ccfm-convert/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/stevesimpson418/ccfm-convert/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.5.0...v1.0.0
