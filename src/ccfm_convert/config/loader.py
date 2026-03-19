@@ -52,7 +52,7 @@ _VALID_TOP_LEVEL_KEYS = frozenset(_CONFIG_TO_ARG) | {"version", "deployments"}
 
 
 class ConfigValidationError(Exception):
-    """Raised when a ccfm.yaml file contains unrecognised keys."""
+    """Raised when a ccfm.yaml file fails structural or key validation."""
 
 
 def interpolate_env(value: str) -> str:
@@ -81,7 +81,12 @@ def _validate_config(config: dict, path: Path) -> None:
         ConfigValidationError: if unrecognised keys are found.
     """
     if not isinstance(config, dict):
-        return
+        actual_type = type(config).__name__
+        raise ConfigValidationError(
+            f"Config file {path} must contain key-value pairs at the top level, "
+            f"but found {actual_type}. "
+            f"See https://ccfm.io/configuration/ for the correct format."
+        )
 
     unknown = sorted(set(config) - _VALID_TOP_LEVEL_KEYS)
     if unknown:
