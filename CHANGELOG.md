@@ -4,6 +4,13 @@ All notable changes to CCFM are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Removed
+
+- `:::expand` fenced directive syntax — use `> [!expand Title]` blockquote
+  syntax instead ([#16](https://github.com/stevesimpson418/ccfm-convert/issues/16))
+
 ## [1.1.1] - 2026-03-19
 
 _Fixes listed in v1.1.0 were merged after that tag was cut; v1.1.1 is the

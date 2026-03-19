@@ -18,12 +18,11 @@ import re
 from .blocks import (
     build_list,
     list_line_info,
-    parse_block_content,
     parse_blockquote_block,
     parse_table,
 )
 from .inline import parse_inline, parse_inline_with_breaks
-from .nodes import code_block, doc, expand, heading, media_single, paragraph, rule
+from .nodes import code_block, doc, heading, media_single, paragraph, rule
 
 
 def convert(markdown_text: str) -> dict:
@@ -66,21 +65,6 @@ def convert(markdown_text: str) -> dict:
                 i += 1
             i += 1  # consume closing fence
             content.append(code_block("\n".join(code_lines), language))
-            continue
-
-        # --- Fenced expand directive: :::expand Title ---
-        expand_match = re.match(r"^:::expand\s+(.+)$", line.strip())
-        if expand_match:
-            title = expand_match.group(1).strip()
-            body_lines = []
-            i += 1
-            while i < len(lines) and lines[i].strip() != ":::":
-                body_lines.append(lines[i])
-                i += 1
-            if i < len(lines):
-                i += 1  # consume closing :::
-            body_nodes = parse_block_content(body_lines)
-            content.append(expand(title, body_nodes))
             continue
 
         # --- Heading: # through ###### ---
@@ -170,8 +154,6 @@ def convert(markdown_text: str) -> dict:
             if line.startswith(">"):
                 break
             if line.strip().startswith("```"):
-                break
-            if re.match(r"^:::expand\s+.+$", line.strip()):
                 break
             if re.match(r"^(\-{3,}|\*{3,}|_{3,})\s*$", line.strip()):
                 break
