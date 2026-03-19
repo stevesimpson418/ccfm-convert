@@ -269,11 +269,14 @@ page_status: draft
         filepath = tmp_path / "test.md"
         filepath.write_text("# Child Page")
 
-        mock_api.find_page_by_title.return_value = None
+        mock_api.find_child_page_by_title.return_value = None
         mock_api.create_page.return_value = "new-123"
 
         deploy_page(mock_api, "space123", "parent-456", filepath)
 
+        # Should use scoped child lookup, not space-wide
+        mock_api.find_child_page_by_title.assert_called_once_with("parent-456", "Test")
+        mock_api.find_page_by_title.assert_not_called()
         # Should pass parent_id
         call_args = mock_api.create_page.call_args
         assert call_args[0][1] == "parent-456"
@@ -317,9 +320,12 @@ page_meta:
   parent: Explicit Parent
 ---
 # Content""")
+        # Frontmatter parent lookup uses space-wide search (correct)
         mock_api.find_page_by_title.side_effect = lambda space, title: (
             "explicit-parent-id" if title == "Explicit Parent" else None
         )
+        # After parent override, page lookup uses scoped child search
+        mock_api.find_child_page_by_title.return_value = None
         mock_api.create_page.return_value = "new-page"
 
         deploy_page(mock_api, "space123", "directory-parent-id", filepath)
@@ -337,12 +343,76 @@ page_meta:
 ---
 # Content""")
         mock_api.find_page_by_title.return_value = None
+        mock_api.find_child_page_by_title.return_value = None
         mock_api.create_page.return_value = "new-page"
 
         deploy_page(mock_api, "space123", "directory-parent-id", filepath)
 
         call_args = mock_api.create_page.call_args
         assert call_args[0][1] == "directory-parent-id"  # fallback to directory hierarchy
+
+
+class TestDeployPageScopedLookup:
+    """Tests for scoped page lookup in deploy_page (issue #30)."""
+
+    def test_uses_child_lookup_when_parent_id_provided(self, mock_api, tmp_path):
+        """When parent_id is provided, deploy_page uses find_child_page_by_title."""
+        filepath = tmp_path / "test.md"
+        filepath.write_text("---\npage_meta:\n  title: My Page\n---\nContent")
+
+        mock_api.find_child_page_by_title.return_value = "existing-child-123"
+
+        page_id = deploy_page(mock_api, "space123", "parent-456", filepath)
+
+        mock_api.find_child_page_by_title.assert_called_once_with("parent-456", "My Page")
+        mock_api.find_page_by_title.assert_not_called()
+        assert page_id == "existing-child-123"
+        mock_api.update_page.assert_called_once()
+
+    def test_uses_space_wide_lookup_when_no_parent_id(self, mock_api, tmp_path):
+        """When parent_id is None, deploy_page uses find_page_by_title (space-wide)."""
+        filepath = tmp_path / "test.md"
+        filepath.write_text("---\npage_meta:\n  title: My Page\n---\nContent")
+
+        mock_api.find_page_by_title.return_value = "existing-space-123"
+
+        page_id = deploy_page(mock_api, "space123", None, filepath)
+
+        mock_api.find_page_by_title.assert_called_with("space123", "My Page")
+        mock_api.find_child_page_by_title.assert_not_called()
+        assert page_id == "existing-space-123"
+        mock_api.update_page.assert_called_once()
+
+    def test_duplicate_titles_under_different_parents_disambiguated(self, mock_api, tmp_path):
+        """Pages with same title under different parents are correctly disambiguated."""
+        filepath_a = tmp_path / "guide_a.md"
+        filepath_a.write_text("---\npage_meta:\n  title: Getting Started\n---\nTeam A content")
+        filepath_b = tmp_path / "guide_b.md"
+        filepath_b.write_text("---\npage_meta:\n  title: Getting Started\n---\nTeam B content")
+
+        # First deploy under parent-A: no existing child, creates new
+        mock_api.find_child_page_by_title.return_value = None
+        mock_api.create_page.return_value = "page-a"
+
+        page_id_a = deploy_page(mock_api, "space123", "parent-A", filepath_a)
+
+        mock_api.find_child_page_by_title.assert_called_with("parent-A", "Getting Started")
+        assert page_id_a == "page-a"
+
+        # Reset mocks
+        mock_api.reset_mock()
+
+        # Second deploy under parent-B: no existing child, creates new
+        mock_api.find_child_page_by_title.return_value = None
+        mock_api.create_page.return_value = "page-b"
+
+        page_id_b = deploy_page(mock_api, "space123", "parent-B", filepath_b)
+
+        mock_api.find_child_page_by_title.assert_called_with("parent-B", "Getting Started")
+        assert page_id_b == "page-b"
+
+        # Each got its own page — no cross-contamination
+        assert page_id_a != page_id_b
 
 
 class TestEnsurePageHierarchyCoverage:
