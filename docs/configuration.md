@@ -16,6 +16,16 @@ docs_root: docs
 git_repo_url: https://github.com/org/repo
 ```
 
+The `docs_root` key sets the default target directory for `plan`, `apply`, and `dump`
+when `--directory` is not passed on the command line. The resolution order is:
+
+1. `--directory` CLI flag (always wins)
+2. `docs_root` from `ccfm.yaml`
+3. If neither is set, an error is raised
+
+This means you can run `ccfm plan` or `ccfm apply --auto-approve` without any target
+flags as long as `docs_root` is defined in your config file.
+
 With a config file in place:
 
 ```bash
