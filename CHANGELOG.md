@@ -4,6 +4,26 @@ All notable changes to CCFM are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [1.1.1] - 2026-03-19
+
+_Fixes listed in v1.1.0 were merged after that tag was cut; v1.1.1 is the
+first published version that actually includes them._
+
+### Fixed
+
+- Page lookup in `deploy_page` now scoped to parent, preventing false matches
+  across sibling subtrees
+  ([#34](https://github.com/stevesimpson418/ccfm-convert/pull/34))
+- Config loader raises `ConfigValidationError` for non-dict YAML configs
+  ([#31](https://github.com/stevesimpson418/ccfm-convert/pull/31))
+- CI smoke-test workflow uses changes detection job instead of `paths` filters
+  to avoid skipped runs on non-source changes
+
+### Changed
+
+- Documentation updated for `docs_root` fallback, `ccfm` command name, and
+  `--file` orphan-skip behaviour
+
 ## [1.1.0] - 2026-03-19
 
 ### Added
@@ -176,6 +196,7 @@ fix; no code changes._
 - `ccfm.yaml` project config file with `${ENV_VAR}` interpolation
 - 100% unit test coverage; end-to-end smoke tests against real Confluence
 
+[1.1.1]: https://github.com/stevesimpson418/ccfm-convert/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.5.0...v1.0.0
 [0.5.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.4.0...v0.5.0
