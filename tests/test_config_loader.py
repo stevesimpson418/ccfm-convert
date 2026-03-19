@@ -288,9 +288,16 @@ class TestConfigValidation:
         with pytest.raises(ConfigValidationError, match="'foo'"):
             load_config(cfg)
 
-    def test_scalar_yaml_skips_validation(self, tmp_path):
-        """A YAML file containing only a scalar value passes validation."""
+    def test_scalar_yaml_raises_validation_error(self, tmp_path):
+        """A YAML file containing only a scalar value raises ConfigValidationError."""
         cfg = tmp_path / "ccfm.yaml"
         cfg.write_text("just a string\n", encoding="utf-8")
-        result = load_config(cfg)
-        assert result == "just a string"
+        with pytest.raises(ConfigValidationError, match="must contain key-value pairs"):
+            load_config(cfg)
+
+    def test_list_yaml_raises_validation_error(self, tmp_path):
+        """A YAML file containing a list at the top level raises ConfigValidationError."""
+        cfg = tmp_path / "ccfm.yaml"
+        cfg.write_text("- item1\n- item2\n", encoding="utf-8")
+        with pytest.raises(ConfigValidationError, match="must contain key-value pairs"):
+            load_config(cfg)

@@ -1,21 +1,13 @@
 name: Smoke Tests
 
-# Automated: runs on PRs and pushes to main (path-filtered, always cleans up)
+# Automated: runs on PRs and pushes to main (skips if no relevant files changed)
 # Manual:    run from Actions tab with choice of mode (see workflow_dispatch below)
 
 on:
   pull_request:
     branches: [main]
-    paths:
-      - "src/**"
-      - "tests/smoke/**"
-      - "action.yml"
   push:
     branches: [main]
-    paths:
-      - "src/**"
-      - "tests/smoke/**"
-      - "action.yml"
   workflow_dispatch:
     inputs:
       mode:
@@ -32,8 +24,43 @@ on:
           - cleanup-only
 
 jobs:
+  changes:
+    name: Detect relevant changes
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.filter.outputs.should_run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for relevant file changes
+        id: filter
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            BASE="${{ github.event.before }}"
+          else
+            BASE="${{ github.event.pull_request.base.sha }}"
+          fi
+
+          # Handle null/missing base SHA (first push, force-push, etc.)
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CHANGED=$(git diff --name-only "$BASE" HEAD -- 'src/' 'tests/smoke/' 'action.yml')
+          if [ -n "$CHANGED" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   smoke:
     name: Smoke Tests (CCFMDEV)
+    needs: [changes]
+    if: always() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.should_run == 'true')
     runs-on: ubuntu-latest
 
     steps:
