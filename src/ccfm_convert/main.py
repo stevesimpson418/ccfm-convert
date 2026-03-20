@@ -60,8 +60,16 @@ def _add_global_args(parser: argparse.ArgumentParser) -> None:
         metavar="PATH",
         help="Path to ccfm.yaml config file (default: ccfm.yaml if present)",
     )
-    parser.add_argument("--domain", default=None, help="Confluence domain")
-    parser.add_argument("--email", default=None, help="User email")
+    parser.add_argument(
+        "--domain",
+        default=os.environ.get("CONFLUENCE_DOMAIN"),
+        help="Confluence domain (or set CONFLUENCE_DOMAIN env var)",
+    )
+    parser.add_argument(
+        "--email",
+        default=os.environ.get("CONFLUENCE_EMAIL"),
+        help="User email (or set CONFLUENCE_EMAIL env var)",
+    )
     parser.add_argument(
         "--token",
         default=os.environ.get("CONFLUENCE_TOKEN"),
@@ -196,7 +204,12 @@ def _normalize_domain(args):
 
 def _require_credentials(args, parser):
     """Validate that credentials are set. Exits on missing values."""
-    missing = [f"--{f}" for f in ("domain", "email", "space") if not getattr(args, f, None)]
+    label_map = {
+        "domain": "--domain (or CONFLUENCE_DOMAIN env var)",
+        "email": "--email (or CONFLUENCE_EMAIL env var)",
+        "space": "--space",
+    }
+    missing = [label_map[f] for f in ("domain", "email", "space") if not getattr(args, f, None)]
     if not args.token:
         missing.append("--token (or CONFLUENCE_TOKEN env var)")
     if missing:
