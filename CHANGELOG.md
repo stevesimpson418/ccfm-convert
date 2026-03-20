@@ -4,6 +4,19 @@ All notable changes to CCFM are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [1.1.3] - 2026-03-20
+
+### Fixed
+
+- CLI `--domain` and `--email` now fall back to `CONFLUENCE_DOMAIN` and
+  `CONFLUENCE_EMAIL` env vars, matching existing `CONFLUENCE_TOKEN` behaviour
+  ([#36](https://github.com/stevesimpson418/ccfm-convert/pull/36))
+- Removed stale `space` from frontmatter references in CCFM.md and
+  complete_example.md — `space` is a config-level field, not per-page frontmatter
+- Example code in complete_example.md updated to use actual `ccfm` CLI commands
+  and real environment variables
+- Manual testing runbook page counts corrected (8 md files, 16 tracked pages)
+
 ## [1.1.2] - 2026-03-19
 
 ### Removed
@@ -203,6 +216,7 @@ fix; no code changes._
 - `ccfm.yaml` project config file with `${ENV_VAR}` interpolation
 - 100% unit test coverage; end-to-end smoke tests against real Confluence
 
+[1.1.3]: https://github.com/stevesimpson418/ccfm-convert/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/stevesimpson418/ccfm-convert/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/stevesimpson418/ccfm-convert/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v1.0.0...v1.1.0
