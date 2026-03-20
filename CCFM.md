@@ -18,7 +18,7 @@ in standard Markdown works in CCFM. The following features are CCFM-specific:
 
 **Not found in standard Markdown:**
 
-- [Front matter](#front-matter) — page metadata (title, labels, parent, space)
+- [Front matter](#front-matter) — page metadata (title, labels, parent)
 - [Panels](#panels) — coloured callout blocks (info, note, warning, success, error)
 - [Expand blocks](#expand-blocks) — collapsible sections
 - [Status badges](#status-badges) — inline coloured status labels
