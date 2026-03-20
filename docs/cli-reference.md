@@ -31,8 +31,8 @@ These apply to all commands:
 
 ```text
 --config PATH          Path to ccfm.yaml config file (default: ccfm.yaml if present)
---domain DOMAIN        Confluence domain (e.g., company.atlassian.net)
---email EMAIL          User email address
+--domain DOMAIN        Confluence domain (or set CONFLUENCE_DOMAIN env var)
+--email EMAIL          User email (or set CONFLUENCE_EMAIL env var)
 --token TOKEN          Atlassian API token (or set CONFLUENCE_TOKEN env var)
 --space SPACE          Space key (e.g., DOCS — not the space display name)
 ```
