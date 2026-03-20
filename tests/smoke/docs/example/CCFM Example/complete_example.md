@@ -1,7 +1,6 @@
 ---
 page_meta:
   title: CCFM Example Files - Complete Element Reference
-  space: PE
   author: "Platform Team"
   labels:
     - ccfm
@@ -260,12 +259,14 @@ async function deployPage(domain, space, title, adfBody) {
 #!/bin/bash
 set -euo pipefail
 
-python src/deploy.py \
+# Deploy a single file
+ccfm apply \
     --domain "${CONFLUENCE_DOMAIN}" \
     --email "${CONFLUENCE_EMAIL}" \
     --token "${CONFLUENCE_TOKEN}" \
     --space "${CONFLUENCE_SPACE}" \
-    --file docs/my-page.md
+    --file docs/my-page.md \
+    --auto-approve
 
 echo "Deployment complete."
 ```
@@ -277,8 +278,8 @@ deploy_docs:
   stage: deploy
   image: python:3.12-slim
   script:
-    - pip install -r requirements.txt
-    - python src/deploy.py --directory docs/
+    - pip install ccfm-convert
+    - ccfm apply --directory docs/ --auto-approve
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
 ```
@@ -386,13 +387,13 @@ An expand with a code block inside:
 
 An expand with a list inside:
 
-> [!expand Advanced configuration options — click to expand]
-> All settings below override the defaults. Set them in your `.env` file or CI environment.
+> [!expand Environment variables — click to expand]
+> These environment variables can be used instead of CLI arguments.
 >
-> - `CCFM_MAX_RETRIES` — number of API retry attempts (default: 3)
-> - `CCFM_TIMEOUT` — HTTP timeout in seconds (default: 30)
-> - `CCFM_BACKOFF` — exponential backoff multiplier (default: 1.5)
-> - `CCFM_DRY_RUN` — set to `true` to validate without deploying (default: false)
+> - `CONFLUENCE_DOMAIN` — Confluence cloud domain (e.g. `company.atlassian.net`)
+> - `CONFLUENCE_EMAIL` — user email for API authentication
+> - `CONFLUENCE_TOKEN` — API token for authentication
+> - `CONFLUENCE_SPACE` — configured via `ccfm.yaml` or `--space` flag
 
 ---
 
@@ -423,10 +424,10 @@ An expand with a list inside:
 
 | Status | Component | Last updated | Notes |
 | ------- -| ---------- -| ------------- -| ------ -|
-| ::Stable::green:: | `converter_adf.py` | @date:2026-02-17 | Full CCFM support |
-| ::In Review::blue:: | `deploy.py` | @date:2026-02-15 | Pending ADF migration |
-| ::Deprecated::yellow:: | `converter.py` | @date:2026-01-01 | Use `converter_adf.py` |
-| ::Blocked::red:: | `validator.py` | @date:2026-02-10 | Awaiting schema pin |
+| ::Stable::green:: | `ccfm_convert.adf` | @date:2026-02-17 | Markdown to ADF converter |
+| ::Stable::green:: | `ccfm_convert.deploy` | @date:2026-02-15 | Confluence deployment engine |
+| ::Stable::green:: | `ccfm_convert.state` | @date:2026-01-01 | Remote state management |
+| ::Stable::green:: | `ccfm_convert.main` | @date:2026-02-10 | CLI entry point |
 
 ---
 

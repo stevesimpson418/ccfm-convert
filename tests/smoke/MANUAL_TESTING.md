@@ -40,7 +40,7 @@ CFG="--config tests/smoke/ccfm-smoke.yaml"
 | --- | --------- | ---------- | ----------- |
 | 2.1 | `ccfm $CFG plan` | Error: "Specify either --file or --directory" | |
 | 2.2 | `ccfm $CFG plan --file tests/smoke/docs/single-page/single-page.md` | "Plan: 1 to add." | |
-| 2.3 | `ccfm $CFG plan --directory tests/smoke/docs` | "Plan: 7 to add." | |
+| 2.3 | `ccfm $CFG plan --directory tests/smoke/docs` | "Plan: 8 to add." | |
 | 2.4 | `ccfm $CFG plan --directory tests/smoke/docs --plan-exit-code; echo $?` | Exit code 2 | |
 
 ---
@@ -52,9 +52,9 @@ CFG="--config tests/smoke/ccfm-smoke.yaml"
 | 3.1 | `ccfm $CFG apply --file tests/smoke/docs/single-page/single-page.md` | Prompts for "yes", creates page on "yes" | |
 | 3.2 | Repeat 3.1 | "No changes. Your Confluence pages are up to date." | |
 | 3.3 | Edit single-page.md, repeat 3.1 | "Plan: 1 to change." then updates page | |
-| 3.4 | Revert edit, then: `ccfm $CFG apply --directory tests/smoke/docs --auto-approve` | Deploys all 7 files, no prompt | |
+| 3.4 | Revert edit, then: `ccfm $CFG apply --directory tests/smoke/docs --auto-approve` | Deploys all 8 files, no prompt | |
 | 3.5 | Repeat 3.4 | "No changes to apply." | |
-| 3.6 | `ccfm $CFG apply --directory tests/smoke/docs --force` | "Plan: 7 to add." (force treats all as new) | |
+| 3.6 | `ccfm $CFG apply --directory tests/smoke/docs --force` | "Plan: 8 to add." (force treats all as new) | |
 | 3.7 | `ccfm $CFG apply --directory tests/smoke/docs --force --auto-approve` | Same as 3.6, no prompt | |
 
 ### Interactive prompt rejection
@@ -72,7 +72,7 @@ CFG="--config tests/smoke/ccfm-smoke.yaml"
 | # | Command | Expected | Pass/Fail |
 | --- | --------- | ---------- | ----------- |
 | 4.1 | `ccfm dump --file tests/smoke/docs/single-page/single-page.md` | Creates `.ccfm/dumps/<timestamp>/` dir with .adf.json | |
-| 4.2 | `ccfm dump --directory tests/smoke/docs --output-dir /tmp/adf-test` | Writes 7 .adf.json files to `/tmp/adf-test` | |
+| 4.2 | `ccfm dump --directory tests/smoke/docs --output-dir /tmp/adf-test` | Writes 8 .adf.json files to `/tmp/adf-test` | |
 | 4.3 | `ccfm dump --file tests/smoke/docs/example/CCFM\ Example/complete_example.md` | Succeeds (no NoneType crash on page links) | |
 
 > Clean up: `rm -rf .ccfm/dumps /tmp/adf-test`
@@ -107,7 +107,7 @@ CFG="--config tests/smoke/ccfm-smoke.yaml"
 
 | # | Command | Expected | Pass/Fail |
 | --- | --------- | ---------- | ----------- |
-| 6.1 | `ccfm $CFG state list` | Shows all 14 tracked pages | |
+| 6.1 | `ccfm $CFG state list` | Shows all 16 tracked pages (8 md + 8 container) | |
 | 6.2 | `ccfm $CFG state show "tests/smoke/docs/single-page/single-page.md"` | Shows page_id, content_hash, title | |
 | 6.3 | `ccfm $CFG state pull > state-backup.json` | Valid JSON with "pages" and "version" keys | |
 | 6.4 | `ccfm $CFG state push state-backup.json` | "Remote state updated" | |

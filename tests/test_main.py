@@ -943,7 +943,6 @@ class TestDumpSubcommand:
             with pytest.raises(SystemExit, match="1"):
                 main.main()
 
-
     @patch("ccfm_convert.main.dump_tree")
     def test_dump_falls_back_to_docs_root_from_config(self, mock_dump_tree, tmp_path):
         """dump uses docs_root from config when --directory is not provided."""
@@ -3300,6 +3299,246 @@ class TestTokenHandling:
                     ],
                 ):
                     main.main()
+
+
+# ---------------------------------------------------------------------------
+# Domain and email env var fallbacks
+# ---------------------------------------------------------------------------
+
+
+class TestDomainEnvVarFallback:
+    """Test domain supplied via CONFLUENCE_DOMAIN env var."""
+
+    @patch("ccfm_convert.main.LockManager")
+    @patch("ccfm_convert.main.StateManager")
+    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ensure_page_hierarchy")
+    @patch("ccfm_convert.main.deploy_page")
+    @patch("ccfm_convert.main.compute_plan")
+    @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    def test_domain_from_env_var(
+        self,
+        mock_api_class,
+        mock_find_mgmt,
+        mock_compute_plan,
+        mock_deploy,
+        mock_hierarchy,
+        mock_backend_class,
+        mock_state_class,
+        mock_lock_class,
+        tmp_path,
+    ):
+        """Domain is read from CONFLUENCE_DOMAIN env var when --domain is not provided."""
+        test_file = tmp_path / "test.md"
+        test_file.write_text("# Test")
+
+        mock_api = Mock()
+        mock_api.get_space_id.return_value = "space123"
+        mock_api_class.return_value = mock_api
+        mock_hierarchy.return_value = (None, [])
+        mock_deploy.return_value = None
+
+        mock_compute_plan.return_value = _mock_plan_with_changes([test_file])
+
+        mock_state = Mock()
+        mock_state_class.return_value = mock_state
+        mock_lock = Mock()
+        mock_lock_class.return_value = mock_lock
+
+        with patch.dict(os.environ, {"CONFLUENCE_DOMAIN": "env-domain.atlassian.net"}):
+            with patch(
+                "sys.argv",
+                [
+                    "main.py",
+                    "--email",
+                    "test@example.com",
+                    "--token",
+                    "tok",
+                    "--space",
+                    "TEST",
+                    "apply",
+                    "--auto-approve",
+                    "--file",
+                    str(test_file),
+                ],
+            ):
+                main.main()
+
+        mock_api_class.assert_called_once_with(
+            "env-domain.atlassian.net", "test@example.com", "tok"
+        )
+
+    def test_missing_domain_error_mentions_env_var(self, tmp_path):
+        """Missing domain error message mentions CONFLUENCE_DOMAIN env var."""
+        test_file = tmp_path / "test.md"
+        test_file.write_text("# Test")
+        with patch.dict(os.environ, {"CONFLUENCE_DOMAIN": ""}, clear=False):
+            with pytest.raises(SystemExit):
+                with patch(
+                    "sys.argv",
+                    [
+                        "main.py",
+                        "--email",
+                        "test@example.com",
+                        "--token",
+                        "tok",
+                        "--space",
+                        "TEST",
+                        "plan",
+                        "--file",
+                        str(test_file),
+                    ],
+                ):
+                    main.main()
+
+
+class TestEmailEnvVarFallback:
+    """Test email supplied via CONFLUENCE_EMAIL env var."""
+
+    @patch("ccfm_convert.main.LockManager")
+    @patch("ccfm_convert.main.StateManager")
+    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ensure_page_hierarchy")
+    @patch("ccfm_convert.main.deploy_page")
+    @patch("ccfm_convert.main.compute_plan")
+    @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    def test_email_from_env_var(
+        self,
+        mock_api_class,
+        mock_find_mgmt,
+        mock_compute_plan,
+        mock_deploy,
+        mock_hierarchy,
+        mock_backend_class,
+        mock_state_class,
+        mock_lock_class,
+        tmp_path,
+    ):
+        """Email is read from CONFLUENCE_EMAIL env var when --email is not provided."""
+        test_file = tmp_path / "test.md"
+        test_file.write_text("# Test")
+
+        mock_api = Mock()
+        mock_api.get_space_id.return_value = "space123"
+        mock_api_class.return_value = mock_api
+        mock_hierarchy.return_value = (None, [])
+        mock_deploy.return_value = None
+
+        mock_compute_plan.return_value = _mock_plan_with_changes([test_file])
+
+        mock_state = Mock()
+        mock_state_class.return_value = mock_state
+        mock_lock = Mock()
+        mock_lock_class.return_value = mock_lock
+
+        with patch.dict(os.environ, {"CONFLUENCE_EMAIL": "env@example.com"}):
+            with patch(
+                "sys.argv",
+                [
+                    "main.py",
+                    "--domain",
+                    "example.atlassian.net",
+                    "--token",
+                    "tok",
+                    "--space",
+                    "TEST",
+                    "apply",
+                    "--auto-approve",
+                    "--file",
+                    str(test_file),
+                ],
+            ):
+                main.main()
+
+        mock_api_class.assert_called_once_with("example.atlassian.net", "env@example.com", "tok")
+
+    def test_missing_email_error_mentions_env_var(self, tmp_path):
+        """Missing email error message mentions CONFLUENCE_EMAIL env var."""
+        test_file = tmp_path / "test.md"
+        test_file.write_text("# Test")
+        with patch.dict(os.environ, {"CONFLUENCE_EMAIL": ""}, clear=False):
+            with pytest.raises(SystemExit):
+                with patch(
+                    "sys.argv",
+                    [
+                        "main.py",
+                        "--domain",
+                        "example.atlassian.net",
+                        "--token",
+                        "tok",
+                        "--space",
+                        "TEST",
+                        "plan",
+                        "--file",
+                        str(test_file),
+                    ],
+                ):
+                    main.main()
+
+
+class TestAllCredentialsFromEnvVars:
+    """Test all three credentials (domain, email, token) from env vars."""
+
+    @patch("ccfm_convert.main.LockManager")
+    @patch("ccfm_convert.main.StateManager")
+    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ensure_page_hierarchy")
+    @patch("ccfm_convert.main.deploy_page")
+    @patch("ccfm_convert.main.compute_plan")
+    @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    def test_all_credentials_from_env(
+        self,
+        mock_api_class,
+        mock_find_mgmt,
+        mock_compute_plan,
+        mock_deploy,
+        mock_hierarchy,
+        mock_backend_class,
+        mock_state_class,
+        mock_lock_class,
+        tmp_path,
+    ):
+        """All credentials resolved from env vars when no CLI args provided."""
+        test_file = tmp_path / "test.md"
+        test_file.write_text("# Test")
+
+        mock_api = Mock()
+        mock_api.get_space_id.return_value = "space123"
+        mock_api_class.return_value = mock_api
+        mock_hierarchy.return_value = (None, [])
+        mock_deploy.return_value = None
+
+        mock_compute_plan.return_value = _mock_plan_with_changes([test_file])
+
+        mock_state = Mock()
+        mock_state_class.return_value = mock_state
+        mock_lock = Mock()
+        mock_lock_class.return_value = mock_lock
+
+        env = {
+            "CONFLUENCE_DOMAIN": "env.atlassian.net",
+            "CONFLUENCE_EMAIL": "env@example.com",
+            "CONFLUENCE_TOKEN": "env-token",
+        }
+        with patch.dict(os.environ, env):
+            with patch(
+                "sys.argv",
+                [
+                    "main.py",
+                    "--space",
+                    "TEST",
+                    "apply",
+                    "--auto-approve",
+                    "--file",
+                    str(test_file),
+                ],
+            ):
+                main.main()
+
+        mock_api_class.assert_called_once_with("env.atlassian.net", "env@example.com", "env-token")
 
 
 # ---------------------------------------------------------------------------
