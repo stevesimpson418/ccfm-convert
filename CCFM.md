@@ -679,7 +679,7 @@ Complete mapping of every supported ADF node and mark to its CCFM syntax.
 | `tableRow` | Table row | Implicit in table syntax |
 | `tableHeader` | First row of table | Rendered bold, shaded |
 | `tableCell` | Table cell | Alignment via `:` in separator |
-| `panel` | `> [!info]` etc. | Six types: info, note, tip, warning, success, error |
+| `panel` | `> [!info]` etc. | Five types: info, note, warning, success, error. `> [!tip]` accepted, maps to note |
 | `expand` | `> [!expand Title]` | Collapsible section |
 | `mediaSingle` | `![alt](url)` or `![alt](url){width=VALUE}` | Image block; width preset or pixel value |
 | `caption` | `![alt](url "caption text")` | Image caption (title string after URL) |

@@ -120,7 +120,8 @@ def blockquote(content: list) -> dict:
 def panel(panel_type: str, content: list) -> dict:
     """
     ADF panel node.
-    panel_type: 'info' | 'note' | 'tip' | 'warning' | 'success' | 'error'
+    panel_type: 'info' | 'note' | 'warning' | 'success' | 'error'
+    Note: 'tip' is accepted in CCFM syntax but mapped to 'note' at parse time.
     """
     return {"type": "panel", "attrs": {"panelType": panel_type}, "content": content}
 

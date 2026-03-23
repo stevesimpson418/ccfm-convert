@@ -327,7 +327,7 @@ A multi-line blockquote:
 
 ## Panels
 
-All six panel types, each with inline formatting inside.
+All five panel types plus the tip alias, each with inline formatting inside.
 
 <!-- markdownlint-disable MD028 -->
 > [!info]
@@ -351,8 +351,8 @@ All six panel types, each with inline formatting inside.
 > things that will cause data loss or system failure. Do not use for minor warnings.
 
 > [!tip]
-> **Tip panel.** Use it for helpful suggestions, best practices, and shortcuts. This is
-> the sixth panel type added in the ADF spec audit.
+> **Tip panel.** The `[!tip]` syntax is accepted and maps to a note panel (purple).
+> Confluence Cloud has no distinct renderer for `panelType: "tip"`.
 
 A multi-paragraph panel:
 

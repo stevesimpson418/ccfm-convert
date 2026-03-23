@@ -67,13 +67,13 @@ class TestParseBlockquote:
         assert result["type"] == "panel"
         assert result["attrs"]["panelType"] == "success"
 
-    def test_panel_tip(self):
-        """Test tip panel."""
+    def test_panel_tip_maps_to_note(self):
+        """Test tip panel maps to note (Confluence has no distinct tip renderer)."""
         lines = ["[!tip]", "Helpful tip here"]
         result = parse_blockquote_block(lines)
 
         assert result["type"] == "panel"
-        assert result["attrs"]["panelType"] == "tip"
+        assert result["attrs"]["panelType"] == "note"
 
     def test_panel_invalid_type(self):
         """Test panel with invalid type (should fallback to blockquote)."""
