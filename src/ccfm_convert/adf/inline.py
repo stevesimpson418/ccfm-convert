@@ -119,17 +119,16 @@ def parse_inline(text: str) -> list:
     elif best_type == "inline_ext":
         macro_name = m.group(1)
         macro_params = m.group(2).strip()
-        # @embed is block-level only — skip it as inline extension
+        # @embed is block-level only — emit as plain text when found inline
         if macro_name == "embed":
             nodes.append(text_node(m.group(0)))
         else:
             # For simple macros like @jira(PROJ-123), the param is the key
             params = {"key": macro_params} if "=" not in macro_params else {}
             if "=" in macro_params:
-                import re as _re
-
-                for part in _re.findall(r'(\w+)=(?:"([^"]*)"|([^,\s]+))', macro_params):
-                    params[part[0]] = part[1] if part[1] else part[2]
+                for part in re.findall(r'(\w+)=(?:"([^"]*)"|([^,\s]+))', macro_params):
+                    # part[1] is quoted value, part[2] is unquoted — exactly one is non-empty
+                    params[part[0]] = part[1] if part[2] == "" else part[2]
             nodes.append(inline_extension_node(macro_name, parameters=params))
 
     elif best_type == "page_link":

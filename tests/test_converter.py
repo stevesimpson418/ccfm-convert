@@ -483,6 +483,12 @@ class TestExtensionMacros:
 
         assert result["content"][0]["type"] == "paragraph"
 
+    def test_macro_name_in_sentence_stays_paragraph(self):
+        """@toc inside a sentence should NOT become a block extension."""
+        result = convert("See @toc for the table of contents.")
+
+        assert result["content"][0]["type"] == "paragraph"
+
 
 class TestEmbedCard:
     """Test embedCard (@embed(url) syntax)."""

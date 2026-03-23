@@ -445,6 +445,7 @@ class TestMediaAndCards:
         assert result["attrs"]["extensionKey"] == "toc"
         assert result["attrs"]["extensionType"] == "com.atlassian.confluence.macro.core"
         assert result["attrs"]["layout"] == "default"
+        assert "localId" in result["attrs"]
         assert "parameters" not in result["attrs"]
 
     def test_extension_node_with_params(self):
@@ -462,6 +463,7 @@ class TestMediaAndCards:
         assert result["type"] == "inlineExtension"
         assert result["attrs"]["extensionKey"] == "jira"
         assert result["attrs"]["extensionType"] == "com.atlassian.confluence.macro.core"
+        assert "localId" in result["attrs"]
         params = result["attrs"]["parameters"]["macroParams"]
         assert params["key"]["value"] == "PROJ-123"
 
@@ -561,8 +563,9 @@ class TestCaptionNode:
         assert result["content"] == content
 
     def test_media_single_with_caption(self):
-        """Test mediaSingle with caption text."""
-        result = media_single(url="img.png", caption_text="Figure 1: Overview")
+        """Test mediaSingle with pre-built caption node."""
+        cap = caption_node([text_node("Figure 1: Overview")])
+        result = media_single(url="img.png", caption=cap)
 
         assert result["type"] == "mediaSingle"
         assert len(result["content"]) == 2

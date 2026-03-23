@@ -24,6 +24,7 @@ from .blocks import (
 from .inline import parse_inline, parse_inline_with_breaks
 from .nodes import (
     block_card,
+    caption_node,
     code_block,
     doc,
     embed_card,
@@ -109,12 +110,15 @@ def convert(markdown_text: str) -> dict:
             # Strip surrounding quotes from URL (e.g. "file name.png" or 'file name.png')
             if len(url) >= 2 and url[0] in ('"', "'") and url[-1] == url[0]:
                 url = url[1:-1]
+            cap = None
+            if caption_text:
+                cap = caption_node(parse_inline(caption_text))
             content.append(
                 media_single(
                     url,
                     alt_text if alt_text else None,
                     width=img_width,
-                    caption_text=caption_text,
+                    caption=cap,
                 )
             )
             i += 1
@@ -176,9 +180,8 @@ def convert(markdown_text: str) -> dict:
             if params_str:
                 # Parse key=value pairs: @toc(minLevel=2, maxLevel=4)
                 for part in re.findall(r'(\w+)=(?:"([^"]*)"|([^,\s]+))', params_str):
-                    key = part[0]
-                    value = part[1] if part[1] else part[2]
-                    params[key] = value
+                    # part[1] is quoted value, part[2] is unquoted — exactly one is non-empty
+                    params[part[0]] = part[1] if part[2] == "" else part[2]
             content.append(extension_node(macro_name, parameters=params if params else None))
             i += 1
             continue

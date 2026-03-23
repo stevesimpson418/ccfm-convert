@@ -277,6 +277,7 @@ def extension_node(
             "extensionType": extension_type,
             "extensionKey": extension_key,
             "layout": layout,
+            "localId": str(uuid.uuid4()),
         },
     }
     if parameters:
@@ -309,6 +310,7 @@ def inline_extension_node(
         "attrs": {
             "extensionType": extension_type,
             "extensionKey": extension_key,
+            "localId": str(uuid.uuid4()),
         },
     }
     if parameters:
@@ -363,7 +365,7 @@ def media_single(
     file_id: str = None,
     collection: str = None,
     width=None,
-    caption_text: str = None,
+    caption: dict = None,
 ) -> dict:
     """
     ADF mediaSingle node (image container).
@@ -391,7 +393,7 @@ def media_single(
         file_id: Media Services fileId UUID (for type: "file")
         collection: Collection identifier "contentId-{pageId}" (for type: "file")
         width: Width specifier — None, "narrow", "wide", "max", or int pixels
-        caption_text: Optional caption text rendered below the image
+        caption: Optional pre-built caption node dict (from caption_node())
     """
     if file_id and collection:
         # Attachment file mode
@@ -419,10 +421,8 @@ def media_single(
         media_single_attrs["widthType"] = width_type
 
     media_content = [{"type": "media", "attrs": media_attrs}]
-    if caption_text:
-        from .inline import parse_inline
-
-        media_content.append(caption_node(parse_inline(caption_text)))
+    if caption:
+        media_content.append(caption)
 
     return {
         "type": "mediaSingle",
