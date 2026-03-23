@@ -632,14 +632,14 @@ class TestSpecialNodes:
 
         assert result["type"] == "status"
         assert result["attrs"]["text"] == "In Progress"
-        assert result["attrs"]["color"] == "blue"  # Color is lowercased per ADF schema
+        assert result["attrs"]["color"] == "BLUE"  # Uppercase required by Confluence runtime
 
     def test_status_node_default_color(self):
         """Test status node with neutral color."""
         result = status_node("Done", "neutral")
 
         assert result["attrs"]["text"] == "Done"
-        assert result["attrs"]["color"] == "neutral"  # Color is lowercased per ADF schema
+        assert result["attrs"]["color"] == "NEUTRAL"  # Uppercase required by Confluence runtime
 
     def test_date_node_invalid_format_returns_zero_timestamp(self):
         """date_node falls back to timestamp '0' when the date string is not parseable."""

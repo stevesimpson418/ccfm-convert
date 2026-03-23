@@ -234,7 +234,7 @@ class TestCCFMExtensions:
         assert len(result) == 1
         assert result[0]["type"] == "status"
         assert result[0]["attrs"]["text"] == "In Progress"
-        assert result[0]["attrs"]["color"] == "blue"
+        assert result[0]["attrs"]["color"] == "BLUE"
 
     def test_status_badge_with_surrounding_text(self):
         """Status badge embedded in text produces text + status + text nodes."""

@@ -447,13 +447,14 @@ def status_node(text: str, color: str) -> dict:
     """
     ADF status node.
     color: 'neutral' | 'blue' | 'red' | 'yellow' | 'green' | 'purple'
-    ADF schema specifies lowercase color enum values.
+    NOTE: ADF JSON schema defines lowercase enum values, but Confluence Cloud
+    runtime requires uppercase. Using .upper() for runtime compatibility.
     """
     return {
         "type": "status",
         "attrs": {
             "text": text,
-            "color": color.lower(),
+            "color": color.upper(),
             "localId": str(uuid.uuid4()),
             "style": "",
         },
