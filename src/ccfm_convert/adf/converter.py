@@ -181,7 +181,7 @@ def convert(markdown_text: str) -> dict:
                 # Parse key=value pairs: @toc(minLevel=2, maxLevel=4)
                 for part in re.findall(r'(\w+)=(?:"([^"]*)"|([^,\s]+))', params_str):
                     # part[1] is quoted value, part[2] is unquoted — exactly one is non-empty
-                    params[part[0]] = part[1] if part[2] == "" else part[2]
+                    params[part[0]] = part[1] if part[1] != "" else part[2]
             content.append(extension_node(macro_name, parameters=params if params else None))
             i += 1
             continue

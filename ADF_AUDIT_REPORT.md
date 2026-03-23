@@ -206,18 +206,18 @@ Every node, mark, and inline type from the ADF schema, with current status.
 | 17 | `expand` | Supported | Yes | Yes | Yes |
 | 18 | `mediaSingle` | Supported | Yes | Yes | Yes |
 | 19 | `media` | Supported | Yes | Yes | Documented as auto-created |
-| 20 | `blockTaskItem` | Not implemented | — | — | No |
-| 21 | `decisionList` | Not implemented | — | — | No |
-| 22 | `decisionItem` | Not implemented | — | — | No |
-| 23 | `nestedExpand` | Not implemented | — | — | No |
-| 24 | `blockCard` | Not implemented | — | — | No |
-| 25 | `embedCard` | Not implemented | — | — | No |
-| 26 | `layoutSection` | Not implemented | — | — | No |
-| 27 | `layoutColumn` | Not implemented | — | — | No |
-| 28 | `extension` | Not implemented | — | — | No |
-| 29 | `bodiedExtension` | Not implemented | — | — | No |
-| 30 | `multiBodiedExtension` | Not implemented | — | — | No |
-| 31 | `extensionFrame` | Not implemented | — | — | No |
+| 20 | `blockTaskItem` | Out of scope | — | — | Yes |
+| 21 | `decisionList` | Out of scope | — | — | Yes |
+| 22 | `decisionItem` | Out of scope | — | — | Yes |
+| 23 | `nestedExpand` | Supported (node only) | Yes | Yes | Yes |
+| 24 | `blockCard` | Supported | Yes | Yes | Yes |
+| 25 | `embedCard` | Supported | Yes | Yes | Yes |
+| 26 | `layoutSection` | Not yet implemented | — | — | Yes ([#38](https://github.com/stevesimpson418/ccfm-convert/issues/38)) |
+| 27 | `layoutColumn` | Not yet implemented | — | — | Yes ([#38](https://github.com/stevesimpson418/ccfm-convert/issues/38)) |
+| 28 | `extension` | Supported | Yes | Yes | Yes |
+| 29 | `bodiedExtension` | Not yet implemented | — | — | Yes ([#39](https://github.com/stevesimpson418/ccfm-convert/issues/39)) |
+| 30 | `multiBodiedExtension` | Not yet implemented | — | — | Yes ([#39](https://github.com/stevesimpson418/ccfm-convert/issues/39)) |
+| 31 | `extensionFrame` | Not yet implemented | — | — | Yes ([#39](https://github.com/stevesimpson418/ccfm-convert/issues/39)) |
 | 32 | `syncBlock` | Not applicable | — | — | No |
 | 33 | `bodiedSyncBlock` | Not applicable | — | — | No |
 
@@ -233,7 +233,7 @@ Every node, mark, and inline type from the ADF schema, with current status.
 | 6 | `inlineCard` | Supported | Yes | Yes | Yes |
 | 7 | `mention` | Out of scope | — | — | Yes (documented) |
 | 8 | `placeholder` | Not applicable | — | — | No (editor-only) |
-| 9 | `inlineExtension` | Not implemented | — | — | No |
+| 9 | `inlineExtension` | Supported | Yes | Yes | Yes |
 | 10 | `mediaInline` | Out of scope | — | — | Yes (documented) |
 
 ### All Media Nodes (5 total)
@@ -244,7 +244,7 @@ Every node, mark, and inline type from the ADF schema, with current status.
 | 2 | `mediaSingle` | Supported | Yes | Yes | Yes |
 | 3 | `mediaGroup` | Out of scope | — | — | Yes (documented) |
 | 4 | `mediaInline` | Out of scope | — | — | Yes (documented) |
-| 5 | `caption` | Not implemented | — | — | No |
+| 5 | `caption` | Supported | Yes | Yes | Yes |
 
 ### All Marks (17 total)
 
@@ -261,10 +261,10 @@ Every node, mark, and inline type from the ADF schema, with current status.
 | 9 | `textColor` | Out of scope | — | — | Yes (documented) |
 | 10 | `backgroundColor` | Out of scope | — | — | Yes (documented) |
 | 11 | `annotation` | Not applicable | — | — | No (editor-managed) |
-| 12 | `indentation` | Not implemented | — | — | No |
-| 13 | `fontSize` | Not implemented | — | — | No |
-| 14 | `breakout` | Not implemented | — | — | No |
-| 15 | `border` | Not implemented | — | — | No |
+| 12 | `indentation` | Out of scope | — | — | Yes |
+| 13 | `fontSize` | Out of scope | — | — | Yes |
+| 14 | `breakout` | Out of scope | — | — | Yes |
+| 15 | `border` | Out of scope | — | — | Yes |
 | 16 | `dataConsumer` | Not applicable | — | — | No (system-managed) |
 | 17 | `fragment` | Not applicable | — | — | No (system-managed) |
 

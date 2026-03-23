@@ -128,7 +128,7 @@ def parse_inline(text: str) -> list:
             if "=" in macro_params:
                 for part in re.findall(r'(\w+)=(?:"([^"]*)"|([^,\s]+))', macro_params):
                     # part[1] is quoted value, part[2] is unquoted — exactly one is non-empty
-                    params[part[0]] = part[1] if part[2] == "" else part[2]
+                    params[part[0]] = part[1] if part[1] != "" else part[2]
             nodes.append(inline_extension_node(macro_name, parameters=params))
 
     elif best_type == "page_link":
