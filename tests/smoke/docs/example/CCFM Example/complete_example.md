@@ -327,7 +327,7 @@ A multi-line blockquote:
 
 ## Panels
 
-All five panel types, each with inline formatting inside.
+All six panel types, each with inline formatting inside.
 
 <!-- markdownlint-disable MD028 -->
 > [!info]
@@ -349,6 +349,10 @@ All five panel types, each with inline formatting inside.
 > [!error]
 > **Error panel.** This is red. Use it for errors, breaking changes, critical issues, and
 > things that will cause data loss or system failure. Do not use for minor warnings.
+
+> [!tip]
+> **Tip panel.** Use it for helpful suggestions, best practices, and shortcuts. This is
+> the sixth panel type added in the ADF spec audit.
 
 A multi-paragraph panel:
 
@@ -490,8 +494,69 @@ coexist without interfering with each other.
 <!-- markdownlint-disable MD059 -->
 This sentence has **bold**, *italic*, ***bold italic***, ~~strikethrough~~, ++underline++,
 `code`, a [link](https://example.com), a [page link](<CCFM Example - My Team>), an emoji :rocket:,
-a status ::Live::green::, a date @date:2026-02-17, superscript x^2^, and subscript H~2~O.
+a status ::Live::green::, a date @date:2026-02-17, superscript x^2^, subscript H~2~O,
+and an inline Jira reference @jira(CCFM-1).
 Everything should render independently without breaking adjacent elements.
+
+---
+
+## Image captions
+
+An image with a caption using the markdown title string:
+
+![Atlassian logo](https://wac-cdn.atlassian.com/misc-assets/adg4-nav/AtlassianHeaderLogo.svg "Figure 1: The Atlassian logo rendered via CCFM image caption support.")
+
+An image without a caption (no title string):
+
+![Plain image](https://wac-cdn.atlassian.com/misc-assets/adg4-nav/AtlassianHeaderLogo.svg)
+
+---
+
+## Smart link cards (blockCard)
+
+A bare URL on its own line renders as a full-width smart link card:
+
+<!-- markdownlint-disable MD034 -->
+https://www.atlassian.com/software/confluence
+
+Another smart link card:
+
+https://developer.atlassian.com/cloud/confluence/rest/v2/intro/
+<!-- markdownlint-enable MD034 -->
+
+---
+
+## Embedded content (embedCard)
+
+Embed external content using `@embed(url)`:
+
+<!-- markdownlint-disable MD034 -->
+@embed(https://www.youtube.com/watch?v=dQw4w9WgXcQ)
+<!-- markdownlint-enable MD034 -->
+
+---
+
+## Confluence macros (extension)
+
+Table of contents macro:
+
+@toc
+
+Page children macro:
+
+@children
+
+TOC with parameters:
+
+@toc(minLevel=2, maxLevel=4)
+
+---
+
+## Inline macros (inlineExtension)
+
+Reference a Jira issue inline: see @jira(PROJ-123) for the full tracking ticket.
+
+Another inline macro: the anchor @anchor(section-1) creates a link target.
 
 ---
 

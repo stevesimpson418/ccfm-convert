@@ -22,7 +22,17 @@ from .blocks import (
     parse_table,
 )
 from .inline import parse_inline, parse_inline_with_breaks
-from .nodes import code_block, doc, heading, media_single, paragraph, rule
+from .nodes import (
+    block_card,
+    code_block,
+    doc,
+    embed_card,
+    extension_node,
+    heading,
+    media_single,
+    paragraph,
+    rule,
+)
 
 
 def convert(markdown_text: str) -> dict:
@@ -82,16 +92,31 @@ def convert(markdown_text: str) -> dict:
             i += 1
             continue
 
-        # --- Image: ![alt](url) or ![alt](url){width=VALUE} on its own line ---
-        img_match = re.match(r"^!\[([^\]]*)\]\(([^)]+)\)(?:\{width=([^}]+)\})?\s*$", line.strip())
+        # --- Image: ![alt](url) or ![alt](url "caption") or ![alt](url){width=VALUE} ---
+        img_match = re.match(r"^!\[([^\]]*)\]\((.+?)\)(?:\{width=([^}]+)\})?\s*$", line.strip())
         if img_match:
             alt_text = img_match.group(1)
-            url = img_match.group(2).strip()
+            url_part = img_match.group(2).strip()
             img_width = img_match.group(3)  # None if no {width=...} attr
-            # Strip surrounding quotes (e.g. "file name.png" or 'file name.png')
+            # Extract optional title/caption: url "caption" or url 'caption'
+            caption_text = None
+            title_match = re.match(r'^(.+?)\s+(["\'])(.+)\2$', url_part)
+            if title_match:
+                url = title_match.group(1).strip()
+                caption_text = title_match.group(3)
+            else:
+                url = url_part
+            # Strip surrounding quotes from URL (e.g. "file name.png" or 'file name.png')
             if len(url) >= 2 and url[0] in ('"', "'") and url[-1] == url[0]:
                 url = url[1:-1]
-            content.append(media_single(url, alt_text if alt_text else None, width=img_width))
+            content.append(
+                media_single(
+                    url,
+                    alt_text if alt_text else None,
+                    width=img_width,
+                    caption_text=caption_text,
+                )
+            )
             i += 1
             continue
 
@@ -142,6 +167,36 @@ def convert(markdown_text: str) -> dict:
             content.append(node)
             continue
 
+        # --- Extension macro: @macro or @macro(params) on its own line ---
+        macro_match = re.match(r"^@(\w+)(?:\(([^)]*)\))?\s*$", line.strip())
+        if macro_match and macro_match.group(1) != "embed" and macro_match.group(1) != "date":
+            macro_name = macro_match.group(1)
+            params_str = macro_match.group(2)
+            params = {}
+            if params_str:
+                # Parse key=value pairs: @toc(minLevel=2, maxLevel=4)
+                for part in re.findall(r'(\w+)=(?:"([^"]*)"|([^,\s]+))', params_str):
+                    key = part[0]
+                    value = part[1] if part[1] else part[2]
+                    params[key] = value
+            content.append(extension_node(macro_name, parameters=params if params else None))
+            i += 1
+            continue
+
+        # --- Embed: @embed(url) on its own line → embedCard ---
+        embed_match = re.match(r"^@embed\((.+?)\)\s*$", line.strip())
+        if embed_match:
+            content.append(embed_card(embed_match.group(1).strip()))
+            i += 1
+            continue
+
+        # --- Bare URL: standalone URL on its own line → blockCard ---
+        bare_url_match = re.match(r"^(https?://\S+)\s*$", line.strip())
+        if bare_url_match:
+            content.append(block_card(bare_url_match.group(1)))
+            i += 1
+            continue
+
         # --- Paragraph: collect consecutive non-block lines ---
         para_lines = []
         while i < len(lines):
@@ -160,6 +215,18 @@ def convert(markdown_text: str) -> dict:
             if list_line_info(line):
                 break
             if "|" in line and i + 1 < len(lines) and re.match(r"^\|?[\s\-:|]+\|", lines[i + 1]):
+                break
+            # Standalone image on its own line
+            if re.match(r"^!\[([^\]]*)\]\((.+?)\)(?:\{width=([^}]+)\})?\s*$", line.strip()):
+                break
+            # @embed(url) on its own line
+            if re.match(r"^@embed\(", line.strip()):
+                break
+            # @macro or @macro(params) on its own line (not @date: which is inline)
+            if re.match(r"^@(?!date[:\s])(\w+)(?:\([^)]*\))?\s*$", line.strip()):
+                break
+            # Bare URL on its own line (blockCard)
+            if re.match(r"^https?://\S+\s*$", line.strip()):
                 break
             para_lines.append(line)
             i += 1

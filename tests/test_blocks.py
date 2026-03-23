@@ -67,6 +67,14 @@ class TestParseBlockquote:
         assert result["type"] == "panel"
         assert result["attrs"]["panelType"] == "success"
 
+    def test_panel_tip(self):
+        """Test tip panel."""
+        lines = ["[!tip]", "Helpful tip here"]
+        result = parse_blockquote_block(lines)
+
+        assert result["type"] == "panel"
+        assert result["attrs"]["panelType"] == "tip"
+
     def test_panel_invalid_type(self):
         """Test panel with invalid type (should fallback to blockquote)."""
         lines = ["[!invalid]", "Text"]

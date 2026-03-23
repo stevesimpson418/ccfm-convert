@@ -4,18 +4,24 @@ import pytest
 
 from ccfm_convert.adf.nodes import (
     NARROW_PAGE_WIDTH_PX,
+    block_card,
     blockquote,
     bullet_list,
+    caption_node,
     code_block,
     date_node,
     doc,
+    embed_card,
     emoji_node,
     expand,
+    extension_node,
     hard_break,
     heading,
     inline_card,
+    inline_extension_node,
     list_item,
     media_single,
+    nested_expand,
     ordered_list,
     panel,
     paragraph,
@@ -287,6 +293,15 @@ class TestPanelsAndExpands:
 
         assert result["attrs"]["panelType"] == "success"
 
+    def test_panel_tip(self):
+        """Test tip panel."""
+        content = [paragraph([text_node("Tip")])]
+        result = panel("tip", content)
+
+        assert result["type"] == "panel"
+        assert result["attrs"]["panelType"] == "tip"
+        assert result["content"] == content
+
     def test_expand(self):
         """Test expand node."""
         title = "Click to expand"
@@ -294,6 +309,16 @@ class TestPanelsAndExpands:
         result = expand(title, content)
 
         assert result["type"] == "expand"
+        assert result["attrs"]["title"] == title
+        assert result["content"] == content
+
+    def test_nested_expand(self):
+        """Test nestedExpand node (for use inside table cells)."""
+        title = "Implementation notes"
+        content = [paragraph([text_node("Details here")])]
+        result = nested_expand(title, content)
+
+        assert result["type"] == "nestedExpand"
         assert result["attrs"]["title"] == title
         assert result["content"] == content
 
@@ -389,6 +414,64 @@ class TestMediaAndCards:
         assert result["type"] == "inlineCard"
         assert result["attrs"]["url"] == url
 
+    def test_block_card(self):
+        """Test block card node."""
+        url = "https://myorg.atlassian.net/browse/PROJ-123"
+        result = block_card(url)
+
+        assert result["type"] == "blockCard"
+        assert result["attrs"]["url"] == url
+
+    def test_embed_card(self):
+        """Test embed card node."""
+        url = "https://www.youtube.com/watch?v=abc"
+        result = embed_card(url)
+
+        assert result["type"] == "embedCard"
+        assert result["attrs"]["url"] == url
+        assert result["attrs"]["layout"] == "center"
+
+    def test_embed_card_wide_layout(self):
+        """Test embed card with wide layout."""
+        result = embed_card("https://example.com", layout="wide")
+
+        assert result["attrs"]["layout"] == "wide"
+
+    def test_extension_node(self):
+        """Test extension node with default type."""
+        result = extension_node("toc")
+
+        assert result["type"] == "extension"
+        assert result["attrs"]["extensionKey"] == "toc"
+        assert result["attrs"]["extensionType"] == "com.atlassian.confluence.macro.core"
+        assert result["attrs"]["layout"] == "default"
+        assert "parameters" not in result["attrs"]
+
+    def test_extension_node_with_params(self):
+        """Test extension node with parameters."""
+        result = extension_node("toc", parameters={"minLevel": "2", "maxLevel": "4"})
+
+        params = result["attrs"]["parameters"]["macroParams"]
+        assert params["minLevel"]["value"] == "2"
+        assert params["maxLevel"]["value"] == "4"
+
+    def test_inline_extension_node(self):
+        """Test inline extension node."""
+        result = inline_extension_node("jira", parameters={"key": "PROJ-123"})
+
+        assert result["type"] == "inlineExtension"
+        assert result["attrs"]["extensionKey"] == "jira"
+        assert result["attrs"]["extensionType"] == "com.atlassian.confluence.macro.core"
+        params = result["attrs"]["parameters"]["macroParams"]
+        assert params["key"]["value"] == "PROJ-123"
+
+    def test_inline_extension_node_no_params(self):
+        """Test inline extension node without parameters."""
+        result = inline_extension_node("anchor")
+
+        assert result["type"] == "inlineExtension"
+        assert "parameters" not in result["attrs"]
+
     def test_media_single_external(self):
         """Test media node with external URL defaults to narrow width."""
         url = "https://example.com/image.png"
@@ -466,6 +549,35 @@ class TestMediaAndCards:
         assert result["attrs"]["width"] == 500
 
 
+class TestCaptionNode:
+    """Test caption node."""
+
+    def test_caption_node(self):
+        """Test caption node creation."""
+        content = [text_node("Figure 1")]
+        result = caption_node(content)
+
+        assert result["type"] == "caption"
+        assert result["content"] == content
+
+    def test_media_single_with_caption(self):
+        """Test mediaSingle with caption text."""
+        result = media_single(url="img.png", caption_text="Figure 1: Overview")
+
+        assert result["type"] == "mediaSingle"
+        assert len(result["content"]) == 2
+        assert result["content"][0]["type"] == "media"
+        assert result["content"][1]["type"] == "caption"
+        assert result["content"][1]["content"][0]["text"] == "Figure 1: Overview"
+
+    def test_media_single_without_caption(self):
+        """Test mediaSingle without caption has only media child."""
+        result = media_single(url="img.png")
+
+        assert len(result["content"]) == 1
+        assert result["content"][0]["type"] == "media"
+
+
 class TestResolveImageWidth:
     """Test resolve_image_width helper."""
 
@@ -517,14 +629,14 @@ class TestSpecialNodes:
 
         assert result["type"] == "status"
         assert result["attrs"]["text"] == "In Progress"
-        assert result["attrs"]["color"] == "BLUE"  # Color is uppercased
+        assert result["attrs"]["color"] == "blue"  # Color is lowercased per ADF schema
 
     def test_status_node_default_color(self):
         """Test status node with neutral color."""
         result = status_node("Done", "neutral")
 
         assert result["attrs"]["text"] == "Done"
-        assert result["attrs"]["color"] == "NEUTRAL"  # Color is uppercased
+        assert result["attrs"]["color"] == "neutral"  # Color is lowercased per ADF schema
 
     def test_date_node_invalid_format_returns_zero_timestamp(self):
         """date_node falls back to timestamp '0' when the date string is not parseable."""

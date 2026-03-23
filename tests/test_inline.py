@@ -234,7 +234,7 @@ class TestCCFMExtensions:
         assert len(result) == 1
         assert result[0]["type"] == "status"
         assert result[0]["attrs"]["text"] == "In Progress"
-        assert result[0]["attrs"]["color"] == "BLUE"
+        assert result[0]["attrs"]["color"] == "blue"
 
     def test_status_badge_with_surrounding_text(self):
         """Status badge embedded in text produces text + status + text nodes."""
@@ -258,6 +258,34 @@ class TestCCFMExtensions:
 
         types = [n["type"] for n in result]
         assert "date" in types
+
+    def test_inline_extension_jira(self):
+        """@jira(PROJ-123) produces an inlineExtension node."""
+        result = parse_inline("See @jira(PROJ-123) for details.")
+
+        types = [n["type"] for n in result]
+        assert "inlineExtension" in types
+        ext = [n for n in result if n["type"] == "inlineExtension"][0]
+        assert ext["attrs"]["extensionKey"] == "jira"
+        params = ext["attrs"]["parameters"]["macroParams"]
+        assert params["key"]["value"] == "PROJ-123"
+
+    def test_inline_extension_with_key_value_params(self):
+        """@macro(key=value) parses key-value params."""
+        result = parse_inline('@status(text="In Review", color=blue)')
+
+        ext = [n for n in result if n["type"] == "inlineExtension"][0]
+        assert ext["attrs"]["extensionKey"] == "status"
+        params = ext["attrs"]["parameters"]["macroParams"]
+        assert params["text"]["value"] == "In Review"
+        assert params["color"]["value"] == "blue"
+
+    def test_embed_inline_not_extension(self):
+        """@embed() inline should produce plain text, not an inlineExtension."""
+        result = parse_inline("Use @embed(url) to embed.")
+
+        types = [n["type"] for n in result]
+        assert "inlineExtension" not in types
 
     def test_emoji_shortname(self):
         """Emoji shortname :name: produces an emoji node."""

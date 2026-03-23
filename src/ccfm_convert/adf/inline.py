@@ -14,7 +14,15 @@ Usage:
 
 import re
 
-from .nodes import date_node, emoji_node, hard_break, inline_card, status_node, text_node
+from .nodes import (
+    date_node,
+    emoji_node,
+    hard_break,
+    inline_card,
+    inline_extension_node,
+    status_node,
+    text_node,
+)
 
 # Patterns ordered so that longer/more specific matches win when starting at
 # the same position. The parser picks the earliest match overall.
@@ -23,6 +31,8 @@ _INLINE_PATTERNS = [
     ("status", re.compile(r"::([^:]+)::(\w+)::")),
     # Date token: @date:YYYY-MM-DD
     ("date", re.compile(r"@date:(\d{4}-\d{2}-\d{2})")),
+    # Inline extension macro: @macro(params) — e.g., @jira(PROJ-123)
+    ("inline_ext", re.compile(r"@(\w+)\(([^)]+)\)")),
     # Emoji: :shortname:
     ("emoji", re.compile(r":([a-z0-9_+\-]+):")),
     # Confluence page link: [text](<page title>)
@@ -105,6 +115,22 @@ def parse_inline(text: str) -> list:
 
     elif best_type == "emoji":
         nodes.append(emoji_node(m.group(1)))
+
+    elif best_type == "inline_ext":
+        macro_name = m.group(1)
+        macro_params = m.group(2).strip()
+        # @embed is block-level only — skip it as inline extension
+        if macro_name == "embed":
+            nodes.append(text_node(m.group(0)))
+        else:
+            # For simple macros like @jira(PROJ-123), the param is the key
+            params = {"key": macro_params} if "=" not in macro_params else {}
+            if "=" in macro_params:
+                import re as _re
+
+                for part in _re.findall(r'(\w+)=(?:"([^"]*)"|([^,\s]+))', macro_params):
+                    params[part[0]] = part[1] if part[1] else part[2]
+            nodes.append(inline_extension_node(macro_name, parameters=params))
 
     elif best_type == "page_link":
         page_title = m.group(2)

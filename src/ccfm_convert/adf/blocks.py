@@ -37,7 +37,7 @@ from .nodes import (
 # Block Content Helpers
 # ---------------------------------------------------------------------------
 
-_PANEL_TYPES = {"info", "note", "warning", "success", "error"}
+_PANEL_TYPES = {"info", "note", "tip", "warning", "success", "error"}
 
 
 def parse_blockquote_block(quote_lines: list) -> dict:
