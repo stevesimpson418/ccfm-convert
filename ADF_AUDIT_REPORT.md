@@ -73,39 +73,13 @@ These are implemented correctly per the ADF JSON schema.
 
 ---
 
-### 1b. Supported with Spec Deviations (3)
+### 1b. Previously Identified Spec Deviations (all resolved)
 
-These work in practice but deviate from the strict JSON schema.
+The following three deviations were identified in the initial audit and have been fixed in this PR:
 
-#### `status` — Color Casing Mismatch
-
-| Aspect | Our Implementation | ADF Schema |
-|--------|-------------------|------------|
-| `attrs.color` | `"NEUTRAL"`, `"BLUE"`, `"RED"`, etc. (uppercase) | `"neutral"`, `"blue"`, `"red"`, etc. (lowercase enum) |
-
-**Location**: `nodes.py:333` — `color.upper()`
-**Impact**: Confluence accepts uppercase in practice, but the JSON schema enum values are lowercase. Strictly speaking, this would fail schema validation.
-**Recommendation**: Use lowercase to match the schema. Confluence handles both.
-
-#### `panel` — Missing `tip` and `custom` Types
-
-| Aspect | Our Implementation | ADF Schema |
-|--------|-------------------|------------|
-| `panelType` values | `info`, `note`, `warning`, `success`, `error` | `info`, `note`, **`tip`**, `warning`, `error`, `success`, **`custom`** |
-
-**Location**: `nodes.py:120`, `blocks.py` panel detection
-**Impact**: `tip` is a valid panel type we don't support. `custom` requires additional attrs (`panelIcon`, `panelIconId`, `panelIconText`, `panelColor`).
-**Recommendation**: Add `tip` support (trivial — just allow the string). `custom` is lower priority as it needs icon/color attrs.
-
-#### `tableHeader` / `tableCell` — Empty `attrs` Object
-
-| Aspect | Our Implementation | ADF Schema |
-|--------|-------------------|------------|
-| `attrs` | Always included as `{}` | Optional; when present, only allows `colspan`, `rowspan`, `colwidth`, `background`, `localId` |
-
-**Location**: `nodes.py:203`, `nodes.py:213`
-**Impact**: Including an empty `attrs: {}` object is technically valid (no unknown keys), but unnecessary. Schema treats `attrs` as optional on these nodes.
-**Recommendation**: Low priority. Works correctly but adds unnecessary bytes to ADF output.
+- **`status` color casing** — Changed from `color.upper()` to `color.lower()` to match ADF schema lowercase enum values. **Fixed.**
+- **`panel` missing `tip` type** — Added `tip` to `_PANEL_TYPES`. 6 of 7 schema types now supported (`custom` documented as out of scope). **Fixed.**
+- **`tableHeader`/`tableCell` empty `attrs`** — Removed unnecessary `attrs: {}` object from both constructors. **Fixed.**
 
 ---
 
@@ -285,28 +259,30 @@ These are schema rules that our code doesn't explicitly enforce but may matter f
 
 ---
 
-## 6. Recommended Actions
+## 6. Actions Taken
 
-### Quick Wins (Spec Compliance)
+### Spec Fixes (completed in this PR)
 
-1. **Fix status color casing** — Change `color.upper()` to `color.lower()` in `nodes.py:333`. This aligns with the schema enum values. Confluence accepts both but lowercase is spec-correct.
+1. **Status color casing** — Changed `color.upper()` to `color.lower()`. Done.
+2. **Added `tip` panel type** — Added to `_PANEL_TYPES` in `blocks.py`. Done.
+3. **Removed empty table cell attrs** — `tableHeader`/`tableCell` no longer emit `attrs: {}`. Done.
+4. **Documented all 62 ADF types** — All types categorised in CCFM.md. Done.
 
-2. **Add `tip` panel type** — Allow `> [!tip]` in blockquote-to-panel detection. Trivial change to `blocks.py`.
+### New Features (completed in this PR)
 
-3. **Document missing ADF features** — Add the 18 undocumented features to the "Deliberately out of scope" table in CCFM.md, grouped by reason:
-   - Not applicable (Confluence-managed): `syncBlock`, `bodiedSyncBlock`, `annotation`, `dataConsumer`, `fragment`, `placeholder`
-   - Future consideration: `layoutSection/Column`, `extension/bodiedExtension`, `blockCard`, `embedCard`, `caption`, `nestedExpand`, `inlineExtension`
-   - Low priority: `decisionList/Item`, `blockTaskItem`, `indentation`, `fontSize`, `breakout`, `border`, `multiBodiedExtension/extensionFrame`
+| Feature | Status |
+|---------|--------|
+| `caption` on mediaSingle | Implemented |
+| `blockCard` (bare URL) | Implemented |
+| `embedCard` (`@embed(url)`) | Implemented |
+| `extension` (`@toc`, `@children`, `@macro(params)`) | Implemented |
+| `nestedExpand` (node constructor) | Implemented (auto-detection deferred) |
+| `inlineExtension` (`@jira(KEY)`) | Implemented |
 
-### Future Feature Candidates (by user value)
+### Remaining Future Candidates
 
-| Priority | Feature | Effort | User Value |
-|----------|---------|--------|------------|
-| High | `layoutSection` + `layoutColumn` | Medium | Multi-column layouts very popular |
-| High | `extension` (macros like TOC, Jira filter) | Medium | TOC macro alone is high demand |
-| Medium | `blockCard` / `embedCard` | Low-Medium | Smart link embeds (Jira, YouTube) |
-| Medium | `caption` on mediaSingle | Low | Image captions improve docs |
-| Medium | `inlineExtension` | Low | Inline Jira issue references |
-| Low | `bodiedExtension` | Medium | Excerpt, code-block macros |
-| Low | `nestedExpand` | Low | Expand inside tables |
-| Low | `tip` panel type | Trivial | Already close to done |
+| Priority | Feature | Effort | Issue |
+|----------|---------|--------|-------|
+| High | `layoutSection` + `layoutColumn` | Medium | [#38](https://github.com/stevesimpson418/ccfm-convert/issues/38) |
+| Medium | `bodiedExtension` (excerpt macro) | Medium | [#39](https://github.com/stevesimpson418/ccfm-convert/issues/39) |
+| Medium | `multiBodiedExtension` (tabs) | High | [#39](https://github.com/stevesimpson418/ccfm-convert/issues/39) |
