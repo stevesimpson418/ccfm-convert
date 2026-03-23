@@ -706,6 +706,34 @@ class TestParagraphStopConditions:
         assert "paragraph" in types
         assert "table" in types
 
+    def test_paragraph_stops_at_image(self):
+        """Paragraph collection stops at a standalone image."""
+        result = convert("Some text\n![alt](img.png)")
+
+        assert result["content"][0]["type"] == "paragraph"
+        assert result["content"][1]["type"] == "mediaSingle"
+
+    def test_paragraph_stops_at_embed(self):
+        """Paragraph collection stops at @embed()."""
+        result = convert("Some text\n@embed(https://youtube.com/watch?v=abc)")
+
+        assert result["content"][0]["type"] == "paragraph"
+        assert result["content"][1]["type"] == "embedCard"
+
+    def test_paragraph_stops_at_macro(self):
+        """Paragraph collection stops at @macro."""
+        result = convert("Some text\n@toc")
+
+        assert result["content"][0]["type"] == "paragraph"
+        assert result["content"][1]["type"] == "extension"
+
+    def test_paragraph_stops_at_bare_url(self):
+        """Paragraph collection stops at bare URL (blockCard)."""
+        result = convert("Some text\nhttps://example.com")
+
+        assert result["content"][0]["type"] == "paragraph"
+        assert result["content"][1]["type"] == "blockCard"
+
 
 class TestBackwardsCompatibilityAlias:
     """Test the convert_markdown_to_adf alias (line 178)."""
