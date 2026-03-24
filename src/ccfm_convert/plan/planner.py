@@ -7,12 +7,17 @@ Usage:
         # proceed with apply
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from ccfm_convert.deploy.frontmatter import parse_frontmatter
 from ccfm_convert.state.manager import StateManager
+
+if TYPE_CHECKING:
+    from ccfm_convert.deploy.dependencies import DependencyGraph
 
 
 @dataclass
@@ -44,6 +49,7 @@ class DeployPlan:
 
     page_actions: list[PageAction] = field(default_factory=list)
     destroy_actions: list[DestroyAction] = field(default_factory=list)
+    dependency_graph: DependencyGraph | None = None
 
     def has_changes(self) -> bool:
         """Return True if any deployable action exists (excludes no-op)."""
@@ -92,6 +98,27 @@ class DeployPlan:
 
         print()
         print(f"Plan: {', '.join(parts)}.")
+
+        # Dependency information
+        if self.dependency_graph:
+            graph = self.dependency_graph
+            if graph.cycles:
+                for cycle in graph.cycles:
+                    chain = " → ".join(cycle)
+                    print(f"  ⚠️  Circular dependency: {chain} (deploying in file order)")
+            if graph.unresolved:
+                for title, deps in graph.unresolved.items():
+                    for dep in deps:
+                        print(f'  ⚠️  Unresolved link: "{title}" links to "{dep}"')
+            if len(graph.order) > 1:
+                # Show deploy order using titles from actionable items
+                action_titles = {a.filepath: a.title for a in self.page_actions}
+                ordered_titles = [
+                    action_titles.get(f, f.stem) for f in graph.order if f in action_titles
+                ]
+                if len(ordered_titles) > 1:
+                    print(f"  Deploy order: {' → '.join(ordered_titles)}")
+
         print()
 
 
