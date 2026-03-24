@@ -226,6 +226,39 @@ to the live page and renders it as a smart link.
 > capitalisation. CCFM does not validate this at compile time — a wrong title will result in
 > an unresolved card in Confluence.
 
+### Smart Links (Jira, GitHub, etc.)
+
+To render a URL as a Smart Link card (rich preview with title, status, icon), use angle brackets
+around the URL — the same syntax used for Confluence page links:
+
+```markdown
+[KAN-1](<https://your-org.atlassian.net/browse/KAN-1>)
+
+[PR #42](<https://github.com/org/repo/pull/42>)
+```
+
+Confluence resolves the URL via its Smart Links system and displays a rich inline card.
+
+> **Note:** `[text](url)` without angle brackets creates a plain hyperlink.
+> `[text](<url>)` with angle brackets creates a Smart Link card (`inlineCard` node).
+
+### Anchor links
+
+Create named anchor points using the `@anchor()` inline macro, then link to them with
+standard `#anchor-name` syntax.
+
+```markdown
+<!-- Create an anchor -->
+@anchor(my-section)
+
+<!-- Link to it from elsewhere on the page -->
+[Jump to my section](#my-section)
+```
+
+The `@anchor(name)` macro creates an invisible link target at that position. It renders as
+a Confluence anchor macro (`inlineExtension` node). The link `[text](#name)` renders as a
+standard markdown link with the `#` fragment pointing to the anchor.
+
 ---
 
 ## Images
@@ -679,9 +712,13 @@ Complete mapping of every supported ADF node and mark to its CCFM syntax.
 | `tableRow` | Table row | Implicit in table syntax |
 | `tableHeader` | First row of table | Rendered bold, shaded |
 | `tableCell` | Table cell | Alignment via `:` in separator |
-| `panel` | `> [!info]` etc. | Five types: info, note, warning, success, error |
+| `panel` | `> [!info]` etc. | Five types: info, note, warning, success, error. `> [!tip]` accepted, maps to note |
 | `expand` | `> [!expand Title]` | Collapsible section |
 | `mediaSingle` | `![alt](url)` or `![alt](url){width=VALUE}` | Image block; width preset or pixel value |
+| `caption` | `![alt](url "caption text")` | Image caption (title string after URL) |
+| `blockCard` | Bare URL on its own line | Full-width smart link card |
+| `embedCard` | `@embed(url)` | Embedded preview for videos/external content |
+| `extension` | `@toc`, `@children`, `@macro(params)` | Confluence bodyless macro |
 
 ### Inline nodes
 
@@ -693,6 +730,7 @@ Complete mapping of every supported ADF node and mark to its CCFM syntax.
 | `emoji` | `:shortname:` | Atlassian emoji set |
 | `status` | `::text::color::` | Coloured inline label |
 | `date` | `@date:YYYY-MM-DD` | Localised date node |
+| `inlineExtension` | `@anchor(name)` | Inline Confluence macro (e.g. anchors) |
 
 ### Marks
 
@@ -706,6 +744,7 @@ Complete mapping of every supported ADF node and mark to its CCFM syntax.
 | `underline` | `++text++` | Use sparingly |
 | `subsup` superscript | `^text^` | Superscript |
 | `subsup` subscript | `~text~` | Subscript (single word, no spaces) |
+| `alignment` | Table column `:` syntax | Auto-generated on table cell paragraphs; not authored directly |
 
 ### Deliberately out of scope
 
@@ -717,3 +756,33 @@ Complete mapping of every supported ADF node and mark to its CCFM syntax.
 | `media` | Created automatically inside `mediaSingle` for local attachments; not authored directly |
 | `mediaGroup` | Editor-only layout feature |
 | `mediaInline` | Editor-only inline image variant |
+| `custom` panel type | Complex attrs (icon, colour) for low practical value; six panel types cover all use cases |
+| `decisionList` / `decisionItem` | Niche Confluence feature with no natural markdown mapping |
+| `blockTaskItem` | `taskItem` covers the vast majority of use cases |
+| `indentation` mark | Rarely needed in technical docs; no markdown convention |
+| `fontSize` mark | ADF schema only allows `"small"` — too limited to justify syntax |
+| `breakout` mark | Low value; could auto-apply but not worth the complexity |
+| `border` mark | Cosmetic media decoration with low practical value |
+| `nestedExpand` | Node constructor available but auto-detection requires table parser enhancement |
+
+### Not yet implemented
+
+These features have open feature requests. Upvote or comment to indicate interest.
+
+| ADF Feature | Proposed Syntax | Issue |
+| --- | --- | --- |
+| `layoutSection` / `layoutColumn` | Fenced directives (`:::`) | [#38](https://github.com/stevesimpson418/ccfm-convert/issues/38) |
+| `bodiedExtension` | Fenced directive with body content | [#39](https://github.com/stevesimpson418/ccfm-convert/issues/39) |
+| `multiBodiedExtension` / `extensionFrame` | Nested fenced directives (tabs) | [#39](https://github.com/stevesimpson418/ccfm-convert/issues/39) |
+
+### Confluence internal nodes (not applicable)
+
+These ADF node types are managed by Confluence internally and are not relevant to content authoring.
+
+| ADF Feature | What It Is |
+| --- | --- |
+| `syncBlock` / `bodiedSyncBlock` | Synced content blocks (Confluence runtime IDs) |
+| `annotation` mark | Inline comment anchors (editor-managed) |
+| `dataConsumer` mark | Extension-to-data-source wiring (system-managed) |
+| `fragment` mark | Cross-document fragment references (system-managed) |
+| `placeholder` | Editor placeholder UI element (not in published content) |

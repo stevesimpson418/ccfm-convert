@@ -14,7 +14,15 @@ Usage:
 
 import re
 
-from .nodes import date_node, emoji_node, hard_break, inline_card, status_node, text_node
+from .nodes import (
+    date_node,
+    emoji_node,
+    hard_break,
+    inline_card,
+    inline_extension_node,
+    status_node,
+    text_node,
+)
 
 # Patterns ordered so that longer/more specific matches win when starting at
 # the same position. The parser picks the earliest match overall.
@@ -23,6 +31,8 @@ _INLINE_PATTERNS = [
     ("status", re.compile(r"::([^:]+)::(\w+)::")),
     # Date token: @date:YYYY-MM-DD
     ("date", re.compile(r"@date:(\d{4}-\d{2}-\d{2})")),
+    # Inline extension macro: @macro(params) — e.g., @anchor(section-name)
+    ("inline_ext", re.compile(r"@(\w+)\(([^)]+)\)")),
     # Emoji: :shortname:
     ("emoji", re.compile(r":([a-z0-9_+\-]+):")),
     # Confluence page link: [text](<page title>)
@@ -106,12 +116,33 @@ def parse_inline(text: str) -> list:
     elif best_type == "emoji":
         nodes.append(emoji_node(m.group(1)))
 
+    elif best_type == "inline_ext":
+        macro_name = m.group(1)
+        macro_params = m.group(2).strip()
+        # @embed is block-level only — emit as plain text when found inline
+        if macro_name == "embed":
+            nodes.append(text_node(m.group(0)))
+        else:
+            if "=" not in macro_params:
+                # Simple positional param: @macro(value) → {"key": "value"}
+                # Anchor macro uses empty-string key: @anchor(name) → {"": "name"}
+                param_key = "" if macro_name == "anchor" else "key"
+                params = {param_key: macro_params}
+            else:
+                params = {}
+                for part in re.findall(r'(\w+)=(?:"([^"]*)"|([^,\s]+))', macro_params):
+                    # part[1] is quoted value, part[2] is unquoted — exactly one is non-empty
+                    params[part[0]] = part[1] if part[1] != "" else part[2]
+            nodes.append(inline_extension_node(macro_name, parameters=params))
+
     elif best_type == "page_link":
-        page_title = m.group(2)
-        # Sentinel URL — deploy tool resolves to actual Confluence page URL.
-        # inlineCard renders as a smart card; markdown link text is intentionally
-        # discarded as Confluence shows the real page title automatically.
-        url = f"confluence-page://{page_title}"
+        link_target = m.group(2)
+        if link_target.startswith("http://") or link_target.startswith("https://"):
+            # External URL in angle brackets → Smart Link card (inlineCard)
+            url = link_target
+        else:
+            # Page title → sentinel URL resolved at deploy time
+            url = f"confluence-page://{link_target}"
         nodes.append(inline_card(url))
 
     elif best_type == "link":

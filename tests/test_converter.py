@@ -290,13 +290,38 @@ class TestImages:
         media = result["content"][0]["content"][0]
         assert media["attrs"]["url"] == "image.png"
 
-    @pytest.mark.skip(reason="Image title attribute may not be fully supported")
-    def test_image_with_title(self):
-        """Test image with title."""
-        result = convert('![Alt](img.png "Title")')
+    def test_image_with_title_becomes_caption(self):
+        """Test image with title string becomes caption node."""
+        result = convert('![Alt](img.png "Figure 1: Overview")')
 
-        media = result["content"][0]["content"][0]
+        ms = result["content"][0]
+        assert ms["type"] == "mediaSingle"
+        # First child is media node
+        media = ms["content"][0]
         assert media["attrs"]["url"] == "img.png"
+        # Second child is caption node
+        cap = ms["content"][1]
+        assert cap["type"] == "caption"
+        assert cap["content"][0]["text"] == "Figure 1: Overview"
+
+    def test_image_with_caption_and_width(self):
+        """Test image with both caption and width attribute."""
+        result = convert('![Alt](img.png "Caption text"){width=wide}')
+
+        ms = result["content"][0]
+        assert ms["attrs"]["layout"] == "wide"
+        media = ms["content"][0]
+        assert media["attrs"]["url"] == "img.png"
+        cap = ms["content"][1]
+        assert cap["type"] == "caption"
+        assert cap["content"][0]["text"] == "Caption text"
+
+    def test_image_without_title_has_no_caption(self):
+        """Test image without title string has no caption node."""
+        result = convert("![Alt](img.png)")
+
+        ms = result["content"][0]
+        assert len(ms["content"]) == 1  # Only media, no caption
 
     def test_image_url_with_double_quotes(self):
         """Test that double-quoted URLs are stripped of their quotes."""
@@ -354,6 +379,167 @@ class TestImages:
         assert ms["attrs"]["layout"] == "center"
         assert ms["attrs"]["width"] == 500
         assert ms["attrs"]["widthType"] == "pixel"
+
+
+class TestBlockCard:
+    """Test blockCard (bare URL on own line)."""
+
+    def test_bare_url_becomes_block_card(self):
+        """Bare URL on its own line becomes a blockCard node."""
+        result = convert("https://myorg.atlassian.net/browse/PROJ-456")
+
+        node = result["content"][0]
+        assert node["type"] == "blockCard"
+        assert node["attrs"]["url"] == "https://myorg.atlassian.net/browse/PROJ-456"
+
+    def test_bare_url_with_surrounding_paragraphs(self):
+        """blockCard between paragraphs produces three nodes."""
+        result = convert("Paragraph above.\n\nhttps://example.com/page\n\nParagraph below.")
+
+        assert len(result["content"]) == 3
+        assert result["content"][0]["type"] == "paragraph"
+        assert result["content"][1]["type"] == "blockCard"
+        assert result["content"][1]["attrs"]["url"] == "https://example.com/page"
+        assert result["content"][2]["type"] == "paragraph"
+
+    def test_url_in_text_stays_paragraph(self):
+        """URL mixed with text on the same line stays in a paragraph."""
+        result = convert("Visit https://example.com for details.")
+
+        assert result["content"][0]["type"] == "paragraph"
+
+    def test_bare_http_url(self):
+        """http:// URLs also become blockCards."""
+        result = convert("http://legacy.example.com")
+
+        assert result["content"][0]["type"] == "blockCard"
+
+    def test_markdown_link_not_block_card(self):
+        """[text](url) syntax should NOT become a blockCard."""
+        result = convert("[Link](https://example.com)")
+
+        assert result["content"][0]["type"] == "paragraph"
+
+
+class TestExtensionMacros:
+    """Test extension macros (@toc, @children, etc.)."""
+
+    def test_toc_macro(self):
+        """@toc on its own line becomes an extension node."""
+        result = convert("@toc")
+
+        node = result["content"][0]
+        assert node["type"] == "extension"
+        assert node["attrs"]["extensionKey"] == "toc"
+        assert node["attrs"]["extensionType"] == "com.atlassian.confluence.macro.core"
+
+    def test_children_macro(self):
+        """@children on its own line becomes an extension node."""
+        result = convert("@children")
+
+        node = result["content"][0]
+        assert node["type"] == "extension"
+        assert node["attrs"]["extensionKey"] == "children"
+
+    def test_toc_with_params(self):
+        """@toc(minLevel=2, maxLevel=4) parses parameters."""
+        result = convert("@toc(minLevel=2, maxLevel=4)")
+
+        node = result["content"][0]
+        assert node["type"] == "extension"
+        params = node["attrs"]["parameters"]["macroParams"]
+        assert params["minLevel"]["value"] == "2"
+        assert params["maxLevel"]["value"] == "4"
+
+    def test_macro_with_quoted_params(self):
+        """@macro(key="value") handles quoted param values."""
+        result = convert('@toc(style="disc", type="list")')
+
+        node = result["content"][0]
+        assert node["type"] == "extension"
+        assert node["attrs"]["extensionKey"] == "toc"
+        params = node["attrs"]["parameters"]["macroParams"]
+        assert params["style"]["value"] == "disc"
+        assert params["type"]["value"] == "list"
+
+    def test_macro_without_params_has_no_parameters_key(self):
+        """@toc without params should not have a parameters key."""
+        result = convert("@toc")
+
+        node = result["content"][0]
+        assert "parameters" not in node["attrs"]
+
+    def test_macro_between_paragraphs(self):
+        """Macro between paragraphs produces three nodes."""
+        result = convert("Text above.\n\n@toc\n\nText below.")
+
+        assert len(result["content"]) == 3
+        assert result["content"][0]["type"] == "paragraph"
+        assert result["content"][1]["type"] == "extension"
+        assert result["content"][2]["type"] == "paragraph"
+
+    def test_date_not_treated_as_macro(self):
+        """@date:YYYY-MM-DD should NOT become a macro — it's an inline date."""
+        result = convert("Due on @date:2026-03-23.")
+
+        assert result["content"][0]["type"] == "paragraph"
+
+    def test_macro_name_in_sentence_stays_paragraph(self):
+        """@toc inside a sentence should NOT become a block extension."""
+        result = convert("See @toc for the table of contents.")
+
+        assert result["content"][0]["type"] == "paragraph"
+
+    def test_macro_with_simple_positional_param(self):
+        """@macro(value) on its own line passes positional param as 'key'."""
+        result = convert("@status(active)")
+
+        node = result["content"][0]
+        assert node["type"] == "extension"
+        params = node["attrs"]["parameters"]["macroParams"]
+        assert params["key"]["value"] == "active"
+
+    def test_anchor_on_own_line_becomes_inline_in_paragraph(self):
+        """@anchor(name) on its own line becomes inlineExtension inside a paragraph."""
+        result = convert("@anchor(my-section)")
+
+        # Anchor is always inline — even on its own line it gets wrapped in a paragraph
+        node = result["content"][0]
+        assert node["type"] == "paragraph"
+        ext = node["content"][0]
+        assert ext["type"] == "inlineExtension"
+        assert ext["attrs"]["extensionKey"] == "anchor"
+        params = ext["attrs"]["parameters"]["macroParams"]
+        assert params[""]["value"] == "my-section"
+
+
+class TestEmbedCard:
+    """Test embedCard (@embed(url) syntax)."""
+
+    def test_embed_becomes_embed_card(self):
+        """@embed(url) on its own line becomes an embedCard."""
+        result = convert("@embed(https://www.youtube.com/watch?v=abc123)")
+
+        node = result["content"][0]
+        assert node["type"] == "embedCard"
+        assert node["attrs"]["url"] == "https://www.youtube.com/watch?v=abc123"
+        assert node["attrs"]["layout"] == "center"
+
+    def test_embed_with_surrounding_content(self):
+        """embedCard between paragraphs produces three nodes."""
+        md = "Text above.\n\n@embed(https://www.loom.com/share/abc)\n\nText below."
+        result = convert(md)
+
+        assert len(result["content"]) == 3
+        assert result["content"][0]["type"] == "paragraph"
+        assert result["content"][1]["type"] == "embedCard"
+        assert result["content"][2]["type"] == "paragraph"
+
+    def test_embed_inline_not_detected(self):
+        """@embed() inside text should not be extracted as a block node."""
+        result = convert("Use @embed(url) to embed content.")
+
+        assert result["content"][0]["type"] == "paragraph"
 
 
 class TestLinks:
@@ -542,6 +728,34 @@ class TestParagraphStopConditions:
         types = [n["type"] for n in result["content"]]
         assert "paragraph" in types
         assert "table" in types
+
+    def test_paragraph_stops_at_image(self):
+        """Paragraph collection stops at a standalone image."""
+        result = convert("Some text\n![alt](img.png)")
+
+        assert result["content"][0]["type"] == "paragraph"
+        assert result["content"][1]["type"] == "mediaSingle"
+
+    def test_paragraph_stops_at_embed(self):
+        """Paragraph collection stops at @embed()."""
+        result = convert("Some text\n@embed(https://youtube.com/watch?v=abc)")
+
+        assert result["content"][0]["type"] == "paragraph"
+        assert result["content"][1]["type"] == "embedCard"
+
+    def test_paragraph_stops_at_macro(self):
+        """Paragraph collection stops at @macro."""
+        result = convert("Some text\n@toc")
+
+        assert result["content"][0]["type"] == "paragraph"
+        assert result["content"][1]["type"] == "extension"
+
+    def test_paragraph_stops_at_bare_url(self):
+        """Paragraph collection stops at bare URL (blockCard)."""
+        result = convert("Some text\nhttps://example.com")
+
+        assert result["content"][0]["type"] == "paragraph"
+        assert result["content"][1]["type"] == "blockCard"
 
 
 class TestBackwardsCompatibilityAlias:

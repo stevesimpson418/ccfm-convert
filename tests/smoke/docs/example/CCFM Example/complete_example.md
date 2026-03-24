@@ -116,6 +116,14 @@ This is an internal page link to My Team [CCFM Example - My Team](<CCFM Example 
 
 And another one for My App [CCFM Example - My App](<CCFM Example - My App>).
 
+### Anchor links
+
+Link to a named anchor on this page using `#anchor-name` syntax:
+
+<!-- markdownlint-disable MD051 -->
+[Jump to inline macros section](#inline-macros-section)
+<!-- markdownlint-enable MD051 -->
+
 ---
 
 ## Images
@@ -327,7 +335,7 @@ A multi-line blockquote:
 
 ## Panels
 
-All five panel types, each with inline formatting inside.
+All five panel types plus the tip alias, each with inline formatting inside.
 
 <!-- markdownlint-disable MD028 -->
 > [!info]
@@ -349,6 +357,10 @@ All five panel types, each with inline formatting inside.
 > [!error]
 > **Error panel.** This is red. Use it for errors, breaking changes, critical issues, and
 > things that will cause data loss or system failure. Do not use for minor warnings.
+
+> [!tip]
+> **Tip panel.** The `[!tip]` syntax is accepted and maps to a note panel (purple).
+> Confluence Cloud has no distinct renderer for `panelType: "tip"`.
 
 A multi-paragraph panel:
 
@@ -490,8 +502,77 @@ coexist without interfering with each other.
 <!-- markdownlint-disable MD059 -->
 This sentence has **bold**, *italic*, ***bold italic***, ~~strikethrough~~, ++underline++,
 `code`, a [link](https://example.com), a [page link](<CCFM Example - My Team>), an emoji :rocket:,
-a status ::Live::green::, a date @date:2026-02-17, superscript x^2^, and subscript H~2~O.
+a status ::Live::green::, a date @date:2026-02-17, superscript x^2^, subscript H~2~O,
+and a Jira Smart Link [KAN-1](<https://ccfm.atlassian.net/browse/KAN-1>).
 Everything should render independently without breaking adjacent elements.
+
+---
+
+## Image captions
+
+An image with a caption using the markdown title string:
+
+![Atlassian logo](https://wac-cdn.atlassian.com/misc-assets/adg4-nav/AtlassianHeaderLogo.svg "Figure 1: The Atlassian logo rendered via CCFM image caption support.")
+
+An image without a caption (no title string):
+
+![Plain image](https://wac-cdn.atlassian.com/misc-assets/adg4-nav/AtlassianHeaderLogo.svg)
+
+---
+
+## Smart link cards (blockCard)
+
+A bare URL on its own line renders as a full-width smart link card:
+
+<!-- markdownlint-disable MD034 -->
+https://www.atlassian.com/software/confluence
+
+Another smart link card:
+
+https://developer.atlassian.com/cloud/confluence/rest/v2/intro/
+<!-- markdownlint-enable MD034 -->
+
+---
+
+## Embedded content (embedCard)
+
+Embed external content using `@embed(url)`:
+
+<!-- markdownlint-disable MD034 -->
+@embed(https://www.youtube.com/watch?v=dQw4w9WgXcQ)
+<!-- markdownlint-enable MD034 -->
+
+---
+
+## Confluence macros (extension)
+
+Table of contents macro:
+
+@toc
+
+Page children macro:
+
+@children
+
+TOC with parameters:
+
+@toc(minLevel=2, maxLevel=4)
+
+---
+
+## Jira Smart Links
+
+Jira issue links automatically render as Smart Link cards — no special syntax needed:
+
+Reference a Jira issue inline: see [KAN-1](<https://ccfm.atlassian.net/browse/KAN-1>) for the
+full tracking ticket.
+
+## Inline macros (inlineExtension)
+
+@anchor(inline-macros-section)This section demonstrates inline Confluence macros.
+
+The anchor macro creates an invisible named link target that can be
+referenced from anywhere on the page using `#anchor-name` syntax.
 
 ---
 
