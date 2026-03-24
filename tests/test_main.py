@@ -3055,6 +3055,13 @@ class TestLockSubcommand:
 class TestConfigFileLoading:
     """Test ccfm.yaml config loading."""
 
+    @pytest.fixture(autouse=True)
+    def _clear_confluence_env(self, monkeypatch):
+        """Remove CONFLUENCE_* env vars so argparse defaults don't leak."""
+        monkeypatch.delenv("CONFLUENCE_DOMAIN", raising=False)
+        monkeypatch.delenv("CONFLUENCE_EMAIL", raising=False)
+        monkeypatch.delenv("CONFLUENCE_TOKEN", raising=False)
+
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
     @patch("ccfm_convert.main.ConfluenceBackend")
@@ -3278,27 +3285,30 @@ class TestTokenHandling:
             "example.atlassian.net", "test@example.com", "env-token-value"
         )
 
-    def test_missing_token_exits_with_error(self):
-        """No --token and empty CONFLUENCE_TOKEN env var causes a SystemExit."""
-        with patch.dict(os.environ, {"CONFLUENCE_TOKEN": ""}):
-            with pytest.raises(SystemExit):
-                with patch(
-                    "sys.argv",
-                    [
-                        "main.py",
-                        "--domain",
-                        "example.atlassian.net",
-                        "--email",
-                        "test@example.com",
-                        "--space",
-                        "TEST",
-                        "apply",
-                        "--auto-approve",
-                        "--file",
-                        "test.md",
-                    ],
-                ):
-                    main.main()
+    def test_missing_token_exits_with_error(self, monkeypatch, tmp_path):
+        """No --token and no CONFLUENCE_TOKEN env var causes a SystemExit."""
+        monkeypatch.delenv("CONFLUENCE_TOKEN", raising=False)
+        test_file = tmp_path / "test.md"
+        test_file.write_text("# Test")
+        with pytest.raises(SystemExit) as exc_info:
+            with patch(
+                "sys.argv",
+                [
+                    "main.py",
+                    "--domain",
+                    "example.atlassian.net",
+                    "--email",
+                    "test@example.com",
+                    "--space",
+                    "TEST",
+                    "apply",
+                    "--auto-approve",
+                    "--file",
+                    str(test_file),
+                ],
+            ):
+                main.main()
+        assert exc_info.value.code == 2  # argparse parser.error exits with code 2
 
 
 # ---------------------------------------------------------------------------
