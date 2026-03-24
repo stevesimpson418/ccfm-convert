@@ -150,7 +150,7 @@ read -r
 
 phase "Phase 1: Verify CLI Help"
 
-step_header "1.1" "Root help" "Shows all subcommands (init, plan, apply, dump, state, lock)"
+step_header "1.1" "Root help" "Shows all subcommands (init, plan, apply, state, lock)"
 run_cmd ccfm --help
 verdict
 
@@ -158,23 +158,19 @@ step_header "1.2" "Init help" "Shows init options"
 run_cmd ccfm init --help
 verdict
 
-step_header "1.3" "Plan help" "Shows --file, --directory, --plan-exit-code, --force"
+step_header "1.3" "Plan help" "Shows --docs-root, --debug-file, --plan-exit-code, --force"
 run_cmd ccfm plan --help
 verdict
 
-step_header "1.4" "Apply help" "Shows --auto-approve, --force, --lock-id"
+step_header "1.4" "Apply help" "Shows --docs-root, --auto-approve, --force, --lock-id"
 run_cmd ccfm apply --help
 verdict
 
-step_header "1.5" "Dump help" "Shows --file, --directory, --output-dir"
-run_cmd ccfm dump --help
-verdict
-
-step_header "1.6" "State help" "Shows list, pull, push, rm, show"
+step_header "1.5" "State help" "Shows list, pull, push, rm, show"
 run_cmd ccfm state --help
 verdict
 
-step_header "1.7" "Lock help" "Shows status, acquire, release"
+step_header "1.6" "Lock help" "Shows status, acquire, release"
 run_cmd ccfm lock --help
 verdict
 
@@ -184,25 +180,25 @@ verdict
 
 phase "Phase 2: Plan"
 
-step_header "2.1" "Plan with no target" "Error: Specify either --file or --directory"
+step_header "2.1" "Plan with no docs_root" "Error: No docs_root configured"
+run_cmd ccfm plan
+verdict
+
+step_header "2.2" "Plan docs_root from config" "Plan: 8 to add."
 run_cmd ccfm $CFG plan
 verdict
 
-step_header "2.2" "Plan single file" "Plan: 1 to add."
-run_cmd ccfm $CFG plan --file "$SINGLE_PAGE"
-verdict
-
-step_header "2.3" "Plan directory" "Plan: 7 to add."
-run_cmd ccfm $CFG plan --directory "$SMOKE_DOCS"
-verdict
-
-step_header "2.4" "Plan with --plan-exit-code" "Exit code 2"
-echo -e "${DIM}\$ ccfm $CFG plan --directory $SMOKE_DOCS --plan-exit-code${NC}"
+step_header "2.3" "Plan with --plan-exit-code" "Exit code 2"
+echo -e "${DIM}\$ ccfm $CFG plan --plan-exit-code${NC}"
 echo ""
 rc=0
-ccfm $CFG plan --directory "$SMOKE_DOCS" --plan-exit-code || rc=$?
+ccfm $CFG plan --plan-exit-code || rc=$?
 echo ""
 echo -e "${DIM}Exit code: $rc${NC}"
+verdict
+
+step_header "2.4" "Debug file" "Prints valid ADF JSON to stdout"
+run_cmd ccfm plan --debug-file "$SINGLE_PAGE"
 verdict
 
 # ===================================================================
@@ -211,13 +207,13 @@ verdict
 
 phase "Phase 3: Apply"
 
-step_header "3.1" "Apply single file (interactive)" "Prompts for 'yes', creates page on 'yes'"
+step_header "3.1" "Apply (interactive)" "Prompts for 'yes', creates pages on 'yes'"
 manual_note "Type 'yes' at the prompt"
-run_cmd_interactive ccfm $CFG apply --file "$SINGLE_PAGE"
+run_cmd_interactive ccfm $CFG apply
 verdict
 
-step_header "3.2" "Re-apply unchanged file" "No changes. Your Confluence pages are up to date."
-run_cmd ccfm $CFG apply --auto-approve --file "$SINGLE_PAGE"
+step_header "3.2" "Re-apply (no changes)" "No changes. Your Confluence pages are up to date."
+run_cmd ccfm $CFG apply --auto-approve
 verdict
 
 step_header "3.3" "Apply changed file (interactive)" "Plan: 1 to change."
@@ -225,68 +221,60 @@ manual_note "Appending a line to single-page.md for change detection..."
 echo "" >> "$SINGLE_PAGE"
 echo "<!-- manual test change -->" >> "$SINGLE_PAGE"
 manual_note "Type 'yes' at the prompt"
-run_cmd_interactive ccfm $CFG apply --file "$SINGLE_PAGE"
+run_cmd_interactive ccfm $CFG apply
 manual_note "Reverting change..."
 git checkout -- "$SINGLE_PAGE"
 verdict
 
-step_header "3.4" "Apply directory with --auto-approve" "Deploys all 7 files, no prompt"
-run_cmd ccfm $CFG apply --directory "$SMOKE_DOCS" --auto-approve
+step_header "3.4" "Apply with --auto-approve" "Deploys files, no prompt"
+run_cmd ccfm $CFG apply --auto-approve
 verdict
 
-step_header "3.5" "Re-apply directory (no changes)" "No changes to apply."
-run_cmd ccfm $CFG apply --directory "$SMOKE_DOCS" --auto-approve
+step_header "3.5" "Re-apply (no changes)" "No changes to apply."
+run_cmd ccfm $CFG apply --auto-approve
 verdict
 
-step_header "3.6" "Apply with --force (interactive)" "Plan: 7 to add. (force treats all as new)"
+step_header "3.6" "Apply with --force (interactive)" "Plan: 8 to add. (force treats all as new)"
 manual_note "Type 'yes' at the prompt"
-run_cmd_interactive ccfm $CFG apply --directory "$SMOKE_DOCS" --force
+run_cmd_interactive ccfm $CFG apply --force
 verdict
 
 step_header "3.7" "Apply with --force --auto-approve" "Same as 3.6, no prompt"
-run_cmd ccfm $CFG apply --directory "$SMOKE_DOCS" --force --auto-approve
+run_cmd ccfm $CFG apply --force --auto-approve
 verdict
 
 step_header "3.8" "Interactive rejection: 'no'" "Apply cancelled."
 manual_note "Type 'no' at the prompt"
-run_cmd_interactive ccfm $CFG apply --directory "$SMOKE_DOCS" --force
+run_cmd_interactive ccfm $CFG apply --force
 verdict
 
 step_header "3.9" "Interactive rejection: 'y'" "Apply cancelled. (only 'yes' accepted)"
 manual_note "Type 'y' at the prompt"
-run_cmd_interactive ccfm $CFG apply --directory "$SMOKE_DOCS" --force
+run_cmd_interactive ccfm $CFG apply --force
 verdict
 
 step_header "3.10" "Interactive accept: 'Yes'" "Proceeds (case-insensitive)"
 manual_note "Type 'Yes' at the prompt"
-run_cmd_interactive ccfm $CFG apply --directory "$SMOKE_DOCS" --force
+run_cmd_interactive ccfm $CFG apply --force
 verdict
 
 # ===================================================================
-# Phase 4: Dump
+# Phase 4: Debug File
 # ===================================================================
 
-phase "Phase 4: Dump"
+phase "Phase 4: Debug File"
 
-step_header "4.1" "Dump single file" "Creates .ccfm/dumps/<timestamp>/ dir with .adf.json"
-run_cmd ccfm dump --file "$SINGLE_PAGE"
-echo -e "${DIM}Dump directories:${NC}"
-ls .ccfm/dumps/ 2>/dev/null || echo "(none found)"
+step_header "4.1" "Debug file single page" "Prints ADF JSON to stdout"
+run_cmd ccfm plan --debug-file "$SINGLE_PAGE"
 verdict
 
-step_header "4.2" "Dump directory with --output-dir" "Writes .adf.json files to /tmp/ccfm-manual-test"
-rm -rf /tmp/ccfm-manual-test
-run_cmd ccfm dump --directory "$SMOKE_DOCS" --output-dir /tmp/ccfm-manual-test
-echo -e "${DIM}Output files:${NC}"
-find /tmp/ccfm-manual-test -name "*.adf.json" 2>/dev/null | head -20
+step_header "4.2" "Debug file piped to jq" 'Prints "doc"'
+run_cmd 'ccfm plan --debug-file "'"$SINGLE_PAGE"'" | jq .type'
 verdict
 
-step_header "4.3" "Dump file with page links (regression)" "Succeeds (no NoneType crash)"
-run_cmd ccfm dump --file "\"$COMPLETE_EXAMPLE\"" --output-dir /tmp/ccfm-manual-test-links
+step_header "4.3" "Debug file with page links (regression)" "Succeeds (no crash)"
+run_cmd ccfm plan --debug-file "\"$COMPLETE_EXAMPLE\""
 verdict
-
-# Cleanup dump output
-rm -rf .ccfm/dumps /tmp/ccfm-manual-test /tmp/ccfm-manual-test-links
 
 # ===================================================================
 # Phase 5: Destroy
@@ -296,20 +284,20 @@ phase "Phase 5: Destroy"
 
 step_header "5.1-5.2" "Move file and plan destroy" "Shows destroy for single-page"
 mv "$SINGLE_PAGE" "$SINGLE_PAGE.bak"
-run_cmd ccfm $CFG plan --directory "$SMOKE_DOCS"
+run_cmd ccfm $CFG plan
 verdict
 
 step_header "5.3" "Apply destroy" "Destroys single-page and its container"
-run_cmd ccfm $CFG apply --directory "$SMOKE_DOCS" --auto-approve
+run_cmd ccfm $CFG apply --auto-approve
 verdict
 
 step_header "5.4" "Re-apply after destroy (no changes)" "No changes to apply."
-run_cmd ccfm $CFG apply --directory "$SMOKE_DOCS" --auto-approve
+run_cmd ccfm $CFG apply --auto-approve
 verdict
 
 step_header "5.5-5.6" "Restore file and re-add" "Plan: 1 to add. Re-creates page"
 mv "$SINGLE_PAGE.bak" "$SINGLE_PAGE"
-run_cmd ccfm $CFG apply --directory "$SMOKE_DOCS" --auto-approve
+run_cmd ccfm $CFG apply --auto-approve
 verdict
 
 # --- deploy_page: false destroy ---
@@ -327,21 +315,21 @@ if txt.startswith('---'):
 else:
     open(p, 'w').write('---\ndeploy_config:\n  deploy_page: false\n---\n' + txt)
 "
-run_cmd ccfm $CFG plan --directory "$SMOKE_DOCS"
+run_cmd ccfm $CFG plan
 verdict
 
 step_header "5.9" "Apply deploy_page: false destroy" "Destroys single-page, removes from state"
-run_cmd ccfm $CFG apply --directory "$SMOKE_DOCS" --auto-approve
+run_cmd ccfm $CFG apply --auto-approve
 verdict
 
 step_header "5.10" "Re-apply after deploy_page: false destroy" "No changes to apply."
-run_cmd ccfm $CFG apply --directory "$SMOKE_DOCS" --auto-approve
+run_cmd ccfm $CFG apply --auto-approve
 verdict
 
 step_header "5.11-5.12" "Revert deploy_page: false and re-add" "Plan: 1 to add. Re-creates page"
 manual_note "Reverting single-page.md..."
 mv "$SINGLE_PAGE.bak" "$SINGLE_PAGE"
-run_cmd ccfm $CFG apply --directory "$SMOKE_DOCS" --auto-approve
+run_cmd ccfm $CFG apply --auto-approve
 verdict
 
 # ===================================================================
@@ -400,7 +388,7 @@ run_cmd ccfm $CFG lock status
 verdict
 
 step_header "7.4" "Apply blocked by lock" "Error: State is locked by ..."
-run_cmd ccfm $CFG apply --directory "$SMOKE_DOCS" --auto-approve --force
+run_cmd ccfm $CFG apply --auto-approve --force
 verdict
 
 step_header "7.5" "Lock release" "Lock released."
@@ -421,40 +409,30 @@ verdict
 
 phase "Phase 8: Error Handling"
 
-step_header "8.1" "Apply missing file" "Error: File not found: nonexistent.md"
-run_cmd ccfm $CFG apply --file nonexistent.md
+step_header "8.1" "Missing docs_root" "Error: docs_root not found: nonexistent-dir"
+run_cmd ccfm $CFG plan --docs-root nonexistent-dir
 verdict
 
-step_header "8.2" "Apply missing directory" "Error: Directory not found: nonexistent-dir"
-run_cmd ccfm $CFG apply --directory nonexistent-dir
+step_header "8.2" "No docs_root configured" "Error: No docs_root configured"
+run_cmd ccfm plan
 verdict
 
-step_header "8.3" "Apply no target" "Error: Specify either --file or --directory"
-run_cmd ccfm $CFG apply
+step_header "8.3" "Debug file missing" "error: File not found: nonexistent.md"
+run_cmd ccfm plan --debug-file nonexistent.md
 verdict
 
+# ===================================================================
+# Phase 9: Dependency Ordering
 # ===================================================================
 
 phase "Phase 9: Dependency Ordering"
 
-step_header "9.1" "Plan directory shows dependency order" "Plan output includes Deploy order line"
-run_cmd ccfm $CFG plan --directory "$SMOKE_DOCS/example"
+step_header "9.1" "Plan shows dependency order" "Plan output includes Deploy order line"
+run_cmd ccfm $CFG plan
 verdict
 
-step_header "9.2" "Apply directory deploys in dependency order" "No 'Page not found for link' warnings"
-run_cmd ccfm $CFG apply --directory "$SMOKE_DOCS/example" --auto-approve
-verdict
-
-step_header "9.3" "Auto-deploy-deps with --file" "Deploys complete_example.md AND deps (My Team, My App)"
-run_cmd ccfm $CFG apply --file "$COMPLETE_EXAMPLE" --auto-deploy-deps --docs-root "$SMOKE_DOCS/example" --auto-approve --force
-verdict
-
-step_header "9.4" "Plan with --auto-deploy-deps" "Plan shows dependency files, not just target"
-run_cmd ccfm $CFG plan --file "$COMPLETE_EXAMPLE" --auto-deploy-deps --docs-root "$SMOKE_DOCS/example"
-verdict
-
-step_header "9.5" "Single file without --auto-deploy-deps" "Warnings for missing links expected"
-run_cmd ccfm $CFG apply --file "$COMPLETE_EXAMPLE" --auto-approve --force
+step_header "9.2" "Apply deploys in dependency order" "No 'Page not found for link' warnings"
+run_cmd ccfm $CFG apply --auto-approve
 verdict
 
 # ===================================================================

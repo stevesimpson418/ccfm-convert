@@ -19,12 +19,6 @@ inputs:
   space:
     description: "Confluence space key (e.g. DOCS)"
     required: true
-  directory:
-    description: "Directory to deploy recursively"
-    required: false
-  file:
-    description: "Single markdown file to deploy"
-    required: false
   args:
     description: "ccfm subcommand and arguments (e.g. plan, apply --auto-approve)"
     required: false
@@ -48,16 +42,10 @@ runs:
 
     - name: Deploy to Confluence
       run: |
-        TARGET=""
-        if [ -n "${{ inputs.directory }}" ]; then
-          TARGET="--directory ${{ inputs.directory }}"
-        elif [ -n "${{ inputs.file }}" ]; then
-          TARGET="--file ${{ inputs.file }}"
-        fi
         ccfm \
           --domain "${{ inputs.domain }}" \
           --email  "${{ inputs.email }}" \
           --token  "${{ inputs.token }}" \
           --space  "${{ inputs.space }}" \
-          ${{ inputs.args }} $TARGET
+          ${{ inputs.args }}
       shell: bash

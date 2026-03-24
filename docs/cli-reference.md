@@ -13,7 +13,6 @@ ccfm [GLOBAL OPTIONS] <command> [COMMAND OPTIONS]
 | `init` | Initialise remote state in a Confluence space |
 | `plan` | Preview what would change without making modifications |
 | `apply` | Apply changes to Confluence (add, change, destroy) |
-| `dump` | Convert markdown to ADF JSON files for inspection (no API calls) |
 | `state list` | List all pages tracked in remote state |
 | `state pull` | Print remote state JSON to stdout |
 | `state push <file>` | Overwrite remote state from a local file |
@@ -44,53 +43,46 @@ These apply to all commands:
 ```text
 ccfm plan [OPTIONS]
 
-Targets (one required):
-  --file PATH            Plan for a single markdown file
-  --directory PATH       Plan for a directory recursively
-
 Options:
-  --docs-root PATH       Documentation root directory (default: docs)
+  --docs-root PATH       Documentation root directory (default: docs, or set in ccfm.yaml)
   --git-repo-url URL     Git repo URL for CI banner source links
   --plan-exit-code       Exit 2 when plan detects pending changes (for CI gates)
   --force                Force re-deploy all files regardless of content changes
-  --auto-deploy-deps     Auto-include dependency pages when using --file (requires docs_root)
+  --debug-file PATH      Convert a single file to ADF JSON and print to stdout (no API calls)
 ```
 
-### Directory resolution
+### docs_root
 
-When neither `--file` nor `--directory` is given, the target directory is resolved
-using this fallback chain:
+All deployments target the full `docs_root` directory. The docs_root is resolved from:
 
-1. `--directory` CLI flag (explicit)
-2. `docs_root` from `ccfm.yaml` (config fallback)
+1. `--docs-root` CLI flag (explicit)
+2. `docs_root` from `ccfm.yaml` (config)
 3. If neither is set, an error is raised — there is no silent default
 
-The same resolution applies to `plan`, `apply`, and `dump`.
-
-### Single-file mode (`--file`)
-
-When using `--file` to target a single markdown file, **orphan detection is skipped**.
-Normally, plan and apply compare the full set of local files against remote state to
-detect pages that should be destroyed. In single-file mode this check is intentionally
-disabled because deploying one file should never trigger cleanup of unrelated pages.
+The same resolution applies to both `plan` and `apply`.
 
 ### Dependency ordering
 
-When deploying a directory, CCFM automatically analyses internal page links and deploys
-pages in dependency order (linked pages first). For single-file deployments, use
-`--auto-deploy-deps` to include dependency pages:
+When deploying, CCFM automatically analyses internal page links and deploys
+pages in dependency order (linked pages first). This is handled automatically
+for the full docs_root — no extra flags needed.
+
+### Debug file (`--debug-file`)
+
+Use `--debug-file` to convert a single markdown file to ADF JSON and print it to
+stdout for inspection. No credentials or API calls are needed:
 
 ```bash
-# Deploy a file and its dependencies automatically
-ccfm apply --file docs/overview.md --auto-deploy-deps --docs-root docs
-
-# Preview what --auto-deploy-deps would deploy
-ccfm plan --file docs/overview.md --auto-deploy-deps --docs-root docs
+ccfm plan --debug-file docs/my-page.md
+ccfm plan --debug-file docs/my-page.md --git-repo-url "https://github.com/org/repo"
 ```
 
-`--auto-deploy-deps` requires a valid `docs_root` (via `--docs-root` or `ccfm.yaml`) to
-discover dependency files. If a linked page title cannot be mapped to a local file, a
-warning is printed and the deployment continues.
+Output can be piped to `jq` or redirected to a file:
+
+```bash
+ccfm plan --debug-file docs/my-page.md | jq '.content[0]'
+ccfm plan --debug-file docs/my-page.md > my-page.adf.json
+```
 
 ---
 
@@ -99,38 +91,13 @@ warning is printed and the deployment continues.
 ```text
 ccfm apply [OPTIONS]
 
-Targets (one required):
-  --file PATH            Apply a single markdown file
-  --directory PATH       Apply a directory recursively
-
 Options:
-  --docs-root PATH       Documentation root directory (default: docs)
+  --docs-root PATH       Documentation root directory (default: docs, or set in ccfm.yaml)
   --git-repo-url URL     Git repo URL for CI banner source links
   --auto-approve         Skip confirmation prompt (required for CI/non-interactive use)
   --force                Force re-deploy all files regardless of content changes
   --lock-id ID           Lock identifier for CI traceability (e.g., pipeline ID)
-  --auto-deploy-deps     Auto-deploy dependency pages when using --file (requires docs_root)
 ```
-
----
-
-## Dump
-
-```text
-ccfm dump [OPTIONS]
-
-Targets (one required):
-  --file PATH            Single markdown file to dump
-  --directory PATH       Directory to dump (recursive)
-
-Options:
-  --docs-root PATH       Root documentation directory (default: docs)
-  --git-repo-url URL     Git repo URL for CI banner
-  --output-dir PATH      Output directory for .adf.json files (default: .ccfm/dumps/<timestamp>/)
-```
-
-No credentials are needed — dump is a local-only operation. The output directory mirrors the
-source tree structure (e.g., `docs/team/api.md` becomes `<output-dir>/docs/team/api.adf.json`).
 
 ---
 
@@ -219,30 +186,24 @@ ccfm --domain ... --email ... --token ... --space DOCS lock release
 # Initialise CCFM in your space (one-time setup)
 ccfm --domain company.atlassian.net --email user@example.com --token abc123 --space DOCS init
 
-# Preview what would change
-ccfm --domain company.atlassian.net --email user@example.com --token abc123 --space DOCS \
-  plan --directory path/to/docs
+# Preview what would change (credentials from ccfm.yaml)
+ccfm plan
 
-# Apply a single file (interactive prompt)
-ccfm --domain company.atlassian.net --email user@example.com --token abc123 --space DOCS \
-  apply --file path/to/api/authentication.md
+# Preview with explicit docs_root
+ccfm plan --docs-root path/to/docs
 
-# Apply entire docs folder with auto-approve (for CI)
-ccfm --domain company.atlassian.net --email user@example.com --token abc123 --space DOCS \
-  apply --directory path/to/docs --auto-approve
+# Apply all docs with auto-approve (for CI)
+ccfm apply --auto-approve
 
-# With CI banner links back to source files
-ccfm --domain company.atlassian.net --email user@example.com --token abc123 --space DOCS \
-  apply --directory path/to/docs --git-repo-url "https://github.com/org/repo/blob/main" --auto-approve
-
-# Preview changes (credentials from ccfm.yaml)
-ccfm plan --directory docs
+# Apply with explicit docs_root and CI banner links
+ccfm apply --docs-root path/to/docs \
+  --git-repo-url "https://github.com/org/repo/blob/main" --auto-approve
 
 # Force re-deploy all files
-ccfm apply --directory docs --force --auto-approve
+ccfm apply --force --auto-approve
 
-# Deploy a single file with its dependencies
-ccfm apply --file docs/team/overview.md --auto-deploy-deps --docs-root docs
+# Inspect a single file's ADF output
+ccfm plan --debug-file docs/team/overview.md
 
 # Check lock status
 ccfm --domain company.atlassian.net --email user@example.com --token abc123 --space DOCS \

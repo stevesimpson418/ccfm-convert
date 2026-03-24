@@ -3,11 +3,9 @@
 import textwrap
 
 from ccfm_convert.deploy.dependencies import (
-    DependencyGraph,
     build_dependency_graph,
     build_title_map,
     extract_page_links,
-    resolve_file_dependencies,
 )
 
 # ---------------------------------------------------------------------------
@@ -244,106 +242,3 @@ class TestBuildDependencyGraph:
         graph = build_dependency_graph([fa])
         assert graph.order == [fa]
         assert graph.cycles == []
-
-
-# ---------------------------------------------------------------------------
-# resolve_file_dependencies
-# ---------------------------------------------------------------------------
-
-
-class TestResolveFileDependencies:
-    def test_no_deps(self, tmp_path):
-        fa = tmp_path / "a.md"
-        fa.write_text("---\npage_meta:\n  title: Page A\n---\nNo links.")
-        result = resolve_file_dependencies(fa, tmp_path)
-        assert result == [fa]
-
-    def test_direct_dependency(self, tmp_path):
-        fb = tmp_path / "b.md"
-        fb.write_text("---\npage_meta:\n  title: Page B\n---\nLeaf.")
-        fa = tmp_path / "a.md"
-        fa.write_text("---\npage_meta:\n  title: Page A\n---\nSee [B](<Page B>).")
-        result = resolve_file_dependencies(fa, tmp_path)
-        assert result == [fb, fa]
-
-    def test_transitive_dependencies(self, tmp_path):
-        fc = tmp_path / "c.md"
-        fc.write_text("---\npage_meta:\n  title: Page C\n---\nLeaf.")
-        fb = tmp_path / "b.md"
-        fb.write_text("---\npage_meta:\n  title: Page B\n---\nSee [C](<Page C>).")
-        fa = tmp_path / "a.md"
-        fa.write_text("---\npage_meta:\n  title: Page A\n---\nSee [B](<Page B>).")
-        result = resolve_file_dependencies(fa, tmp_path)
-        assert result == [fc, fb, fa]
-
-    def test_unresolved_deps_excluded(self, tmp_path):
-        """Deps not found in docs_root are excluded (warning handled upstream)."""
-        fa = tmp_path / "a.md"
-        fa.write_text("---\npage_meta:\n  title: Page A\n---\nSee [X](<Missing Page>).")
-        result = resolve_file_dependencies(fa, tmp_path)
-        assert result == [fa]
-
-    def test_nested_directory(self, tmp_path):
-        """Files in subdirectories are discovered."""
-        sub = tmp_path / "sub"
-        sub.mkdir()
-        fb = sub / "b.md"
-        fb.write_text("---\npage_meta:\n  title: Page B\n---\nLeaf.")
-        fa = tmp_path / "a.md"
-        fa.write_text("---\npage_meta:\n  title: Page A\n---\nSee [B](<Page B>).")
-        result = resolve_file_dependencies(fa, tmp_path)
-        assert result == [fb, fa]
-
-    def test_cycle_handled_gracefully(self, tmp_path):
-        fa = tmp_path / "a.md"
-        fa.write_text("---\npage_meta:\n  title: Page A\n---\nSee [B](<Page B>).")
-        fb = tmp_path / "b.md"
-        fb.write_text("---\npage_meta:\n  title: Page B\n---\nSee [A](<Page A>).")
-        result = resolve_file_dependencies(fa, tmp_path)
-        # Both should be present, target file last
-        assert fa in result
-        assert fb in result
-        assert result[-1] == fa
-
-    def test_page_content_md_excluded_from_discovery(self, tmp_path):
-        """.page_content.md files are not auto-discovered as deployable deps."""
-        sub = tmp_path / "sub"
-        sub.mkdir()
-        pc = sub / ".page_content.md"
-        pc.write_text("---\npage_meta:\n  title: Container\n---\nContent.")
-        fa = tmp_path / "a.md"
-        fa.write_text("---\npage_meta:\n  title: Page A\n---\nSee [C](<Container>).")
-        result = resolve_file_dependencies(fa, tmp_path)
-        # .page_content.md should NOT be in the result — it's a container page
-        assert pc not in result
-        assert result == [fa]
-
-    def test_target_outside_docs_root(self, tmp_path):
-        """Target file not under docs_root is still included."""
-        other = tmp_path / "other"
-        other.mkdir()
-        fa = other / "a.md"
-        fa.write_text("---\npage_meta:\n  title: Page A\n---\nNo links.")
-        docs = tmp_path / "docs"
-        docs.mkdir()
-        result = resolve_file_dependencies(fa, docs)
-        assert result == [fa]
-
-    def test_missing_target_file_handled_in_bfs(self, tmp_path):
-        """A target file that doesn't exist on disk triggers OSError in BFS gracefully."""
-        missing = tmp_path / "missing.md"
-        # Not in docs_root rglob results, but will be appended by resolve_file_dependencies
-        result = resolve_file_dependencies(missing, tmp_path)
-        # missing file can't be read during BFS -> OSError caught, still appears in result
-        assert result[-1] == missing
-
-    def test_returns_graph_info(self, tmp_path):
-        """resolve_file_dependencies returns a tuple with graph when requested."""
-        fb = tmp_path / "b.md"
-        fb.write_text("---\npage_meta:\n  title: Page B\n---\nLeaf.")
-        fa = tmp_path / "a.md"
-        fa.write_text("---\npage_meta:\n  title: Page A\n---\nSee [B](<Page B>).")
-        files, graph = resolve_file_dependencies(fa, tmp_path, return_graph=True)
-        assert files == [fb, fa]
-        assert isinstance(graph, DependencyGraph)
-        assert graph.unresolved == {}

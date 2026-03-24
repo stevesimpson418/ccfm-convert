@@ -7,8 +7,6 @@ from .orchestration import (
     deploy_tree,
     destroy_page,
     destroy_pages,
-    dump_page,
-    dump_tree,
     ensure_page_hierarchy,
 )
 from .transforms import add_ci_banner, create_metadata_expand, resolve_page_links
@@ -24,6 +22,4 @@ __all__ = [
     "deploy_page",
     "destroy_page",
     "destroy_pages",
-    "dump_page",
-    "dump_tree",
 ]

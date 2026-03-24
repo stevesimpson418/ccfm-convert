@@ -4,6 +4,26 @@ All notable changes to CCFM are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Breaking Changes
+
+- **Removed `--file` and `--directory` flags** from `plan` and `apply` — all deployments
+  now target the full `docs_root` directory. Set via `--docs-root` or `docs_root` in
+  `ccfm.yaml`. This ensures consistent page hierarchy, reliable orphan detection, and
+  complete dependency resolution.
+- **Removed `dump` subcommand** — replaced by `plan --debug-file <path>` which prints
+  ADF JSON to stdout (no file I/O, pipeable).
+- **Removed `--auto-deploy-deps` flag** — no longer needed since all deployments cover
+  the full docs_root, making dependency resolution automatic.
+- **Removed `directory` and `file` inputs** from the GitHub Action (`action.yml`).
+  All deployments now use `docs_root` from `ccfm.yaml`.
+
+### Added
+
+- `--debug-file` flag on `plan` subcommand for ADF JSON inspection of a single file
+  (prints to stdout, no API calls or credentials required).
+
 ## [1.1.3] - 2026-03-20
 
 ### Fixed
