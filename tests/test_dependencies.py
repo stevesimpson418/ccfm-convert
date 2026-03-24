@@ -1,7 +1,6 @@
 """Tests for deploy dependency graph resolution."""
 
 import textwrap
-from pathlib import Path
 
 from ccfm_convert.deploy.dependencies import (
     DependencyGraph,
@@ -330,41 +329,12 @@ class TestResolveFileDependencies:
         result = resolve_file_dependencies(fa, docs)
         assert result == [fa]
 
-    def test_unreadable_target_during_bfs(self, tmp_path):
-        """If target file is deleted between graph build and BFS, handle gracefully."""
-        fb = tmp_path / "b.md"
-        fb.write_text("---\npage_meta:\n  title: Page B\n---\nLeaf.")
-        fa = tmp_path / "a.md"
-        fa.write_text("---\npage_meta:\n  title: Page A\n---\nSee [B](<Page B>).")
-
-        # Build with both files existing, then delete fa before calling resolve
-        # Actually, resolve reads files internally. Instead, test with a file
-        # that exists for discovery but whose content disappears.
-        # Simplest: create a file, pass it, then it works. The OSError branch
-        # in BFS is defensive. We'll use monkeypatch on just the BFS call.
-        from unittest.mock import patch
-
-        real_read = Path.read_text
-        bfs_entered = {"value": False}
-
-        def selective_read(self, *args, **kwargs):
-            # After build_dependency_graph completes, the BFS reads happen.
-            # We track by checking if we're past the graph build phase.
-            if bfs_entered["value"] and self == fa:
-                raise OSError("gone")
-            return real_read(self, *args, **kwargs)
-
-        # Patch at module level where resolve_file_dependencies lives
-        with patch.object(Path, "read_text", side_effect=selective_read):
-            # We can't easily separate phases, so let's just test the simple case:
-            # a non-existent target file
-            pass
-
-        # Simpler approach: target file that doesn't exist on disk
+    def test_missing_target_file_handled_in_bfs(self, tmp_path):
+        """A target file that doesn't exist on disk triggers OSError in BFS gracefully."""
         missing = tmp_path / "missing.md"
-        # It won't be in docs_root rglob results, but will be appended
+        # Not in docs_root rglob results, but will be appended by resolve_file_dependencies
         result = resolve_file_dependencies(missing, tmp_path)
-        # missing file can't be read during BFS -> OSError caught
+        # missing file can't be read during BFS -> OSError caught, still appears in result
         assert result[-1] == missing
 
     def test_returns_graph_info(self, tmp_path):

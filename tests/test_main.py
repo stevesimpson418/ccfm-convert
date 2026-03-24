@@ -3711,9 +3711,9 @@ class TestDependencyOrderingPlan:
 
         # compute_plan should be called
         mock_compute_plan.assert_called_once()
-        # The plan should have dependency_graph set
+        # The plan should have dependency_graph set (not None)
         plan = mock_compute_plan.return_value
-        assert hasattr(plan, "dependency_graph")
+        assert plan.dependency_graph is not None
 
     @patch("ccfm_convert.main.StateManager")
     @patch("ccfm_convert.main.ConfluenceBackend")
@@ -3843,7 +3843,7 @@ class TestAutoDeployDeps:
 
         # compute_plan should receive both files (dep + target)
         call_args = mock_compute_plan.call_args
-        files_arg = call_args.kwargs.get("files") or call_args[1].get("files")
+        files_arg = call_args.kwargs["files"]
         assert len(files_arg) == 2
         assert fb in files_arg
         assert fa in files_arg
@@ -3988,6 +3988,6 @@ class TestDependencyOrderingApply:
 
         # deploy_tree should be called with files reordered: b before a
         call_args = mock_deploy_tree.call_args
-        files_kwarg = call_args.kwargs.get("files") or call_args[1]
+        files_kwarg = call_args.kwargs["files"]
         # b.md should come before a.md in the files list
         assert list(files_kwarg).index(fb) < list(files_kwarg).index(fa)
