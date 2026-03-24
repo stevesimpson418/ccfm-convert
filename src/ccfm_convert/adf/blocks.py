@@ -37,7 +37,11 @@ from .nodes import (
 # Block Content Helpers
 # ---------------------------------------------------------------------------
 
-_PANEL_TYPES = {"info", "note", "warning", "success", "error"}
+_PANEL_TYPES = {"info", "note", "tip", "warning", "success", "error"}
+
+# Confluence Cloud has no distinct renderer for "tip" — it silently falls back
+# to "info". Map it to "note" (purple) which is the closest semantic match.
+_PANEL_TYPE_MAP = {"tip": "note"}
 
 
 def parse_blockquote_block(quote_lines: list) -> dict:
@@ -61,6 +65,7 @@ def parse_blockquote_block(quote_lines: list) -> dict:
     if panel_match:
         ptype = panel_match.group(1).lower()
         if ptype in _PANEL_TYPES:
+            ptype = _PANEL_TYPE_MAP.get(ptype, ptype)
             body_nodes = parse_block_content(quote_lines[1:])
             return panel(ptype, body_nodes)
 

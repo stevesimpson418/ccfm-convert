@@ -259,6 +259,44 @@ class TestCCFMExtensions:
         types = [n["type"] for n in result]
         assert "date" in types
 
+    def test_inline_extension_simple_param(self):
+        """@macro(value) produces an inlineExtension with positional param."""
+        result = parse_inline("Check @status(active) now.")
+
+        types = [n["type"] for n in result]
+        assert "inlineExtension" in types
+        ext = [n for n in result if n["type"] == "inlineExtension"][0]
+        assert ext["attrs"]["extensionKey"] == "status"
+        params = ext["attrs"]["parameters"]["macroParams"]
+        assert params["key"]["value"] == "active"
+
+    def test_inline_extension_with_key_value_params(self):
+        """@macro(key=value) parses key-value params."""
+        result = parse_inline('@status(text="In Review", color=blue)')
+
+        ext = [n for n in result if n["type"] == "inlineExtension"][0]
+        assert ext["attrs"]["extensionKey"] == "status"
+        params = ext["attrs"]["parameters"]["macroParams"]
+        assert params["text"]["value"] == "In Review"
+        assert params["color"]["value"] == "blue"
+
+    def test_inline_extension_anchor_uses_empty_key(self):
+        """@anchor(name) uses empty-string key for Confluence anchor macro format."""
+        result = parse_inline("Text @anchor(my-section) here.")
+
+        ext = [n for n in result if n["type"] == "inlineExtension"][0]
+        assert ext["attrs"]["extensionKey"] == "anchor"
+        params = ext["attrs"]["parameters"]["macroParams"]
+        assert params[""]["value"] == "my-section"
+        assert "key" not in params
+
+    def test_embed_inline_not_extension(self):
+        """@embed() inline should produce plain text, not an inlineExtension."""
+        result = parse_inline("Use @embed(url) to embed.")
+
+        types = [n["type"] for n in result]
+        assert "inlineExtension" not in types
+
     def test_emoji_shortname(self):
         """Emoji shortname :name: produces an emoji node."""
         result = parse_inline(":smile:")
@@ -287,6 +325,21 @@ class TestCCFMExtensions:
         result = parse_inline("[Display Text](<Target Page>)")
 
         assert result[0]["attrs"]["url"] == "confluence-page://Target Page"
+
+    def test_smart_link_url_in_angle_brackets(self):
+        """[text](<https://url>) creates an inlineCard with the URL directly."""
+        result = parse_inline("[KAN-1](<https://ccfm.atlassian.net/browse/KAN-1>)")
+
+        assert len(result) == 1
+        assert result[0]["type"] == "inlineCard"
+        assert result[0]["attrs"]["url"] == "https://ccfm.atlassian.net/browse/KAN-1"
+
+    def test_smart_link_http_url(self):
+        """http:// URLs in angle brackets also create inlineCards."""
+        result = parse_inline("[Link](<http://example.com>)")
+
+        assert result[0]["type"] == "inlineCard"
+        assert result[0]["attrs"]["url"] == "http://example.com"
 
     def test_underline(self):
         """++text++ produces a text node with underline mark."""

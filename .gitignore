@@ -226,3 +226,9 @@ tests/smoke/.ccfm-smoke-state.json
 
 # Local env files (may contain credentials)
 .env.smoke
+
+# Screenshots (from macOS)
+Screenshot*.png
+
+# Working documents
+DEPENDACY_ORDERING.md
