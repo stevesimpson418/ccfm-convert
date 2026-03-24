@@ -13,6 +13,7 @@
 │       │   └── converter.py      # Orchestration; convert() entry point
 │       ├── deploy/               # Confluence API and deployment logic
 │       │   ├── api.py            # ConfluenceAPI class (REST v2 + v1 for attachments/properties)
+│       │   ├── dependencies.py   # Dependency graph resolution and topological ordering
 │       │   ├── frontmatter.py    # YAML frontmatter parsing
 │       │   ├── orchestration.py  # deploy_page(), deploy_tree(), destroy_page()
 │       │   └── transforms.py     # CI banner, page link resolution, attachment media nodes
@@ -59,6 +60,9 @@ No I/O, no network calls. Entry point: `convert(markdown: str) -> dict`.
   the full deploy flow
 - **`transforms.py`** — Post-conversion ADF mutations: CI banner injection, internal page link
   resolution, attachment media node rewriting
+- **`dependencies.py`** — Dependency graph resolution for deployment ordering. Scans markdown
+  files for `[text](<Page Title>)` links, builds a directed graph, and topologically sorts
+  to ensure linked pages deploy before pages that reference them
 
 ## `src/ccfm_convert/state/` — Remote State and Locking
 
@@ -82,3 +86,42 @@ workaround:
 3. Fetch the Media Services `fileId` (UUID) via v2 API GET — the v1 upload response does not
    include it
 4. Re-update the page with correct ADF `media` nodes containing the real `fileId` and `collection`
+
+---
+
+## Dependency-Ordered Deployment
+
+When deploying a directory, CCFM analyses internal page links (`[text](<Page Title>)`) to
+determine deployment order. Pages that are linked to are deployed **before** pages that
+reference them, ensuring links resolve correctly on first deploy.
+
+### How It Works
+
+1. **Scan** — Each markdown file is scanned for `[text](<Page Title>)` patterns
+2. **Title mapping** — Frontmatter titles (or filename-derived titles) are mapped to file paths
+3. **Graph build** — A directed dependency graph is constructed (A → B means A depends on B)
+4. **Topological sort** — Kahn's algorithm produces a deployment order where dependencies come first
+5. **Cycle detection** — Circular dependencies are detected, warned about, and broken by falling
+   back to alphabetical file order for cycle participants
+
+### Scope
+
+Dependency ordering only considers pages **within the current deployment set** (files under
+docs root). Links to pre-existing Confluence pages that are not managed by CCFM resolve via
+the Confluence API at deploy time and do not affect ordering.
+
+**Known limitation:** Cross-space page links are not supported. The `[text](<Page Title>)`
+syntax resolves titles within the target space only.
+
+### `--auto-deploy-deps`
+
+When deploying a single file with `--file`, linked pages are not automatically deployed.
+Add `--auto-deploy-deps` to discover and deploy dependency pages from the docs root:
+
+```bash
+ccfm apply --file docs/team/overview.md --auto-deploy-deps --docs-root docs
+```
+
+This scans `docs/` for files whose titles match the linked page titles, resolves transitive
+dependencies, and deploys them all in the correct order. If a linked title cannot be mapped
+to a local file, a warning is printed and deployment continues.

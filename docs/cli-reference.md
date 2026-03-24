@@ -53,6 +53,7 @@ Options:
   --git-repo-url URL     Git repo URL for CI banner source links
   --plan-exit-code       Exit 2 when plan detects pending changes (for CI gates)
   --force                Force re-deploy all files regardless of content changes
+  --auto-deploy-deps     Auto-include dependency pages when using --file (requires docs_root)
 ```
 
 ### Directory resolution
@@ -73,6 +74,24 @@ Normally, plan and apply compare the full set of local files against remote stat
 detect pages that should be destroyed. In single-file mode this check is intentionally
 disabled because deploying one file should never trigger cleanup of unrelated pages.
 
+### Dependency ordering
+
+When deploying a directory, CCFM automatically analyses internal page links and deploys
+pages in dependency order (linked pages first). For single-file deployments, use
+`--auto-deploy-deps` to include dependency pages:
+
+```bash
+# Deploy a file and its dependencies automatically
+ccfm apply --file docs/overview.md --auto-deploy-deps --docs-root docs
+
+# Preview what --auto-deploy-deps would deploy
+ccfm plan --file docs/overview.md --auto-deploy-deps --docs-root docs
+```
+
+`--auto-deploy-deps` requires a valid `docs_root` (via `--docs-root` or `ccfm.yaml`) to
+discover dependency files. If a linked page title cannot be mapped to a local file, a
+warning is printed and the deployment continues.
+
 ---
 
 ## Apply
@@ -90,6 +109,7 @@ Options:
   --auto-approve         Skip confirmation prompt (required for CI/non-interactive use)
   --force                Force re-deploy all files regardless of content changes
   --lock-id ID           Lock identifier for CI traceability (e.g., pipeline ID)
+  --auto-deploy-deps     Auto-deploy dependency pages when using --file (requires docs_root)
 ```
 
 ---
@@ -220,6 +240,9 @@ ccfm plan --directory docs
 
 # Force re-deploy all files
 ccfm apply --directory docs --force --auto-approve
+
+# Deploy a single file with its dependencies
+ccfm apply --file docs/team/overview.md --auto-deploy-deps --docs-root docs
 
 # Check lock status
 ccfm --domain company.atlassian.net --email user@example.com --token abc123 --space DOCS \

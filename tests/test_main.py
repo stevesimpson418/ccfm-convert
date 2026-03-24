@@ -3655,3 +3655,329 @@ class TestPathHandling:
             main.main()
 
         mock_deploy.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Dependency ordering
+# ---------------------------------------------------------------------------
+
+
+class TestDependencyOrderingPlan:
+    """Test that plan computes and displays dependency graph for directory deploys."""
+
+    @patch("ccfm_convert.main.StateManager")
+    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.compute_plan")
+    @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    def test_plan_directory_builds_dependency_graph(
+        self,
+        mock_api_class,
+        mock_find_mgmt,
+        mock_compute_plan,
+        mock_backend_class,
+        mock_state_class,
+        tmp_path,
+    ):
+        """Plan for a directory with >1 file computes dependency graph."""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        fb = docs / "b.md"
+        fb.write_text("---\npage_meta:\n  title: Page B\n---\nLeaf.")
+        fa = docs / "a.md"
+        fa.write_text("---\npage_meta:\n  title: Page A\n---\nSee [B](<Page B>).")
+
+        mock_api = Mock()
+        mock_api.get_space_id.return_value = "space123"
+        mock_api_class.return_value = mock_api
+
+        mock_compute_plan.return_value = _mock_plan_no_changes()
+
+        mock_state = Mock()
+        mock_state_class.return_value = mock_state
+
+        with patch("sys.argv", _base_plan_argv(docs, is_dir=True)):
+            main.main()
+
+        # compute_plan should be called
+        mock_compute_plan.assert_called_once()
+        # The plan should have dependency_graph set
+        plan = mock_compute_plan.return_value
+        assert hasattr(plan, "dependency_graph")
+
+    @patch("ccfm_convert.main.StateManager")
+    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.compute_plan")
+    @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    def test_plan_single_file_no_graph(
+        self,
+        mock_api_class,
+        mock_find_mgmt,
+        mock_compute_plan,
+        mock_backend_class,
+        mock_state_class,
+        tmp_path,
+    ):
+        """Plan for a single file without --auto-deploy-deps has no dependency graph."""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        fa = docs / "a.md"
+        fa.write_text("# Page A")
+
+        mock_api = Mock()
+        mock_api.get_space_id.return_value = "space123"
+        mock_api_class.return_value = mock_api
+
+        mock_compute_plan.return_value = _mock_plan_no_changes()
+
+        mock_state = Mock()
+        mock_state_class.return_value = mock_state
+
+        with patch("sys.argv", _base_plan_argv(fa.absolute())):
+            main.main()
+
+        plan = mock_compute_plan.return_value
+        # dependency_graph should not be set (or be None)
+        assert not getattr(plan, "dependency_graph", None) or plan.dependency_graph is None
+
+
+class TestAutoDeployDeps:
+    """Test --auto-deploy-deps flag behavior."""
+
+    @patch("ccfm_convert.main.LockManager")
+    @patch("ccfm_convert.main.StateManager")
+    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.deploy_tree")
+    @patch("ccfm_convert.main.compute_plan")
+    @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    def test_auto_deploy_deps_uses_deploy_tree(
+        self,
+        mock_api_class,
+        mock_find_mgmt,
+        mock_compute_plan,
+        mock_deploy_tree,
+        mock_backend_class,
+        mock_state_class,
+        mock_lock_class,
+        tmp_path,
+    ):
+        """--auto-deploy-deps with --file deploys via deploy_tree (not deploy_page)."""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        fb = docs / "b.md"
+        fb.write_text("---\npage_meta:\n  title: Page B\n---\nLeaf.")
+        fa = docs / "a.md"
+        fa.write_text("---\npage_meta:\n  title: Page A\n---\nSee [B](<Page B>).")
+
+        mock_api = Mock()
+        mock_api.get_space_id.return_value = "space123"
+        mock_api_class.return_value = mock_api
+        mock_deploy_tree.return_value = ([(fb, "pid-b"), (fa, "pid-a")], [])
+
+        mock_compute_plan.return_value = _mock_plan_with_changes([fb, fa])
+
+        mock_state = Mock()
+        mock_state_class.return_value = mock_state
+        mock_lock = Mock()
+        mock_lock_class.return_value = mock_lock
+
+        argv = _base_apply_argv(
+            fa.absolute(),
+            extra=["--auto-deploy-deps", "--docs-root", str(docs)],
+        )
+        with patch("sys.argv", argv):
+            main.main()
+
+        # Should use deploy_tree, not deploy_page
+        mock_deploy_tree.assert_called_once()
+
+    @patch("ccfm_convert.main.StateManager")
+    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.compute_plan")
+    @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    def test_auto_deploy_deps_plan_includes_deps(
+        self,
+        mock_api_class,
+        mock_find_mgmt,
+        mock_compute_plan,
+        mock_backend_class,
+        mock_state_class,
+        tmp_path,
+    ):
+        """--auto-deploy-deps plan includes dependency files."""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        fb = docs / "b.md"
+        fb.write_text("---\npage_meta:\n  title: Page B\n---\nLeaf.")
+        fa = docs / "a.md"
+        fa.write_text("---\npage_meta:\n  title: Page A\n---\nSee [B](<Page B>).")
+
+        mock_api = Mock()
+        mock_api.get_space_id.return_value = "space123"
+        mock_api_class.return_value = mock_api
+
+        mock_compute_plan.return_value = _mock_plan_no_changes()
+
+        mock_state = Mock()
+        mock_state_class.return_value = mock_state
+
+        argv = _base_plan_argv(
+            fa.absolute(),
+            extra=["--auto-deploy-deps", "--docs-root", str(docs)],
+        )
+        with patch("sys.argv", argv):
+            main.main()
+
+        # compute_plan should receive both files (dep + target)
+        call_args = mock_compute_plan.call_args
+        files_arg = call_args.kwargs.get("files") or call_args[1].get("files")
+        assert len(files_arg) == 2
+        assert fb in files_arg
+        assert fa in files_arg
+
+    def test_auto_deploy_deps_missing_docs_root_errors(self, tmp_path):
+        """--auto-deploy-deps errors if docs_root doesn't exist."""
+        fa = tmp_path / "a.md"
+        fa.write_text("# Page A")
+
+        argv = _base_plan_argv(
+            fa.absolute(),
+            extra=["--auto-deploy-deps", "--docs-root", str(tmp_path / "nonexistent")],
+        )
+        with patch("sys.argv", argv), pytest.raises(SystemExit) as exc_info:
+            main.main()
+        assert exc_info.value.code == 1
+
+    def test_auto_deploy_deps_missing_docs_root_errors_apply(self, tmp_path):
+        """--auto-deploy-deps errors on apply if docs_root doesn't exist."""
+        fa = tmp_path / "a.md"
+        fa.write_text("# Page A")
+
+        argv = _base_apply_argv(
+            fa.absolute(),
+            extra=["--auto-deploy-deps", "--docs-root", str(tmp_path / "nonexistent")],
+        )
+        with patch("sys.argv", argv), pytest.raises(SystemExit) as exc_info:
+            main.main()
+        assert exc_info.value.code == 1
+
+    def test_auto_deploy_deps_without_file_errors_plan(self, tmp_path):
+        """--auto-deploy-deps without --file errors on plan."""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "a.md").write_text("# Page")
+
+        argv = _base_plan_argv(docs, is_dir=True, extra=["--auto-deploy-deps"])
+        with patch("sys.argv", argv), pytest.raises(SystemExit) as exc_info:
+            main.main()
+        assert exc_info.value.code == 1
+
+    def test_auto_deploy_deps_without_file_errors_apply(self, tmp_path):
+        """--auto-deploy-deps without --file errors on apply."""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "a.md").write_text("# Page")
+
+        argv = _base_apply_argv(docs, is_dir=True, extra=["--auto-deploy-deps"])
+        with patch("sys.argv", argv), pytest.raises(SystemExit) as exc_info:
+            main.main()
+        assert exc_info.value.code == 1
+
+    def test_auto_deploy_deps_flag_parsed_for_plan(self):
+        """--auto-deploy-deps is accepted by the plan subcommand."""
+        parser = main._build_parser()
+        args = parser.parse_args(
+            [
+                "--domain",
+                "x.atlassian.net",
+                "--email",
+                "e@x.com",
+                "--token",
+                "t",
+                "--space",
+                "S",
+                "plan",
+                "--file",
+                "test.md",
+                "--auto-deploy-deps",
+            ]
+        )
+        assert args.auto_deploy_deps is True
+
+    def test_auto_deploy_deps_flag_parsed_for_apply(self):
+        """--auto-deploy-deps is accepted by the apply subcommand."""
+        parser = main._build_parser()
+        args = parser.parse_args(
+            [
+                "--domain",
+                "x.atlassian.net",
+                "--email",
+                "e@x.com",
+                "--token",
+                "t",
+                "--space",
+                "S",
+                "apply",
+                "--file",
+                "test.md",
+                "--auto-deploy-deps",
+            ]
+        )
+        assert args.auto_deploy_deps is True
+
+
+class TestDependencyOrderingApply:
+    """Test that apply reorders actionable files by dependency graph."""
+
+    @patch("ccfm_convert.main.LockManager")
+    @patch("ccfm_convert.main.StateManager")
+    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.deploy_tree")
+    @patch("ccfm_convert.main.compute_plan")
+    @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    def test_directory_deploy_reorders_by_dependency(
+        self,
+        mock_api_class,
+        mock_find_mgmt,
+        mock_compute_plan,
+        mock_deploy_tree,
+        mock_backend_class,
+        mock_state_class,
+        mock_lock_class,
+        tmp_path,
+    ):
+        """Apply reorders actionable_files by dependency graph order."""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        # a.md links to b.md; alphabetically a comes first,
+        # but dependency ordering should put b first
+        fb = docs / "b.md"
+        fb.write_text("---\npage_meta:\n  title: Page B\n---\nLeaf.")
+        fa = docs / "a.md"
+        fa.write_text("---\npage_meta:\n  title: Page A\n---\nSee [B](<Page B>).")
+
+        mock_api = Mock()
+        mock_api.get_space_id.return_value = "space123"
+        mock_api_class.return_value = mock_api
+        mock_deploy_tree.return_value = ([(fb, "pid-b"), (fa, "pid-a")], [])
+
+        # Plan returns actions in alphabetical order (a, b)
+        mock_compute_plan.return_value = _mock_plan_with_changes([fa, fb])
+
+        mock_state = Mock()
+        mock_state_class.return_value = mock_state
+        mock_lock = Mock()
+        mock_lock_class.return_value = mock_lock
+
+        with patch("sys.argv", _base_apply_argv(docs, is_dir=True)):
+            main.main()
+
+        # deploy_tree should be called with files reordered: b before a
+        call_args = mock_deploy_tree.call_args
+        files_kwarg = call_args.kwargs.get("files") or call_args[1]
+        # b.md should come before a.md in the files list
+        assert list(files_kwarg).index(fb) < list(files_kwarg).index(fa)

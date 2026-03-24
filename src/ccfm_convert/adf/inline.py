@@ -16,6 +16,10 @@ import re
 
 from .nodes import date_node, emoji_node, hard_break, inline_card, status_node, text_node
 
+# Confluence page-link pattern: [display text](<Page Title>)
+# Exported so that the dependency resolver can scan markdown without full conversion.
+PAGE_LINK_PATTERN = re.compile(r"\[([^\]]+)\]\(<([^>]+)>\)")
+
 # Patterns ordered so that longer/more specific matches win when starting at
 # the same position. The parser picks the earliest match overall.
 _INLINE_PATTERNS = [
@@ -26,7 +30,7 @@ _INLINE_PATTERNS = [
     # Emoji: :shortname:
     ("emoji", re.compile(r":([a-z0-9_+\-]+):")),
     # Confluence page link: [text](<page title>)
-    ("page_link", re.compile(r"\[([^\]]+)\]\(<([^>]+)>\)")),
+    ("page_link", PAGE_LINK_PATTERN),
     # External link: [text](url)
     ("link", re.compile(r"\[([^\]]+)\]\(([^)]+)\)")),
     # Inline code: `text` — no further marks inside

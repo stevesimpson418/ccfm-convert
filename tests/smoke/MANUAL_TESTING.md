@@ -22,8 +22,8 @@ Verify all subcommands print help and exit 0.
 | --- | --------- | ---------- | ----------- |
 | 1.1 | `ccfm --help` | Shows all subcommands (init, plan, apply, dump, state, lock) | |
 | 1.2 | `ccfm init --help` | Shows init options | |
-| 1.3 | `ccfm plan --help` | Shows `--file`, `--directory`, `--plan-exit-code`, `--force` | |
-| 1.4 | `ccfm apply --help` | Shows `--auto-approve`, `--force`, `--lock-id` | |
+| 1.3 | `ccfm plan --help` | Shows `--file`, `--directory`, `--plan-exit-code`, `--force`, `--auto-deploy-deps` | |
+| 1.4 | `ccfm apply --help` | Shows `--auto-approve`, `--force`, `--lock-id`, `--auto-deploy-deps` | |
 | 1.5 | `ccfm dump --help` | Shows `--file`, `--directory`, `--output-dir` | |
 | 1.6 | `ccfm state --help` | Shows list, pull, push, rm, show | |
 | 1.7 | `ccfm lock --help` | Shows status, acquire, release | |
@@ -138,6 +138,20 @@ CFG="--config tests/smoke/ccfm-smoke.yaml"
 | 8.1 | `ccfm $CFG apply --file nonexistent.md` | "Error: File not found: nonexistent.md" | |
 | 8.2 | `ccfm $CFG apply --directory nonexistent-dir` | "Error: Directory not found: nonexistent-dir" | |
 | 8.3 | `ccfm $CFG apply` | "Error: Specify either --file or --directory" | |
+
+---
+
+## Phase 9: Dependency Ordering
+
+Verify that directory deploys use dependency ordering and `--auto-deploy-deps` works.
+
+| # | Command | Expected | Pass/Fail |
+| --- | --------- | ---------- | ----------- |
+| 9.1 | `ccfm $CFG plan --directory tests/smoke/docs/example` | Plan shows deploy order (Page B, Page C before pages that link to them) | |
+| 9.2 | `ccfm $CFG apply --directory tests/smoke/docs/example --auto-approve` | Pages deploy without "Page not found for link" warnings (dependencies deployed first) | |
+| 9.3 | `ccfm $CFG apply --file "tests/smoke/docs/example/CCFM Example/complete_example.md" --auto-deploy-deps --docs-root tests/smoke/docs/example --auto-approve --force` | Deploys complete_example.md AND its dependencies (My Team, My App); no broken link warnings | |
+| 9.4 | `ccfm $CFG plan --file "tests/smoke/docs/example/CCFM Example/complete_example.md" --auto-deploy-deps --docs-root tests/smoke/docs/example` | Plan shows all dependency files, not just the target | |
+| 9.5 | `ccfm $CFG apply --file "tests/smoke/docs/example/CCFM Example/complete_example.md"` | Deploys only complete_example.md (no --auto-deploy-deps); warnings for missing links are expected | |
 
 ---
 

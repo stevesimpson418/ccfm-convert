@@ -19,6 +19,7 @@ from ccfm_convert.deploy import (
     dump_tree,
     ensure_page_hierarchy,
 )
+from ccfm_convert.deploy.dependencies import build_dependency_graph, resolve_file_dependencies
 from ccfm_convert.deploy.frontmatter import parse_frontmatter
 from ccfm_convert.plan import compute_plan
 from ccfm_convert.state import (
@@ -117,6 +118,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Treat all files as new (force re-deploy on next apply)",
     )
+    plan_parser.add_argument(
+        "--auto-deploy-deps",
+        action="store_true",
+        help="Auto-include dependency pages when using --file (requires docs_root)",
+    )
 
     # -- apply -----------------------------------------------------------
     apply_parser = subparsers.add_parser("apply", help="Apply changes to Confluence")
@@ -130,6 +136,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--force",
         action="store_true",
         help="Force re-deploy of all files regardless of state",
+    )
+    apply_parser.add_argument(
+        "--auto-deploy-deps",
+        action="store_true",
+        help="Auto-deploy dependency pages when using --file (requires docs_root)",
     )
     apply_parser.add_argument(
         "--lock-id",
@@ -310,6 +321,29 @@ def _handle_plan(args, parser):
 
     target_files = _resolve_target_files(args)
 
+    single_file = bool(getattr(args, "file", None))
+    auto_deploy_deps = getattr(args, "auto_deploy_deps", False)
+
+    if auto_deploy_deps and not single_file:
+        print("Error: --auto-deploy-deps can only be used with --file", file=sys.stderr)
+        sys.exit(1)
+
+    # Dependency resolution
+    dep_graph = None
+    if single_file and auto_deploy_deps:
+        if not args.docs_root.exists():
+            print(
+                f"Error: --auto-deploy-deps requires a valid docs_root " f"(got: {args.docs_root})",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        target_files, dep_graph = resolve_file_dependencies(
+            target_files[0], args.docs_root, return_graph=True
+        )
+        single_file = False  # treat as multi-file deploy
+    elif not single_file and len(target_files) > 1:
+        dep_graph = build_dependency_graph(target_files)
+
     _require_credentials(args, parser)
     api = _create_api(args)
     print(f"Looking up space: {args.space}")
@@ -322,7 +356,6 @@ def _handle_plan(args, parser):
     state.load()
 
     force = getattr(args, "force", False)
-    single_file = bool(getattr(args, "file", None))
     plan = compute_plan(
         state=state,
         files=target_files,
@@ -330,6 +363,7 @@ def _handle_plan(args, parser):
         force=force,
         single_file=single_file,
     )
+    plan.dependency_graph = dep_graph
     plan.print_summary()
 
     if getattr(args, "plan_exit_code", False):
@@ -375,6 +409,29 @@ def _handle_apply(args, parser):
 
     target_files = _resolve_target_files(args)
 
+    single_file = bool(getattr(args, "file", None))
+    auto_deploy_deps = getattr(args, "auto_deploy_deps", False)
+
+    if auto_deploy_deps and not single_file:
+        print("Error: --auto-deploy-deps can only be used with --file", file=sys.stderr)
+        sys.exit(1)
+
+    # Dependency resolution
+    dep_graph = None
+    if single_file and auto_deploy_deps:
+        if not args.docs_root.exists():
+            print(
+                f"Error: --auto-deploy-deps requires a valid docs_root " f"(got: {args.docs_root})",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        target_files, dep_graph = resolve_file_dependencies(
+            target_files[0], args.docs_root, return_graph=True
+        )
+        single_file = False  # treat as multi-file deploy
+    elif not single_file and len(target_files) > 1:
+        dep_graph = build_dependency_graph(target_files)
+
     _require_credentials(args, parser)
     api = _create_api(args)
     print(f"Looking up space: {args.space}")
@@ -388,7 +445,6 @@ def _handle_apply(args, parser):
 
     # Compute plan
     force = getattr(args, "force", False)
-    single_file = bool(getattr(args, "file", None))
     plan = compute_plan(
         state=state,
         files=target_files,
@@ -396,6 +452,7 @@ def _handle_apply(args, parser):
         force=force,
         single_file=single_file,
     )
+    plan.dependency_graph = dep_graph
     plan.print_summary()
 
     if not plan.has_changes():
@@ -430,7 +487,13 @@ def _handle_apply(args, parser):
         actionable = [a for a in plan.page_actions if a.action != "no-op"]
         if actionable:
             actionable_files = [a.filepath for a in actionable]
-            if hasattr(args, "file") and args.file:
+
+            # Reorder by dependency graph if available
+            if dep_graph:
+                ordered_set = set(actionable_files)
+                actionable_files = [f for f in dep_graph.order if f in ordered_set]
+
+            if hasattr(args, "file") and args.file and not auto_deploy_deps:
                 target = actionable_files[0]
                 parent_id, hierarchy_pages = ensure_page_hierarchy(
                     api, space_id, target, args.docs_root, git_repo_url
@@ -454,11 +517,16 @@ def _handle_apply(args, parser):
                         space_id=space_id,
                         content_hash=state.compute_hash(target),
                     )
-            elif hasattr(args, "directory") and args.directory:
+            else:
+                deploy_root = (
+                    args.directory
+                    if hasattr(args, "directory") and args.directory
+                    else args.docs_root
+                )
                 results, hierarchy_pages = deploy_tree(
                     api,
                     space_id,
-                    args.directory,
+                    deploy_root,
                     args.docs_root,
                     git_repo_url,
                     files=actionable_files,
