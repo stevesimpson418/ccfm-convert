@@ -767,6 +767,14 @@ class TestDocsRootConfig:
         with pytest.raises(SystemExit):
             main._resolve_target_files(args)
 
+    def test_resolve_target_files_exits_when_docs_root_is_file(self, tmp_path):
+        """Exits with error when docs_root is a file, not a directory."""
+        f = tmp_path / "not-a-dir.md"
+        f.write_text("# Test")
+        args = Namespace(docs_root=f)
+        with pytest.raises(SystemExit):
+            main._resolve_target_files(args)
+
 
 # ---------------------------------------------------------------------------
 # Debug file (ADF inspection)
@@ -1636,7 +1644,7 @@ class TestApplyLocking:
         with patch(
             "sys.argv",
             _base_apply_argv(
-                test_file,
+                docs,
                 extra=["--lock-id", "ci-run-42"],
             ),
         ):
@@ -3205,7 +3213,7 @@ class TestPathHandling:
         mock_lock_class,
         tmp_path,
     ):
-        """Absolute path is accepted for --file."""
+        """Absolute path is accepted for --docs-root."""
         docs = tmp_path / "docs"
         docs.mkdir()
         test_file = docs / "test.md"
@@ -3222,7 +3230,7 @@ class TestPathHandling:
         mock_lock = Mock()
         mock_lock_class.return_value = mock_lock
 
-        with patch("sys.argv", _base_apply_argv(test_file.absolute())):
+        with patch("sys.argv", _base_apply_argv(docs.absolute())):
             main.main()
 
 
@@ -3279,7 +3287,7 @@ class TestDependencyOrderingPlan:
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
-    def test_plan_single_file_no_graph(
+    def test_plan_single_file_docs_root_no_graph(
         self,
         mock_api_class,
         mock_find_mgmt,
@@ -3288,7 +3296,7 @@ class TestDependencyOrderingPlan:
         mock_state_class,
         tmp_path,
     ):
-        """Plan for a single file without --auto-deploy-deps has no dependency graph."""
+        """Plan for a docs_root with only one file skips dependency graph."""
         docs = tmp_path / "docs"
         docs.mkdir()
         fa = docs / "a.md"
@@ -3303,11 +3311,11 @@ class TestDependencyOrderingPlan:
         mock_state = Mock()
         mock_state_class.return_value = mock_state
 
-        with patch("sys.argv", _base_plan_argv(fa.absolute())):
+        with patch("sys.argv", _base_plan_argv(docs)):
             main.main()
 
         plan = mock_compute_plan.return_value
-        # dependency_graph should not be set (or be None)
+        # dependency_graph should not be set (single file = no graph needed)
         assert not getattr(plan, "dependency_graph", None) or plan.dependency_graph is None
 
 

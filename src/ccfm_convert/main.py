@@ -239,6 +239,9 @@ def _resolve_target_files(args):
     if not docs_root.exists():
         print(f"Error: docs_root not found: {docs_root}", file=sys.stderr)
         sys.exit(1)
+    if not docs_root.is_dir():
+        print(f"Error: docs_root is not a directory: {docs_root}", file=sys.stderr)
+        sys.exit(1)
     all_md = sorted(docs_root.rglob("*.md"))
     return [f for f in all_md if f.name != ".page_content.md"]
 
