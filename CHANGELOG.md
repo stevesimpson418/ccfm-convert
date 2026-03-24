@@ -4,6 +4,29 @@ All notable changes to CCFM are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-03-24
+
+### Added
+
+- Dependency-ordered deployment: directory deploys now topologically sort pages
+  by internal page links so linked pages exist before pages that reference them
+  ([#42](https://github.com/stevesimpson418/ccfm-convert/pull/42))
+- `--auto-deploy-deps` CLI flag for `plan` and `apply`: automatically discover
+  and deploy transitive dependency pages when using `--file` mode
+- ADF spec audit: `inlineExtension` nodes (`@anchor`, `@jira`, `@macro(params)`),
+  `rule` (horizontal rule), heading anchor IDs, `tip` panel alias, and external
+  URL smart links via `[text](<https://...>)` syntax
+  ([#40](https://github.com/stevesimpson418/ccfm-convert/pull/40))
+
+### Fixed
+
+- `TestConfigFileLoading` tests no longer fail when `CONFLUENCE_*` env vars are
+  set in the shell
+- `TestTokenHandling.test_missing_token_exits_with_error` now correctly exercises
+  the token validation code path
+- CLI help text for `--domain` and `--email` now shows env var fallback hints
+  ([#37](https://github.com/stevesimpson418/ccfm-convert/pull/37))
+
 ## [1.1.3] - 2026-03-20
 
 ### Fixed
@@ -219,6 +242,7 @@ fix; no code changes._
 [1.1.3]: https://github.com/stevesimpson418/ccfm-convert/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/stevesimpson418/ccfm-convert/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/stevesimpson418/ccfm-convert/compare/v1.1.0...v1.1.1
+[1.2.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v1.1.3...v1.2.0
 [1.1.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.5.0...v1.0.0
 [0.5.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v0.4.0...v0.5.0
