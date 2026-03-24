@@ -37,6 +37,15 @@ class TestExtractPageLinks:
         md = "See [Google](https://google.com) and [Team](<Team Page>)."
         assert extract_page_links(md) == ["Team Page"]
 
+    def test_ignores_external_urls_in_angle_brackets(self):
+        """External URLs in angle brackets are smart links, not page links."""
+        md = "See [Example](<https://example.com>) and [Team](<Team Page>)."
+        assert extract_page_links(md) == ["Team Page"]
+
+    def test_ignores_http_url_in_angle_brackets(self):
+        md = "See [Example](<http://example.com>)."
+        assert extract_page_links(md) == []
+
     def test_deduplicates(self):
         md = "See [A](<Same Page>) and [B](<Same Page>)."
         assert extract_page_links(md) == ["Same Page"]

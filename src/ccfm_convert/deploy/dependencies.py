@@ -49,6 +49,9 @@ def extract_page_links(markdown_text: str) -> list[str]:
     seen: set[str] = set()
     titles: list[str] = []
     for _display_text, page_title in PAGE_LINK_PATTERN.findall(markdown_text):
+        # Skip external URLs in angle brackets (e.g., [text](<https://...>))
+        if page_title.startswith(("http://", "https://")):
+            continue
         if page_title not in seen:
             seen.add(page_title)
             titles.append(page_title)
