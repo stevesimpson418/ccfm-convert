@@ -31,7 +31,7 @@ _INLINE_PATTERNS = [
     ("status", re.compile(r"::([^:]+)::(\w+)::")),
     # Date token: @date:YYYY-MM-DD
     ("date", re.compile(r"@date:(\d{4}-\d{2}-\d{2})")),
-    # Inline extension macro: @macro(params) — e.g., @jira(PROJ-123)
+    # Inline extension macro: @macro(params) — e.g., @anchor(section-name)
     ("inline_ext", re.compile(r"@(\w+)\(([^)]+)\)")),
     # Emoji: :shortname:
     ("emoji", re.compile(r":([a-z0-9_+\-]+):")),
@@ -124,7 +124,7 @@ def parse_inline(text: str) -> list:
             nodes.append(text_node(m.group(0)))
         else:
             if "=" not in macro_params:
-                # Simple positional param: @jira(KEY) → {"key": "KEY"}
+                # Simple positional param: @macro(value) → {"key": "value"}
                 # Anchor macro uses empty-string key: @anchor(name) → {"": "name"}
                 param_key = "" if macro_name == "anchor" else "key"
                 params = {param_key: macro_params}

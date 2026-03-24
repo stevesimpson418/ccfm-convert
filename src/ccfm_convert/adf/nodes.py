@@ -262,12 +262,12 @@ def extension_node(
     """
     ADF extension node — bodyless Confluence macro.
 
-    Used for macros like TOC, page-tree (children), Jira filter, anchor, etc.
+    Used for macros like TOC, page-tree (children), anchor, etc.
 
     In CCFM, @toc, @children, @toc(minLevel=2) on their own line become extension nodes.
 
     Args:
-        extension_key: The macro name (e.g. "toc", "children", "jira")
+        extension_key: The macro name (e.g. "toc", "children")
         extension_type: The app namespace (default: Confluence core macros)
         parameters: Optional macro parameters dict
         layout: Layout mode — "default", "wide", "full-width"
@@ -296,13 +296,13 @@ def inline_extension_node(
     """
     ADF inlineExtension node — inline Confluence macro.
 
-    Sits inline within a paragraph like a text node. Used for inline Jira issue
-    references, inline status macros, etc.
+    Sits inline within a paragraph like a text node. Used for anchors,
+    inline status macros, and other inline Confluence macros.
 
-    In CCFM, @jira(PROJ-123) inline becomes an inlineExtension.
+    In CCFM, @anchor(name) inline becomes an inlineExtension.
 
     Args:
-        extension_key: The macro name (e.g. "jira")
+        extension_key: The macro name (e.g. "anchor")
         parameters: Optional macro parameters dict
         extension_type: The app namespace (default: Confluence core macros)
     """

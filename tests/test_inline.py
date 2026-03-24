@@ -259,16 +259,16 @@ class TestCCFMExtensions:
         types = [n["type"] for n in result]
         assert "date" in types
 
-    def test_inline_extension_jira(self):
-        """@jira(PROJ-123) produces an inlineExtension node."""
-        result = parse_inline("See @jira(PROJ-123) for details.")
+    def test_inline_extension_simple_param(self):
+        """@macro(value) produces an inlineExtension with positional param."""
+        result = parse_inline("Check @status(active) now.")
 
         types = [n["type"] for n in result]
         assert "inlineExtension" in types
         ext = [n for n in result if n["type"] == "inlineExtension"][0]
-        assert ext["attrs"]["extensionKey"] == "jira"
+        assert ext["attrs"]["extensionKey"] == "status"
         params = ext["attrs"]["parameters"]["macroParams"]
-        assert params["key"]["value"] == "PROJ-123"
+        assert params["key"]["value"] == "active"
 
     def test_inline_extension_with_key_value_params(self):
         """@macro(key=value) parses key-value params."""

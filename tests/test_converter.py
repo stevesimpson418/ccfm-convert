@@ -451,15 +451,16 @@ class TestExtensionMacros:
         assert params["minLevel"]["value"] == "2"
         assert params["maxLevel"]["value"] == "4"
 
-    def test_jira_macro_with_quoted_params(self):
-        """@jira(jql="project = PROJ") handles quoted param values."""
-        result = convert('@jira(jql="project = PROJ AND status = Open")')
+    def test_macro_with_quoted_params(self):
+        """@macro(key="value") handles quoted param values."""
+        result = convert('@toc(style="disc", type="list")')
 
         node = result["content"][0]
         assert node["type"] == "extension"
-        assert node["attrs"]["extensionKey"] == "jira"
+        assert node["attrs"]["extensionKey"] == "toc"
         params = node["attrs"]["parameters"]["macroParams"]
-        assert params["jql"]["value"] == "project = PROJ AND status = Open"
+        assert params["style"]["value"] == "disc"
+        assert params["type"]["value"] == "list"
 
     def test_macro_without_params_has_no_parameters_key(self):
         """@toc without params should not have a parameters key."""
@@ -490,13 +491,13 @@ class TestExtensionMacros:
         assert result["content"][0]["type"] == "paragraph"
 
     def test_macro_with_simple_positional_param(self):
-        """@jira(KEY) on its own line passes positional param as 'key'."""
-        result = convert("@jira(KAN-1)")
+        """@macro(value) on its own line passes positional param as 'key'."""
+        result = convert("@status(active)")
 
         node = result["content"][0]
         assert node["type"] == "extension"
         params = node["attrs"]["parameters"]["macroParams"]
-        assert params["key"]["value"] == "KAN-1"
+        assert params["key"]["value"] == "active"
 
     def test_anchor_on_own_line_becomes_inline_in_paragraph(self):
         """@anchor(name) on its own line becomes inlineExtension inside a paragraph."""

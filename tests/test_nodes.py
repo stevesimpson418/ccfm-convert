@@ -458,14 +458,14 @@ class TestMediaAndCards:
 
     def test_inline_extension_node(self):
         """Test inline extension node."""
-        result = inline_extension_node("jira", parameters={"key": "PROJ-123"})
+        result = inline_extension_node("anchor", parameters={"": "my-section"})
 
         assert result["type"] == "inlineExtension"
-        assert result["attrs"]["extensionKey"] == "jira"
+        assert result["attrs"]["extensionKey"] == "anchor"
         assert result["attrs"]["extensionType"] == "com.atlassian.confluence.macro.core"
         assert "localId" in result["attrs"]
         params = result["attrs"]["parameters"]["macroParams"]
-        assert params["key"]["value"] == "PROJ-123"
+        assert params[""]["value"] == "my-section"
 
     def test_inline_extension_node_no_params(self):
         """Test inline extension node without parameters."""

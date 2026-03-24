@@ -503,7 +503,7 @@ coexist without interfering with each other.
 This sentence has **bold**, *italic*, ***bold italic***, ~~strikethrough~~, ++underline++,
 `code`, a [link](https://example.com), a [page link](<CCFM Example - My Team>), an emoji :rocket:,
 a status ::Live::green::, a date @date:2026-02-17, superscript x^2^, subscript H~2~O,
-and an inline Jira reference @jira(CCFM-1).
+and a Jira link [KAN-1](https://ccfm.atlassian.net/browse/KAN-1).
 Everything should render independently without breaking adjacent elements.
 
 ---
@@ -560,11 +560,16 @@ TOC with parameters:
 
 ---
 
+## Jira Smart Links
+
+Jira issue links automatically render as Smart Link cards — no special syntax needed:
+
+Reference a Jira issue inline: see [KAN-1](https://ccfm.atlassian.net/browse/KAN-1) for the
+full tracking ticket.
+
 ## Inline macros (inlineExtension)
 
 @anchor(inline-macros-section) This section demonstrates inline Confluence macros.
-
-Reference a Jira issue inline: see @jira(KAN-1) for the full tracking ticket.
 
 The anchor macro @anchor(my-anchor) creates an invisible named link target that can be
 referenced from anywhere on the page using `#anchor-name` syntax.

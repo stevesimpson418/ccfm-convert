@@ -226,6 +226,17 @@ to the live page and renders it as a smart link.
 > capitalisation. CCFM does not validate this at compile time — a wrong title will result in
 > an unresolved card in Confluence.
 
+### Jira and external Smart Links
+
+Standard inline links to Jira issues, GitHub PRs, Trello cards, and other Atlassian-connected
+services automatically render as Smart Link cards in Confluence — no special syntax needed.
+
+```markdown
+[KAN-1](https://your-org.atlassian.net/browse/KAN-1)
+```
+
+Confluence resolves the URL and displays the issue key, status, and summary as a rich inline card.
+
 ### Anchor links
 
 Create named anchor points using the `@anchor()` inline macro, then link to them with
@@ -714,7 +725,7 @@ Complete mapping of every supported ADF node and mark to its CCFM syntax.
 | `emoji` | `:shortname:` | Atlassian emoji set |
 | `status` | `::text::color::` | Coloured inline label |
 | `date` | `@date:YYYY-MM-DD` | Localised date node |
-| `inlineExtension` | `@jira(KEY-1)`, `@anchor(name)` | Inline Confluence macro |
+| `inlineExtension` | `@anchor(name)` | Inline Confluence macro (e.g. anchors) |
 
 ### Marks
 
