@@ -434,6 +434,30 @@ run_cmd ccfm $CFG apply
 verdict
 
 # ===================================================================
+
+phase "Phase 9: Dependency Ordering"
+
+step_header "9.1" "Plan directory shows dependency order" "Plan output includes Deploy order line"
+run_cmd ccfm $CFG plan --directory "$SMOKE_DOCS/example"
+verdict
+
+step_header "9.2" "Apply directory deploys in dependency order" "No 'Page not found for link' warnings"
+run_cmd ccfm $CFG apply --directory "$SMOKE_DOCS/example" --auto-approve
+verdict
+
+step_header "9.3" "Auto-deploy-deps with --file" "Deploys complete_example.md AND deps (My Team, My App)"
+run_cmd ccfm $CFG apply --file "$COMPLETE_EXAMPLE" --auto-deploy-deps --docs-root "$SMOKE_DOCS/example" --auto-approve --force
+verdict
+
+step_header "9.4" "Plan with --auto-deploy-deps" "Plan shows dependency files, not just target"
+run_cmd ccfm $CFG plan --file "$COMPLETE_EXAMPLE" --auto-deploy-deps --docs-root "$SMOKE_DOCS/example"
+verdict
+
+step_header "9.5" "Single file without --auto-deploy-deps" "Warnings for missing links expected"
+run_cmd ccfm $CFG apply --file "$COMPLETE_EXAMPLE" --auto-approve --force
+verdict
+
+# ===================================================================
 # Summary
 # ===================================================================
 
