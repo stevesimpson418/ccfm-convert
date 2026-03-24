@@ -569,9 +569,9 @@ full tracking ticket.
 
 ## Inline macros (inlineExtension)
 
-@anchor(inline-macros-section) This section demonstrates inline Confluence macros.
+@anchor(inline-macros-section)This section demonstrates inline Confluence macros.
 
-The anchor macro @anchor(my-anchor) creates an invisible named link target that can be
+The anchor macro creates an invisible named link target that can be
 referenced from anywhere on the page using `#anchor-name` syntax.
 
 ---
