@@ -136,11 +136,13 @@ def parse_inline(text: str) -> list:
             nodes.append(inline_extension_node(macro_name, parameters=params))
 
     elif best_type == "page_link":
-        page_title = m.group(2)
-        # Sentinel URL — deploy tool resolves to actual Confluence page URL.
-        # inlineCard renders as a smart card; markdown link text is intentionally
-        # discarded as Confluence shows the real page title automatically.
-        url = f"confluence-page://{page_title}"
+        link_target = m.group(2)
+        if link_target.startswith("http://") or link_target.startswith("https://"):
+            # External URL in angle brackets → Smart Link card (inlineCard)
+            url = link_target
+        else:
+            # Page title → sentinel URL resolved at deploy time
+            url = f"confluence-page://{link_target}"
         nodes.append(inline_card(url))
 
     elif best_type == "link":

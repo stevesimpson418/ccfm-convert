@@ -326,6 +326,21 @@ class TestCCFMExtensions:
 
         assert result[0]["attrs"]["url"] == "confluence-page://Target Page"
 
+    def test_smart_link_url_in_angle_brackets(self):
+        """[text](<https://url>) creates an inlineCard with the URL directly."""
+        result = parse_inline("[KAN-1](<https://ccfm.atlassian.net/browse/KAN-1>)")
+
+        assert len(result) == 1
+        assert result[0]["type"] == "inlineCard"
+        assert result[0]["attrs"]["url"] == "https://ccfm.atlassian.net/browse/KAN-1"
+
+    def test_smart_link_http_url(self):
+        """http:// URLs in angle brackets also create inlineCards."""
+        result = parse_inline("[Link](<http://example.com>)")
+
+        assert result[0]["type"] == "inlineCard"
+        assert result[0]["attrs"]["url"] == "http://example.com"
+
     def test_underline(self):
         """++text++ produces a text node with underline mark."""
         result = parse_inline("++underlined++")

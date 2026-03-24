@@ -226,16 +226,21 @@ to the live page and renders it as a smart link.
 > capitalisation. CCFM does not validate this at compile time — a wrong title will result in
 > an unresolved card in Confluence.
 
-### Jira and external Smart Links
+### Smart Links (Jira, GitHub, etc.)
 
-Standard inline links to Jira issues, GitHub PRs, Trello cards, and other Atlassian-connected
-services automatically render as Smart Link cards in Confluence — no special syntax needed.
+To render a URL as a Smart Link card (rich preview with title, status, icon), use angle brackets
+around the URL — the same syntax used for Confluence page links:
 
 ```markdown
-[KAN-1](https://your-org.atlassian.net/browse/KAN-1)
+[KAN-1](<https://your-org.atlassian.net/browse/KAN-1>)
+
+[PR #42](<https://github.com/org/repo/pull/42>)
 ```
 
-Confluence resolves the URL and displays the issue key, status, and summary as a rich inline card.
+Confluence resolves the URL via its Smart Links system and displays a rich inline card.
+
+> **Note:** `[text](url)` without angle brackets creates a plain hyperlink.
+> `[text](<url>)` with angle brackets creates a Smart Link card (`inlineCard` node).
 
 ### Anchor links
 
