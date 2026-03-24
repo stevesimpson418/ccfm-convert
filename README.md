@@ -14,7 +14,8 @@ legacy conversions, no storage format hacks, full editor compatibility.
 
 - **Native ADF output** — Pages open in the Confluence editor without any legacy conversion
 - **Automatic page hierarchy** — Directory structure maps directly to Confluence page hierarchy
-- **CCFM extensions** — Status badges, panels, expands, dates, smart page links, emoji, image width control
+- **CCFM extensions** — Status badges, panels, expands, dates, smart page links, emoji, anchors, image width control
+- **Dependency-ordered deployment** — Pages deploy in topological order so linked pages exist before pages that reference them
 - **Idempotent** — Safe to run multiple times; creates or updates pages automatically
 - **Remote state** — Deployment state stored in Confluence itself, no local files to commit
 - **Concurrent deploy protection** — Terraform-style locking prevents conflicting deploys
