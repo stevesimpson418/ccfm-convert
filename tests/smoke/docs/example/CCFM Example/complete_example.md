@@ -116,6 +116,14 @@ This is an internal page link to My Team [CCFM Example - My Team](<CCFM Example 
 
 And another one for My App [CCFM Example - My App](<CCFM Example - My App>).
 
+### Anchor links
+
+Link to a named anchor on this page using `#anchor-name` syntax:
+
+<!-- markdownlint-disable MD051 -->
+[Jump to inline macros section](#inline-macros-section)
+<!-- markdownlint-enable MD051 -->
+
 ---
 
 ## Images
@@ -554,9 +562,12 @@ TOC with parameters:
 
 ## Inline macros (inlineExtension)
 
-Reference a Jira issue inline: see @jira(PROJ-123) for the full tracking ticket.
+@anchor(inline-macros-section)
 
-Another inline macro: the anchor @anchor(section-1) creates a link target.
+Reference a Jira issue inline: see @jira(KAN-1) for the full tracking ticket.
+
+The anchor macro @anchor(my-anchor) creates an invisible named link target that can be
+referenced from anywhere on the page using `#anchor-name` syntax.
 
 ---
 

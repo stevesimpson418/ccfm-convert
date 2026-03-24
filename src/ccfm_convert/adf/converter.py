@@ -178,10 +178,13 @@ def convert(markdown_text: str) -> dict:
             params_str = macro_match.group(2)
             params = {}
             if params_str:
-                # Parse key=value pairs: @toc(minLevel=2, maxLevel=4)
-                for part in re.findall(r'(\w+)=(?:"([^"]*)"|([^,\s]+))', params_str):
-                    # part[1] is quoted value, part[2] is unquoted — exactly one is non-empty
-                    params[part[0]] = part[1] if part[1] != "" else part[2]
+                if "=" not in params_str:
+                    # Simple positional param: anchor uses empty-string key
+                    param_key = "" if macro_name == "anchor" else "key"
+                    params = {param_key: params_str}
+                else:
+                    for part in re.findall(r'(\w+)=(?:"([^"]*)"|([^,\s]+))', params_str):
+                        params[part[0]] = part[1] if part[1] != "" else part[2]
             content.append(extension_node(macro_name, parameters=params if params else None))
             i += 1
             continue

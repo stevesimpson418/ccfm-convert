@@ -280,6 +280,16 @@ class TestCCFMExtensions:
         assert params["text"]["value"] == "In Review"
         assert params["color"]["value"] == "blue"
 
+    def test_inline_extension_anchor_uses_empty_key(self):
+        """@anchor(name) uses empty-string key for Confluence anchor macro format."""
+        result = parse_inline("Text @anchor(my-section) here.")
+
+        ext = [n for n in result if n["type"] == "inlineExtension"][0]
+        assert ext["attrs"]["extensionKey"] == "anchor"
+        params = ext["attrs"]["parameters"]["macroParams"]
+        assert params[""]["value"] == "my-section"
+        assert "key" not in params
+
     def test_embed_inline_not_extension(self):
         """@embed() inline should produce plain text, not an inlineExtension."""
         result = parse_inline("Use @embed(url) to embed.")

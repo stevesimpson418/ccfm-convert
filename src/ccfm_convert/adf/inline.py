@@ -123,9 +123,13 @@ def parse_inline(text: str) -> list:
         if macro_name == "embed":
             nodes.append(text_node(m.group(0)))
         else:
-            # For simple macros like @jira(PROJ-123), the param is the key
-            params = {"key": macro_params} if "=" not in macro_params else {}
-            if "=" in macro_params:
+            if "=" not in macro_params:
+                # Simple positional param: @jira(KEY) → {"key": "KEY"}
+                # Anchor macro uses empty-string key: @anchor(name) → {"": "name"}
+                param_key = "" if macro_name == "anchor" else "key"
+                params = {param_key: macro_params}
+            else:
+                params = {}
                 for part in re.findall(r'(\w+)=(?:"([^"]*)"|([^,\s]+))', macro_params):
                     # part[1] is quoted value, part[2] is unquoted — exactly one is non-empty
                     params[part[0]] = part[1] if part[1] != "" else part[2]

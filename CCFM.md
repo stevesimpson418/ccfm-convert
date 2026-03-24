@@ -226,6 +226,23 @@ to the live page and renders it as a smart link.
 > capitalisation. CCFM does not validate this at compile time — a wrong title will result in
 > an unresolved card in Confluence.
 
+### Anchor links
+
+Create named anchor points using the `@anchor()` inline macro, then link to them with
+standard `#anchor-name` syntax.
+
+```markdown
+<!-- Create an anchor -->
+@anchor(my-section)
+
+<!-- Link to it from elsewhere on the page -->
+[Jump to my section](#my-section)
+```
+
+The `@anchor(name)` macro creates an invisible link target at that position. It renders as
+a Confluence anchor macro (`inlineExtension` node). The link `[text](#name)` renders as a
+standard markdown link with the `#` fragment pointing to the anchor.
+
 ---
 
 ## Images
@@ -697,7 +714,7 @@ Complete mapping of every supported ADF node and mark to its CCFM syntax.
 | `emoji` | `:shortname:` | Atlassian emoji set |
 | `status` | `::text::color::` | Coloured inline label |
 | `date` | `@date:YYYY-MM-DD` | Localised date node |
-| `inlineExtension` | `@jira(PROJ-123)` | Inline Confluence macro |
+| `inlineExtension` | `@jira(KEY-1)`, `@anchor(name)` | Inline Confluence macro |
 
 ### Marks
 

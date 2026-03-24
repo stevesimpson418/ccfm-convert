@@ -489,6 +489,24 @@ class TestExtensionMacros:
 
         assert result["content"][0]["type"] == "paragraph"
 
+    def test_macro_with_simple_positional_param(self):
+        """@jira(KEY) on its own line passes positional param as 'key'."""
+        result = convert("@jira(KAN-1)")
+
+        node = result["content"][0]
+        assert node["type"] == "extension"
+        params = node["attrs"]["parameters"]["macroParams"]
+        assert params["key"]["value"] == "KAN-1"
+
+    def test_anchor_macro_uses_empty_key(self):
+        """@anchor(name) on its own line uses empty-string key."""
+        result = convert("@anchor(my-section)")
+
+        node = result["content"][0]
+        assert node["type"] == "extension"
+        params = node["attrs"]["parameters"]["macroParams"]
+        assert params[""]["value"] == "my-section"
+
 
 class TestEmbedCard:
     """Test embedCard (@embed(url) syntax)."""
