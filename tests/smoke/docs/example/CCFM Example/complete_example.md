@@ -562,7 +562,7 @@ TOC with parameters:
 
 ## Inline macros (inlineExtension)
 
-@anchor(inline-macros-section)
+@anchor(inline-macros-section) This section demonstrates inline Confluence macros.
 
 Reference a Jira issue inline: see @jira(KAN-1) for the full tracking ticket.
 

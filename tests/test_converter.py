@@ -498,13 +498,17 @@ class TestExtensionMacros:
         params = node["attrs"]["parameters"]["macroParams"]
         assert params["key"]["value"] == "KAN-1"
 
-    def test_anchor_macro_uses_empty_key(self):
-        """@anchor(name) on its own line uses empty-string key."""
+    def test_anchor_on_own_line_becomes_inline_in_paragraph(self):
+        """@anchor(name) on its own line becomes inlineExtension inside a paragraph."""
         result = convert("@anchor(my-section)")
 
+        # Anchor is always inline — even on its own line it gets wrapped in a paragraph
         node = result["content"][0]
-        assert node["type"] == "extension"
-        params = node["attrs"]["parameters"]["macroParams"]
+        assert node["type"] == "paragraph"
+        ext = node["content"][0]
+        assert ext["type"] == "inlineExtension"
+        assert ext["attrs"]["extensionKey"] == "anchor"
+        params = ext["attrs"]["parameters"]["macroParams"]
         assert params[""]["value"] == "my-section"
 
 

@@ -35,6 +35,10 @@ from .nodes import (
     rule,
 )
 
+# Macros that are always inline (inlineExtension) — never block-level extensions.
+# These are excluded from block detection so they fall through to inline parsing.
+_INLINE_ONLY_MACROS = {"embed", "date", "anchor"}
+
 
 def convert(markdown_text: str) -> dict:
     """
@@ -172,8 +176,9 @@ def convert(markdown_text: str) -> dict:
             continue
 
         # --- Extension macro: @macro or @macro(params) on its own line ---
+        # --- Extension macro: @macro or @macro(params) on its own line ---
         macro_match = re.match(r"^@(\w+)(?:\(([^)]*)\))?\s*$", line.strip())
-        if macro_match and macro_match.group(1) != "embed" and macro_match.group(1) != "date":
+        if macro_match and macro_match.group(1) not in _INLINE_ONLY_MACROS:
             macro_name = macro_match.group(1)
             params_str = macro_match.group(2)
             params = {}
@@ -228,8 +233,9 @@ def convert(markdown_text: str) -> dict:
             # @embed(url) on its own line
             if re.match(r"^@embed\(", line.strip()):
                 break
-            # @macro or @macro(params) on its own line (not @date: which is inline)
-            if re.match(r"^@(?!date[:\s])(\w+)(?:\([^)]*\))?\s*$", line.strip()):
+            # @macro or @macro(params) on its own line (not inline-only macros)
+            macro_stop = re.match(r"^@(\w+)(?:\([^)]*\))?\s*$", line.strip())
+            if macro_stop and macro_stop.group(1) not in _INLINE_ONLY_MACROS:
                 break
             # Bare URL on its own line (blockCard)
             if re.match(r"^https?://\S+\s*$", line.strip()):
