@@ -121,6 +121,7 @@ def panel(panel_type: str, content: list) -> dict:
     """
     ADF panel node.
     panel_type: 'info' | 'note' | 'warning' | 'success' | 'error'
+    Note: 'tip' is accepted in CCFM syntax but mapped to 'note' at parse time.
     """
     return {"type": "panel", "attrs": {"panelType": panel_type}, "content": content}
 
@@ -128,6 +129,16 @@ def panel(panel_type: str, content: list) -> dict:
 def expand(title: str, content: list) -> dict:
     """ADF expand (collapsible section) node."""
     return {"type": "expand", "attrs": {"title": title}, "content": content}
+
+
+def nested_expand(title: str, content: list) -> dict:
+    """
+    ADF nestedExpand node — collapsible section valid inside table cells and expands.
+
+    Visually identical to expand but structurally different — nestedExpand is used
+    where expand is not allowed by the schema (inside table cells, inside other expands).
+    """
+    return {"type": "nestedExpand", "attrs": {"title": title}, "content": content}
 
 
 # ---------------------------------------------------------------------------
@@ -200,7 +211,7 @@ def table_header(content: list, align: str = None) -> dict:
     Note: alignment is NOT set on the cell itself, but on the paragraph content.
     Use paragraph_with_alignment() to create aligned content.
     """
-    return {"type": "tableHeader", "attrs": {}, "content": content}
+    return {"type": "tableHeader", "content": content}
 
 
 def table_cell(content: list, align: str = None) -> dict:
@@ -210,7 +221,7 @@ def table_cell(content: list, align: str = None) -> dict:
     Note: alignment is NOT set on the cell itself, but on the paragraph content.
     Use paragraph_with_alignment() to create aligned content.
     """
-    return {"type": "tableCell", "attrs": {}, "content": content}
+    return {"type": "tableCell", "content": content}
 
 
 # ---------------------------------------------------------------------------
@@ -242,12 +253,120 @@ def inline_card(url: str) -> dict:
     return {"type": "inlineCard", "attrs": {"url": url}}
 
 
+def extension_node(
+    extension_key: str,
+    extension_type: str = "com.atlassian.confluence.macro.core",
+    parameters: dict = None,
+    layout: str = "default",
+) -> dict:
+    """
+    ADF extension node — bodyless Confluence macro.
+
+    Used for macros like TOC, page-tree (children), anchor, etc.
+
+    In CCFM, @toc, @children, @toc(minLevel=2) on their own line become extension nodes.
+
+    Args:
+        extension_key: The macro name (e.g. "toc", "children")
+        extension_type: The app namespace (default: Confluence core macros)
+        parameters: Optional macro parameters dict
+        layout: Layout mode — "default", "wide", "full-width"
+    """
+    node = {
+        "type": "extension",
+        "attrs": {
+            "extensionType": extension_type,
+            "extensionKey": extension_key,
+            "layout": layout,
+            "localId": str(uuid.uuid4()),
+        },
+    }
+    if parameters:
+        node["attrs"]["parameters"] = {
+            "macroParams": {k: {"value": str(v)} for k, v in parameters.items()}
+        }
+    return node
+
+
+def inline_extension_node(
+    extension_key: str,
+    parameters: dict = None,
+    extension_type: str = "com.atlassian.confluence.macro.core",
+) -> dict:
+    """
+    ADF inlineExtension node — inline Confluence macro.
+
+    Sits inline within a paragraph like a text node. Used for anchors,
+    inline status macros, and other inline Confluence macros.
+
+    In CCFM, @anchor(name) inline becomes an inlineExtension.
+
+    Args:
+        extension_key: The macro name (e.g. "anchor")
+        parameters: Optional macro parameters dict
+        extension_type: The app namespace (default: Confluence core macros)
+    """
+    node = {
+        "type": "inlineExtension",
+        "attrs": {
+            "extensionType": extension_type,
+            "extensionKey": extension_key,
+            "localId": str(uuid.uuid4()),
+        },
+    }
+    if parameters:
+        node["attrs"]["parameters"] = {
+            "macroParams": {k: {"value": str(v)} for k, v in parameters.items()}
+        }
+    return node
+
+
+def embed_card(url: str, layout: str = "center") -> dict:
+    """
+    ADF embedCard node — embedded preview/iframe for videos and external content.
+
+    Renders as an embedded preview for YouTube, Loom, Figma, Google Docs, etc.
+
+    In CCFM, @embed(url) on its own line becomes an embedCard.
+
+    Args:
+        url: URL of the content to embed
+        layout: Layout mode — "center" (default), "wide", "full-width"
+    """
+    return {"type": "embedCard", "attrs": {"url": url, "layout": layout}}
+
+
+def block_card(url: str) -> dict:
+    """
+    ADF blockCard node — full-width smart link card.
+
+    Renders as a rich card preview (title, description, icon) for the given URL.
+    Used for Jira issues, Confluence pages, GitHub PRs, and any Smart Link provider.
+
+    In CCFM, a bare URL on its own line (not inside [text](url)) becomes a blockCard.
+    """
+    return {"type": "blockCard", "attrs": {"url": url}}
+
+
+def caption_node(content: list) -> dict:
+    """
+    ADF caption node — text rendered below an image inside mediaSingle.
+
+    Only valid as the second child of a mediaSingle node.
+
+    Args:
+        content: List of inline nodes (text, emoji, hardBreak, etc.)
+    """
+    return {"type": "caption", "content": content}
+
+
 def media_single(
     url: str = None,
     alt: str = None,
     file_id: str = None,
     collection: str = None,
     width=None,
+    caption: dict = None,
 ) -> dict:
     """
     ADF mediaSingle node (image container).
@@ -275,6 +394,7 @@ def media_single(
         file_id: Media Services fileId UUID (for type: "file")
         collection: Collection identifier "contentId-{pageId}" (for type: "file")
         width: Width specifier — None, "narrow", "wide", "max", or int pixels
+        caption: Optional pre-built caption node dict (from caption_node())
     """
     if file_id and collection:
         # Attachment file mode
@@ -301,10 +421,14 @@ def media_single(
         media_single_attrs["width"] = pixel_width
         media_single_attrs["widthType"] = width_type
 
+    media_content = [{"type": "media", "attrs": media_attrs}]
+    if caption:
+        media_content.append(caption)
+
     return {
         "type": "mediaSingle",
         "attrs": media_single_attrs,
-        "content": [{"type": "media", "attrs": media_attrs}],
+        "content": media_content,
     }
 
 
@@ -324,7 +448,8 @@ def status_node(text: str, color: str) -> dict:
     """
     ADF status node.
     color: 'neutral' | 'blue' | 'red' | 'yellow' | 'green' | 'purple'
-    ADF expects uppercase color values.
+    NOTE: ADF JSON schema defines lowercase enum values, but Confluence Cloud
+    runtime requires uppercase. Using .upper() for runtime compatibility.
     """
     return {
         "type": "status",
