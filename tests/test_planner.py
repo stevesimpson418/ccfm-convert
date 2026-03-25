@@ -144,7 +144,7 @@ class TestDeployPlanPrintSummary:
         )
         output = self._capture(plan)
         assert "+" in output
-        assert "(add)" in output
+        assert "docs/new.md" in output
         assert "New Page" in output
 
     def test_print_summary_change_action(self):
@@ -164,7 +164,7 @@ class TestDeployPlanPrintSummary:
         )
         output = self._capture(plan)
         assert "~" in output
-        assert "(change)" in output
+        assert "docs/upd.md" in output
 
     def test_print_summary_destroy_action(self):
         """Destroy actions show '-' symbol and '(destroy)'."""
@@ -173,7 +173,7 @@ class TestDeployPlanPrintSummary:
         )
         output = self._capture(plan)
         assert "-" in output
-        assert "(destroy)" in output
+        assert "docs/gone.md" in output
         assert "Gone Page" in output
 
     def test_print_summary_plan_line_with_all_action_types(self):
@@ -626,9 +626,9 @@ class TestPrintSummaryDependencyInfo:
         output = self._capture(plan)
         lines = [ln for ln in output.split("\n") if ln.strip().startswith("+")]
         assert len(lines) == 3
-        assert '"Page C"' in lines[0]
-        assert '"Page B"' in lines[1]
-        assert '"Page A"' in lines[2]
+        assert "c.md" in lines[0]
+        assert "b.md" in lines[1]
+        assert "a.md" in lines[2]
 
     def test_shows_cycle_warning(self):
         """Cycles in dependency graph are shown as warnings."""

@@ -80,11 +80,12 @@ class DeployPlan:
 
         for action in actionable:
             symbol = _SYMBOLS[action.action]
-            label = f"({action.action})"
-            print(f'  {symbol} {action.rel_path:<40} {label:<12} "{action.title}"')
+            print(f"  {symbol} {action.rel_path}")
+            print(f"    {action.title}")
 
         for destroy in self.destroy_actions:
-            print(f'  - {destroy.rel_path:<40} {"(destroy)":<12} "{destroy.title}"')
+            print(f"  - {destroy.rel_path}")
+            print(f"    {destroy.title}")
 
         adds = sum(1 for a in self.page_actions if a.action == "add")
         changes = sum(1 for a in self.page_actions if a.action == "change")
