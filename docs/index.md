@@ -130,6 +130,21 @@ docs/
 `.page_content.md` files support full CCFM syntax and frontmatter, including labels and
 custom titles.
 
+### Container pages and page links
+
+Container pages (created from `.page_content.md`) are deployed **before** their child pages.
+If a `.page_content.md` contains page links to its own children (e.g., `[Overview](<Team Overview>)`),
+those links cannot resolve on the first deploy because the child pages don't exist yet.
+
+**Workaround:** Run `ccfm apply --force --auto-approve` after the initial deploy to re-push
+all pages — the child pages now exist and the links will resolve correctly.
+
+**Recommended alternative:** Instead of manually linking to child pages from a container page,
+use Confluence's built-in **Children Display macro** after the initial deploy. This macro
+automatically lists all child pages and stays up to date as pages are added or removed — no
+manual link maintenance required. Since the macro is added via the Confluence editor (not the
+markdown source), it won't be overwritten by subsequent CCFM deploys.
+
 ---
 
 ## What's Next?
