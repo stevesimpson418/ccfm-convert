@@ -5,11 +5,11 @@ import sys
 
 import pytest
 
-from tests.smoke.conftest import PROJECT_ROOT, SMOKE_DOCS
+from tests.smoke.conftest import PROJECT_ROOT, SMOKE_DIR
 
 pytestmark = pytest.mark.smoke
 
-CONFIG_PAGE = SMOKE_DOCS / "single-page" / "single-page.md"
+SMOKE_CONFIG = SMOKE_DIR / "ccfm-smoke.yaml"
 
 
 class TestDomainNormalization:
@@ -22,17 +22,11 @@ class TestDomainNormalization:
                 sys.executable,
                 "-m",
                 "ccfm_convert",
+                "--config",
+                str(SMOKE_CONFIG),
                 "--domain",
                 f"https://{smoke_creds['domain']}",
-                "--email",
-                smoke_creds["email"],
-                "--token",
-                smoke_creds["token"],
-                "--space",
-                smoke_creds["space"],
                 "plan",
-                "--docs-root",
-                str(SMOKE_DOCS),
             ],
             cwd=PROJECT_ROOT,
             capture_output=True,
@@ -50,17 +44,11 @@ class TestDomainNormalization:
                 sys.executable,
                 "-m",
                 "ccfm_convert",
+                "--config",
+                str(SMOKE_CONFIG),
                 "--domain",
                 f"https://{smoke_creds['domain']}/wiki",
-                "--email",
-                smoke_creds["email"],
-                "--token",
-                smoke_creds["token"],
-                "--space",
-                smoke_creds["space"],
                 "plan",
-                "--docs-root",
-                str(SMOKE_DOCS),
             ],
             cwd=PROJECT_ROOT,
             capture_output=True,

@@ -2,10 +2,11 @@
 
 import pytest
 
-from tests.smoke.conftest import SMOKE_DOCS
+from tests.smoke.conftest import SMOKE_DIR, SMOKE_DOCS
 
 pytestmark = pytest.mark.smoke
 
+SMOKE_CONFIG = SMOKE_DIR / "ccfm-smoke.yaml"
 SINGLE_PAGE = SMOKE_DOCS / "single-page" / "single-page.md"
 
 
@@ -48,7 +49,7 @@ class TestLocking:
     def test_apply_acquires_and_releases_lock(self, ccfm_run, confluence_live):
         """After an apply completes, the lock is released."""
         # Apply a page
-        result = ccfm_run("apply", "--auto-approve", "--docs-root", str(SMOKE_DOCS))
+        result = ccfm_run("apply", "--auto-approve", "--config", str(SMOKE_CONFIG))
         assert result.returncode == 0, f"Apply failed:\n{result.stderr}"
 
         # Lock should be released after apply
@@ -79,7 +80,7 @@ class TestStateCommands:
 
     def test_state_list_shows_deployed_pages(self, ccfm_run, confluence_live):
         """ccfm state list shows pages after an apply."""
-        ccfm_run("apply", "--auto-approve", "--docs-root", str(SMOKE_DOCS))
+        ccfm_run("apply", "--auto-approve", "--config", str(SMOKE_CONFIG))
 
         result = ccfm_run("state", "list")
 
@@ -90,7 +91,7 @@ class TestStateCommands:
 
     def test_state_pull_outputs_json(self, ccfm_run, confluence_live):
         """ccfm state pull outputs valid JSON to stdout."""
-        ccfm_run("apply", "--auto-approve", "--docs-root", str(SMOKE_DOCS))
+        ccfm_run("apply", "--auto-approve", "--config", str(SMOKE_CONFIG))
 
         result = ccfm_run("state", "pull")
         assert result.returncode == 0, f"State pull failed:\n{result.stderr}"
@@ -103,7 +104,7 @@ class TestStateCommands:
 
     def test_state_show_displays_entry(self, ccfm_run, confluence_live):
         """ccfm state show <path> outputs the entry for a specific page."""
-        ccfm_run("apply", "--auto-approve", "--docs-root", str(SMOKE_DOCS))
+        ccfm_run("apply", "--auto-approve", "--config", str(SMOKE_CONFIG))
 
         # Find the .md state key
         list_result = ccfm_run("state", "list")
@@ -122,7 +123,7 @@ class TestStateCommands:
 
     def test_state_push_round_trip(self, ccfm_run, confluence_live, tmp_path):
         """state pull -> push round-trip preserves state."""
-        ccfm_run("apply", "--auto-approve", "--docs-root", str(SMOKE_DOCS))
+        ccfm_run("apply", "--auto-approve", "--config", str(SMOKE_CONFIG))
 
         # Pull current state
         pull_result = ccfm_run("state", "pull")
@@ -144,7 +145,7 @@ class TestStateCommands:
 
     def test_state_rm_removes_entry(self, ccfm_run, confluence_live):
         """ccfm state rm removes a page entry from remote state."""
-        ccfm_run("apply", "--auto-approve", "--docs-root", str(SMOKE_DOCS))
+        ccfm_run("apply", "--auto-approve", "--config", str(SMOKE_CONFIG))
 
         # Find the state key by listing
         list_result = ccfm_run("state", "list")
@@ -189,7 +190,7 @@ class TestLockAcquireAndBlock:
         try:
             # Apply should fail because lock is held
             apply_result = ccfm_run(
-                "apply", "--auto-approve", "--force", "--docs-root", str(SMOKE_DOCS), check=False
+                "apply", "--auto-approve", "--force", "--config", str(SMOKE_CONFIG), check=False
             )
             assert apply_result.returncode != 0, "Apply should fail when lock is held"
             assert (

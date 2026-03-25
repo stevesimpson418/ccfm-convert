@@ -44,21 +44,22 @@ These apply to all commands:
 ccfm plan [OPTIONS]
 
 Options:
-  --docs-root PATH       Documentation root directory (or set docs_root in ccfm.yaml)
   --git-repo-url URL     Git repo URL for CI banner source links
   --plan-exit-code       Exit 2 when plan detects pending changes (for CI gates)
   --force                Force re-deploy all files regardless of content changes
   --debug-file PATH      Convert a single file to ADF JSON and print to stdout (no API calls)
 ```
 
-### docs_root (required)
+### docs_root (required, config only)
 
-All deployments target the full `docs_root` directory. The docs_root must be explicitly configured via:
+All deployments target the full `docs_root` directory. Set `docs_root` in your `ccfm.yaml`:
 
-1. `--docs-root` CLI flag (takes precedence), or
-2. `docs_root` in `ccfm.yaml`
+```yaml
+docs_root: docs
+```
 
-There is no default — if neither is set, ccfm exits with an error. This prevents accidental deployment of the wrong directory.
+There is no `--docs-root` CLI flag — this value must come from config to prevent accidental
+deployment of the wrong directory.
 
 The same resolution applies to both `plan` and `apply`.
 
@@ -93,7 +94,6 @@ ccfm plan --debug-file docs/my-page.md > my-page.adf.json
 ccfm apply [OPTIONS]
 
 Options:
-  --docs-root PATH       Documentation root directory (or set docs_root in ccfm.yaml)
   --git-repo-url URL     Git repo URL for CI banner source links
   --auto-approve         Skip confirmation prompt (required for CI/non-interactive use)
   --force                Force re-deploy all files regardless of content changes
@@ -190,15 +190,14 @@ ccfm --domain company.atlassian.net --email user@example.com --token abc123 --sp
 # Preview what would change (credentials from ccfm.yaml)
 ccfm plan
 
-# Preview with explicit docs_root
-ccfm plan --docs-root path/to/docs
+# Preview what would change (credentials and docs_root from ccfm.yaml)
+ccfm plan
 
 # Apply all docs with auto-approve (for CI)
 ccfm apply --auto-approve
 
-# Apply with explicit docs_root and CI banner links
-ccfm apply --docs-root path/to/docs \
-  --git-repo-url "https://github.com/org/repo/blob/main" --auto-approve
+# Apply with CI banner links
+ccfm apply --git-repo-url "https://github.com/org/repo/blob/main" --auto-approve
 
 # Force re-deploy all files
 ccfm apply --force --auto-approve

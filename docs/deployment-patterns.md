@@ -46,12 +46,12 @@ separate config files or environment variables.
 # Deploy to staging
 CONFLUENCE_DOMAIN=staging.atlassian.net \
 CONFLUENCE_TOKEN=$STAGING_TOKEN \
-ccfm apply --space DOCS-STAGING --docs-root docs --auto-approve
+ccfm --config ccfm-staging.yaml apply --auto-approve
 
 # Deploy to production
 CONFLUENCE_DOMAIN=company.atlassian.net \
 CONFLUENCE_TOKEN=$PROD_TOKEN \
-ccfm apply --space DOCS --docs-root docs --auto-approve
+ccfm --config ccfm-prod.yaml apply --auto-approve
 ```
 
 Or use separate config files:

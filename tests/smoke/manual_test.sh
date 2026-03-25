@@ -158,11 +158,11 @@ step_header "1.2" "Init help" "Shows init options"
 run_cmd ccfm init --help
 verdict
 
-step_header "1.3" "Plan help" "Shows --docs-root, --debug-file, --plan-exit-code, --force. No --file/--directory"
+step_header "1.3" "Plan help" "Shows --debug-file, --plan-exit-code, --force. No --file/--directory/--docs-root"
 run_cmd ccfm plan --help
 verdict
 
-step_header "1.4" "Apply help" "Shows --docs-root, --auto-approve, --force, --lock-id. No --file/--directory"
+step_header "1.4" "Apply help" "Shows --auto-approve, --force, --lock-id. No --file/--directory/--docs-root"
 run_cmd ccfm apply --help
 verdict
 
@@ -187,10 +187,6 @@ verdict
 
 step_header "2.2" "Plan docs_root from config" "Plan: 8 to add."
 run_cmd ccfm $CFG plan
-verdict
-
-step_header "2.3" "Plan with --docs-root override" "Plan: 1 to add. (overrides config docs_root)"
-run_cmd ccfm $CFG plan --docs-root "$SMOKE_DOCS/single-page"
 verdict
 
 step_header "2.4" "Plan with --plan-exit-code (pending changes)" "Exit code 2"
@@ -432,19 +428,11 @@ step_header "8.1" "No docs_root configured" "Error: No docs_root configured"
 run_cmd "cd /tmp && ccfm plan; cd '$PROJECT_ROOT'"
 verdict
 
-step_header "8.2" "Missing docs_root directory" "Error: docs_root not found: nonexistent-dir"
-run_cmd ccfm plan --docs-root nonexistent-dir
-verdict
-
-step_header "8.3" "docs_root is a file, not a directory" "Error: docs_root is not a directory"
-run_cmd ccfm plan --docs-root "$SINGLE_PAGE"
-verdict
-
-step_header "8.4" "Debug file missing" "error: File not found: nonexistent.md"
+step_header "8.2" "Debug file missing" "error: File not found: nonexistent.md"
 run_cmd ccfm plan --debug-file nonexistent.md
 verdict
 
-step_header "8.5" "Apply with no docs_root" "Error: No docs_root configured"
+step_header "8.3" "Apply with no docs_root" "Error: No docs_root configured"
 run_cmd "cd /tmp && ccfm apply --auto-approve; cd '$PROJECT_ROOT'"
 verdict
 

@@ -76,13 +76,7 @@ def _add_global_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _add_target_args(parser: argparse.ArgumentParser) -> None:
-    """Add --docs-root, --git-repo-url shared by plan and apply."""
-    parser.add_argument(
-        "--docs-root",
-        type=Path,
-        default=None,
-        help="Root documentation directory (or set docs_root in ccfm.yaml)",
-    )
+    """Add --git-repo-url shared by plan and apply."""
     parser.add_argument("--git-repo-url", default="", help="Git repo URL for CI banner")
 
 
@@ -226,13 +220,13 @@ def _find_management_page(api, space_id):
 def _resolve_target_files(args):
     """Resolve target files from docs_root.
 
-    All deployments target the full docs_root directory. The docs_root is set
-    via --docs-root CLI flag or docs_root in ccfm.yaml.
+    All deployments target the full docs_root directory. The docs_root must
+    be set via docs_root in ccfm.yaml.
     """
     docs_root = getattr(args, "docs_root", None)
     if not docs_root:
         print(
-            "Error: No docs_root configured. " "Set docs_root in ccfm.yaml or pass --docs-root.",
+            "Error: No docs_root configured. Set docs_root in ccfm.yaml.",
             file=sys.stderr,
         )
         sys.exit(1)

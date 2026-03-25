@@ -114,7 +114,7 @@ docker run --rm \
   -e CONFLUENCE_TOKEN=your-token \
   -v $(pwd)/docs:/docs \
   ghcr.io/stevesimpson418/ccfm-convert:latest \
-  apply --space DOCS --docs-root /docs --auto-approve
+  apply --auto-approve
 ```
 
 For GitHub Action usage and CI/CD pipeline examples, see

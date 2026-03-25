@@ -30,21 +30,35 @@ def mock_api():
     return api
 
 
+def _write_test_config(docs_root):
+    """Write a temporary ccfm.yaml in docs_root's parent and return its path."""
+    config_path = docs_root.parent / "ccfm.yaml"
+    config_path.write_text(
+        f"version: 1\n"
+        f"domain: example.atlassian.net\n"
+        f"email: test@example.com\n"
+        f"token: token\n"
+        f"space: TEST\n"
+        f"docs_root: {docs_root}\n"
+    )
+    return config_path
+
+
+def _write_docs_root_config(docs_root):
+    """Write a minimal ccfm.yaml with only docs_root. Returns config path."""
+    config_path = docs_root.parent / "ccfm.yaml"
+    config_path.write_text(f"version: 1\ndocs_root: {docs_root}\n")
+    return config_path
+
+
 def _base_plan_argv(docs_root, *, extra=None):
     """Build a standard plan sys.argv list."""
+    config_path = _write_test_config(docs_root)
     argv = [
         "main.py",
-        "--domain",
-        "example.atlassian.net",
-        "--email",
-        "test@example.com",
-        "--token",
-        "token",
-        "--space",
-        "TEST",
+        "--config",
+        str(config_path),
         "plan",
-        "--docs-root",
-        str(docs_root),
     ]
     if extra:
         argv.extend(extra)
@@ -53,20 +67,13 @@ def _base_plan_argv(docs_root, *, extra=None):
 
 def _base_apply_argv(docs_root, *, extra=None):
     """Build a standard apply sys.argv list with --auto-approve by default."""
+    config_path = _write_test_config(docs_root)
     argv = [
         "main.py",
-        "--domain",
-        "example.atlassian.net",
-        "--email",
-        "test@example.com",
-        "--token",
-        "token",
-        "--space",
-        "TEST",
+        "--config",
+        str(config_path),
         "apply",
         "--auto-approve",
-        "--docs-root",
-        str(docs_root),
     ]
     if extra:
         argv.extend(extra)
@@ -225,10 +232,13 @@ class TestCLIArguments:
         docs = tmp_path / "docs"
         docs.mkdir()
         (docs / "test.md").write_text("# Test")
+        # Config with docs_root but no credentials
+        config = tmp_path / "ccfm.yaml"
+        config.write_text(f"version: 1\ndocs_root: {docs}\n")
         with pytest.raises(SystemExit):
             with patch(
                 "sys.argv",
-                ["main.py", "plan", "--docs-root", str(docs)],
+                ["main.py", "--config", str(config), "plan"],
             ):
                 main.main()
 
@@ -237,10 +247,12 @@ class TestCLIArguments:
         docs = tmp_path / "docs"
         docs.mkdir()
         (docs / "test.md").write_text("# Test")
+        config = tmp_path / "ccfm.yaml"
+        config.write_text(f"version: 1\ndocs_root: {docs}\n")
         with pytest.raises(SystemExit):
             with patch(
                 "sys.argv",
-                ["main.py", "apply", "--docs-root", str(docs), "--auto-approve"],
+                ["main.py", "--config", str(config), "apply", "--auto-approve"],
             ):
                 main.main()
 
@@ -547,7 +559,7 @@ class TestPlanSubcommand:
         mock_state_class,
         tmp_path,
     ):
-        """plan with --docs-root excludes .page_content.md files."""
+        """plan excludes .page_content.md files."""
         docs = tmp_path / "docs"
         docs.mkdir()
         (docs / "a.md").write_text("# A")
@@ -627,7 +639,7 @@ class TestPlanSubcommand:
         assert call_kwargs["force"] is True
 
     def test_plan_no_docs_root_exits(self, tmp_path, monkeypatch):
-        """plan without --docs-root (and no config) exits 1."""
+        """plan without docs_root in config exits 1."""
         monkeypatch.chdir(tmp_path)  # ensure no ccfm.yaml found
         with pytest.raises(SystemExit):
             with patch(
@@ -1225,17 +1237,9 @@ class TestApplyConfirmation:
         # argv WITHOUT --auto-approve
         argv = [
             "main.py",
-            "--domain",
-            "example.atlassian.net",
-            "--email",
-            "test@example.com",
-            "--token",
-            "token",
-            "--space",
-            "TEST",
+            "--config",
+            str(_write_test_config(docs)),
             "apply",
-            "--docs-root",
-            str(docs),
         ]
 
         with pytest.raises(SystemExit) as exc_info:
@@ -1283,17 +1287,9 @@ class TestApplyConfirmation:
 
         argv = [
             "main.py",
-            "--domain",
-            "example.atlassian.net",
-            "--email",
-            "test@example.com",
-            "--token",
-            "token",
-            "--space",
-            "TEST",
+            "--config",
+            str(_write_test_config(docs)),
             "apply",
-            "--docs-root",
-            str(docs),
         ]
 
         with patch("sys.stdin") as mock_stdin:
@@ -1335,17 +1331,9 @@ class TestApplyConfirmation:
 
         argv = [
             "main.py",
-            "--domain",
-            "example.atlassian.net",
-            "--email",
-            "test@example.com",
-            "--token",
-            "token",
-            "--space",
-            "TEST",
+            "--config",
+            str(_write_test_config(docs)),
             "apply",
-            "--docs-root",
-            str(docs),
         ]
 
         with patch("sys.stdin") as mock_stdin:
@@ -1386,17 +1374,9 @@ class TestApplyConfirmation:
 
         argv = [
             "main.py",
-            "--domain",
-            "example.atlassian.net",
-            "--email",
-            "test@example.com",
-            "--token",
-            "token",
-            "--space",
-            "TEST",
+            "--config",
+            str(_write_test_config(docs)),
             "apply",
-            "--docs-root",
-            str(docs),
         ]
 
         with patch("builtins.input") as mock_input:
@@ -1874,32 +1854,8 @@ class TestApplyErrorHandling:
             with patch("sys.argv", _base_apply_argv(missing)):
                 main.main()
 
-    def test_apply_missing_directory_exits(self, tmp_path):
-        """Apply with --directory pointing to nonexistent dir exits 1."""
-        missing_dir = tmp_path / "no-such-dir"
-        with pytest.raises(SystemExit):
-            with patch(
-                "sys.argv",
-                [
-                    "main.py",
-                    "--domain",
-                    "example.atlassian.net",
-                    "--email",
-                    "test@example.com",
-                    "--token",
-                    "token",
-                    "--space",
-                    "TEST",
-                    "apply",
-                    "--docs-root",
-                    str(missing_dir),
-                    "--auto-approve",
-                ],
-            ):
-                main.main()
-
     def test_apply_no_docs_root_exits(self, tmp_path, monkeypatch):
-        """Apply without --docs-root (and no config) exits 1."""
+        """apply without docs_root in config exits 1."""
         monkeypatch.chdir(tmp_path)  # ensure no ccfm.yaml found
         with pytest.raises(SystemExit):
             with patch(
@@ -2683,7 +2639,8 @@ class TestConfigFileLoading:
 
         config_file = tmp_path / "ccfm.yaml"
         config_file.write_text(
-            "version: 1\ndomain: config.atlassian.net\nemail: cfg@example.com\nspace: CFG\n"
+            f"version: 1\ndomain: config.atlassian.net\nemail: cfg@example.com\n"
+            f"space: CFG\ndocs_root: {docs}\n"
         )
 
         mock_api = Mock()
@@ -2708,8 +2665,6 @@ class TestConfigFileLoading:
                     "tok",
                     "apply",
                     "--auto-approve",
-                    "--docs-root",
-                    str(docs),
                 ],
             ):
                 main.main()
@@ -2739,8 +2694,6 @@ class TestConfigFileLoading:
                         str(config_file),
                         "apply",
                         "--auto-approve",
-                        "--docs-root",
-                        "docs",
                     ],
                 ):
                     main.main()
@@ -2773,7 +2726,8 @@ class TestConfigFileLoading:
 
         custom_config = tmp_path / "custom.yaml"
         custom_config.write_text(
-            "version: 1\ndomain: custom.atlassian.net\nemail: custom@example.com\nspace: CUS\n"
+            f"version: 1\ndomain: custom.atlassian.net\nemail: custom@example.com\n"
+            f"space: CUS\ndocs_root: {docs}\n"
         )
 
         mock_api = Mock()
@@ -2797,8 +2751,6 @@ class TestConfigFileLoading:
                 str(custom_config),
                 "apply",
                 "--auto-approve",
-                "--docs-root",
-                str(docs),
             ],
         ):
             main.main()
@@ -2852,6 +2804,8 @@ class TestTokenHandling:
                 "sys.argv",
                 [
                     "main.py",
+                    "--config",
+                    str(_write_docs_root_config(docs)),
                     "--domain",
                     "example.atlassian.net",
                     "--email",
@@ -2860,8 +2814,6 @@ class TestTokenHandling:
                     "TEST",
                     "apply",
                     "--auto-approve",
-                    "--docs-root",
-                    str(docs),
                 ],
             ):
                 main.main()
@@ -2882,6 +2834,8 @@ class TestTokenHandling:
                 "sys.argv",
                 [
                     "main.py",
+                    "--config",
+                    str(_write_docs_root_config(docs)),
                     "--domain",
                     "example.atlassian.net",
                     "--email",
@@ -2890,8 +2844,6 @@ class TestTokenHandling:
                     "TEST",
                     "apply",
                     "--auto-approve",
-                    "--docs-root",
-                    str(docs),
                 ],
             ):
                 main.main()
@@ -2944,6 +2896,8 @@ class TestDomainEnvVarFallback:
                 "sys.argv",
                 [
                     "main.py",
+                    "--config",
+                    str(_write_docs_root_config(docs)),
                     "--email",
                     "test@example.com",
                     "--token",
@@ -2952,8 +2906,6 @@ class TestDomainEnvVarFallback:
                     "TEST",
                     "apply",
                     "--auto-approve",
-                    "--docs-root",
-                    str(docs),
                 ],
             ):
                 main.main()
@@ -2981,8 +2933,6 @@ class TestDomainEnvVarFallback:
                         "--space",
                         "TEST",
                         "plan",
-                        "--docs-root",
-                        str(docs),
                     ],
                 ):
                     main.main()
@@ -3029,6 +2979,8 @@ class TestEmailEnvVarFallback:
                 "sys.argv",
                 [
                     "main.py",
+                    "--config",
+                    str(_write_docs_root_config(docs)),
                     "--domain",
                     "example.atlassian.net",
                     "--token",
@@ -3037,8 +2989,6 @@ class TestEmailEnvVarFallback:
                     "TEST",
                     "apply",
                     "--auto-approve",
-                    "--docs-root",
-                    str(docs),
                 ],
             ):
                 main.main()
@@ -3064,8 +3014,6 @@ class TestEmailEnvVarFallback:
                         "--space",
                         "TEST",
                         "plan",
-                        "--docs-root",
-                        str(docs),
                     ],
                 ):
                     main.main()
@@ -3117,12 +3065,12 @@ class TestAllCredentialsFromEnvVars:
                 "sys.argv",
                 [
                     "main.py",
+                    "--config",
+                    str(_write_docs_root_config(docs)),
                     "--space",
                     "TEST",
                     "apply",
                     "--auto-approve",
-                    "--docs-root",
-                    str(docs),
                 ],
             ):
                 main.main()
@@ -3154,7 +3102,7 @@ class TestPathHandling:
         mock_lock_class,
         tmp_path,
     ):
-        """Relative path is accepted for --docs-root."""
+        """Relative docs_root path is accepted from config."""
         original_cwd = os.getcwd()
         os.chdir(tmp_path)
 
@@ -3163,6 +3111,10 @@ class TestPathHandling:
             docs.mkdir()
             test_file = docs / "test.md"
             test_file.write_text("# Test")
+            Path("ccfm.yaml").write_text(
+                "version: 1\ndomain: example.atlassian.net\n"
+                "email: test@example.com\ntoken: token\nspace: TEST\ndocs_root: docs\n"
+            )
 
             mock_api = Mock()
             mock_api.get_space_id.return_value = "space123"
@@ -3177,21 +3129,7 @@ class TestPathHandling:
 
             with patch(
                 "sys.argv",
-                [
-                    "main.py",
-                    "--domain",
-                    "example.atlassian.net",
-                    "--email",
-                    "test@example.com",
-                    "--token",
-                    "token",
-                    "--space",
-                    "TEST",
-                    "apply",
-                    "--auto-approve",
-                    "--docs-root",
-                    "docs",
-                ],
+                ["main.py", "apply", "--auto-approve"],
             ):
                 main.main()
         finally:
@@ -3213,7 +3151,7 @@ class TestPathHandling:
         mock_lock_class,
         tmp_path,
     ):
-        """Absolute path is accepted for --docs-root."""
+        """Absolute docs_root path is accepted from config."""
         docs = tmp_path / "docs"
         docs.mkdir()
         test_file = docs / "test.md"

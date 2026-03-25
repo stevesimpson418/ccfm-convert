@@ -22,8 +22,8 @@ Verify all subcommands print help and exit 0.
 | --- | --------- | ---------- | ----------- |
 | 1.1 | `ccfm --help` | Shows subcommands: init, plan, apply, state, lock (no dump) | |
 | 1.2 | `ccfm init --help` | Shows init options | |
-| 1.3 | `ccfm plan --help` | Shows `--docs-root`, `--debug-file`, `--plan-exit-code`, `--force`, `--git-repo-url`. No `--file`, `--directory`, `--auto-deploy-deps` | |
-| 1.4 | `ccfm apply --help` | Shows `--docs-root`, `--auto-approve`, `--force`, `--lock-id`, `--git-repo-url`. No `--file`, `--directory`, `--auto-deploy-deps` | |
+| 1.3 | `ccfm plan --help` | Shows `--debug-file`, `--plan-exit-code`, `--force`, `--git-repo-url`. No `--file`, `--directory`, `--docs-root`, `--auto-deploy-deps` | |
+| 1.4 | `ccfm apply --help` | Shows `--auto-approve`, `--force`, `--lock-id`, `--git-repo-url`. No `--file`, `--directory`, `--docs-root`, `--auto-deploy-deps` | |
 | 1.5 | `ccfm state --help` | Shows list, pull, push, rm, show | |
 | 1.6 | `ccfm lock --help` | Shows status, acquire, release | |
 
@@ -39,7 +39,6 @@ CFG="--config tests/smoke/ccfm-smoke.yaml"
 | --- | --------- | ---------- | ----------- |
 | 2.1 | `ccfm plan` (from a directory with no `ccfm.yaml`) | Error: "No docs_root configured" | |
 | 2.2 | `ccfm $CFG plan` | "Plan: 8 to add." (uses docs_root from config) | |
-| 2.3 | `ccfm $CFG plan --docs-root tests/smoke/docs/single-page` | "Plan: 1 to add." (CLI --docs-root overrides config) | |
 | 2.4 | `ccfm $CFG plan --plan-exit-code; echo $?` | Exit code 2 (pending changes) | |
 | 2.5 | `ccfm $CFG plan --force` | "Plan: 8 to add." (force treats all as new) | |
 
@@ -138,10 +137,8 @@ No credentials needed for these steps.
 | # | Command | Expected | Pass/Fail |
 | --- | --------- | ---------- | ----------- |
 | 8.1 | `ccfm plan` (from dir with no `ccfm.yaml`) | "Error: No docs_root configured" | |
-| 8.2 | `ccfm plan --docs-root nonexistent-dir` | "Error: docs_root not found: nonexistent-dir" | |
-| 8.3 | `ccfm plan --docs-root tests/smoke/docs/single-page/single-page.md` | "Error: docs_root is not a directory" | |
-| 8.4 | `ccfm plan --debug-file nonexistent.md` | "error: File not found: nonexistent.md" | |
-| 8.5 | `ccfm apply` (from dir with no `ccfm.yaml`) | "Error: No docs_root configured" | |
+| 8.2 | `ccfm plan --debug-file nonexistent.md` | "error: File not found: nonexistent.md" | |
+| 8.3 | `ccfm apply` (from dir with no `ccfm.yaml`) | "Error: No docs_root configured" | |
 
 ---
 

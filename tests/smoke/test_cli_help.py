@@ -41,14 +41,14 @@ class TestHelpOutputs:
     def test_plan_help(self):
         result = _run_help("plan")
         assert result.returncode == 0
-        assert "--docs-root" in result.stdout
         assert "--debug-file" in result.stdout
+        assert "--docs-root" not in result.stdout
 
     def test_apply_help(self):
         result = _run_help("apply")
         assert result.returncode == 0
         assert "--auto-approve" in result.stdout
-        assert "--docs-root" in result.stdout
+        assert "--docs-root" not in result.stdout
 
     def test_state_help(self):
         result = _run_help("state")

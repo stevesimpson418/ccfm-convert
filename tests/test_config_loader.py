@@ -195,14 +195,14 @@ class TestMergeConfigWithArgs:
         merged = merge_config_with_args(config, args)
         assert merged.docs_root == Path("docs")
 
-    def test_docs_root_from_cli_takes_precedence(self):
-        """CLI --docs-root takes precedence over config docs_root."""
+    def test_docs_root_not_overridden_when_set(self):
+        """docs_root from config is not overridden when already set on args."""
         config = {"docs_root": "config-docs"}
         args = Namespace(
-            domain=None, email=None, token=None, space=None, docs_root=Path("cli-docs")
+            domain=None, email=None, token=None, space=None, docs_root=Path("already-set")
         )
         merged = merge_config_with_args(config, args)
-        assert merged.docs_root == Path("cli-docs")
+        assert merged.docs_root == Path("already-set")
 
 
 class TestConfigValidation:
