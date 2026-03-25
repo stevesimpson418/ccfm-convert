@@ -51,7 +51,7 @@ deleted — so the second repository's apply will destroy pages created by the f
 1. Re-run `ccfm apply` from the **original** repository — the docs are still in version control
 2. Ensure each Confluence space is managed by exactly one `ccfm.yaml` configuration
 
-See [Design Philosophy — Why one repo per space?](index.md#why-one-repo-per-space) for details.
+See [Design Philosophy — Why one config per space?](index.md#why-one-config-per-space) for details.
 
 ## Page hierarchy issues
 

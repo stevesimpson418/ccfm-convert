@@ -123,14 +123,18 @@ directory.
 
 ---
 
-## Anti-Pattern: Multiple Repos, Same Space
+## Anti-Pattern: Multiple Configs, Same Space
 
-Do **not** deploy to the same Confluence space from multiple repositories. Each apply compares
-its `docs_root` against state — pages from another repository will appear as orphans and be
-destroyed.
+Do **not** deploy to the same Confluence space from multiple configurations. Each apply compares
+its `docs_root` against the space's state — pages managed by a different configuration will
+appear as orphans and be destroyed.
+
+This applies whether the configurations are in separate repositories or in the same repository
+with overlapping space targets. Each space must have exactly one managing `ccfm.yaml`.
 
 If you need multiple teams contributing to the same space, use a single repository with
-team-owned subdirectories (see Pattern 1 in the [FAQ](index.md#multiple-teams-need-to-publish-documentation--whats-the-best-approach)).
+team-owned subdirectories under one `docs_root` (see
+[FAQ](index.md#multiple-teams-need-to-publish-documentation--whats-the-best-approach)).
 
 ---
 
