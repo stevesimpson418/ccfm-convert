@@ -22,6 +22,26 @@ Full syntax reference: **[CCFM Syntax Reference](syntax-reference.md)**
 
 ---
 
+## Design Philosophy
+
+**CCFM follows a single-repo, single-space model.** Each `ccfm.yaml` manages exactly one
+Confluence space. All files under `docs_root` are deployed to that space, and the directory
+structure maps directly to the Confluence page hierarchy.
+
+This is an intentional design choice — not a limitation. A single source of truth per space
+means reliable state tracking, predictable orphan detection, and no conflicts between teams.
+
+If you need to manage multiple Confluence spaces, use separate repositories (or separate config
+files within one repo) — one per space. See [Deployment Patterns](deployment-patterns.md) for
+examples.
+
+!!! warning "One space, one repo"
+    Deploying to the same Confluence space from multiple repositories will cause state conflicts.
+    CCFM's orphan detection treats pages not in the current `docs_root` as deleted — a second
+    repo deploying to the same space will destroy the first repo's pages.
+
+---
+
 ## Quick Start
 
 ### 1. Get an API token
@@ -84,23 +104,23 @@ This is **bold** text, this is *italic*.
 
 ```bash
 # See what would change without touching Confluence
-ccfm plan --directory path/to/docs
+ccfm plan
 
-# Apply changes
-ccfm apply --directory path/to/docs
+# Apply changes (interactive confirmation)
+ccfm apply
 
 # Skip confirmation prompt (for CI)
-ccfm apply --directory docs --auto-approve
+ccfm apply --auto-approve
 ```
 
 ### 6. Inspect ADF output
 
-Use the `dump` subcommand to convert markdown to ADF JSON files locally without making any
-API calls:
+Use `--debug-file` to convert a single markdown file to ADF JSON and print it to stdout
+without making any API calls:
 
 ```bash
-ccfm dump --file path/to/my-page.md
-ccfm dump --directory path/to/docs
+ccfm plan --debug-file path/to/my-page.md
+ccfm plan --debug-file path/to/my-page.md | jq '.content[0]'
 ```
 
 ---
@@ -129,6 +149,56 @@ docs/
 
 `.page_content.md` files support full CCFM syntax and frontmatter, including labels and
 custom titles.
+
+### Container pages and page links
+
+Container pages (created from `.page_content.md`) are deployed **before** their child pages.
+If a `.page_content.md` contains page links to its own children (e.g., `[Overview](<Team Overview>)`),
+those links cannot resolve on the first deploy because the child pages don't exist yet.
+
+**Workaround:** Run `ccfm apply --force --auto-approve` after the initial deploy to re-push
+all pages — the child pages now exist and the links will resolve correctly.
+
+**Recommended alternative:** Instead of manually linking to child pages from a container page,
+use Confluence's built-in **Children Display macro** after the initial deploy. This macro
+automatically lists all child pages and stays up to date as pages are added or removed — no
+manual link maintenance required. Since the macro is added via the Confluence editor (not the
+markdown source), it won't be overwritten by subsequent CCFM deploys.
+
+---
+
+## FAQ
+
+### Multiple teams need to publish documentation — what's the best approach?
+
+**Option A: Centralised docs repo with team-owned subdirectories.** One repository, one
+Confluence space. Each team owns a directory:
+
+```text
+docs/
+├── auth-team/
+├── payments-team/
+└── platform-team/
+```
+
+This is the simplest model — one deploy pipeline, one state, clear hierarchy.
+
+**Option B: Separate Confluence spaces per team.** Each team has their own repository
+and their own Confluence space. Use a GitLab/GitHub group or org to keep docs repos
+discoverable. Consider a repo template so new teams can bootstrap quickly with CI
+pipelines, linting, and CCFM config pre-configured.
+
+### Can I deploy from multiple repositories to the same Confluence space?
+
+No. CCFM's state tracking and orphan detection assume a single source of truth per space.
+Deploying from a second repository will destroy pages created by the first. This is by design —
+it keeps the model simple and predictable.
+
+### Can I use CCFM without a config file?
+
+For `plan --debug-file` (ADF inspection), yes — no config or credentials needed. For `plan`
+and `apply`, you need a `ccfm.yaml` with at least `docs_root` configured. Credentials can come
+from the config file, CLI flags, or environment variables.
 
 ---
 

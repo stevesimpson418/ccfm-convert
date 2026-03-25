@@ -80,8 +80,8 @@ This is **bold** text, this is *italic*.
 ### 5. Preview and apply
 
 ```bash
-ccfm plan --directory path/to/docs
-ccfm apply --directory path/to/docs --auto-approve
+ccfm plan
+ccfm apply --auto-approve
 ```
 
 For the full CLI reference, configuration options, and deployment patterns, see the
@@ -114,7 +114,7 @@ docker run --rm \
   -e CONFLUENCE_TOKEN=your-token \
   -v $(pwd)/docs:/docs \
   ghcr.io/stevesimpson418/ccfm-convert:latest \
-  apply --space DOCS --directory /docs --auto-approve
+  apply --auto-approve
 ```
 
 For GitHub Action usage and CI/CD pipeline examples, see

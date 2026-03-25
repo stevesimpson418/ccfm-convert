@@ -71,15 +71,21 @@ class DeployPlan:
             print()
             return
 
+        # Reorder actionable items by dependency graph when available
+        if self.dependency_graph and len(actionable) > 1:
+            order_index = {f: i for i, f in enumerate(self.dependency_graph.order)}
+            actionable.sort(key=lambda a: order_index.get(a.filepath, len(order_index)))
+
         print("\nccfm will perform the following actions:\n")
 
         for action in actionable:
             symbol = _SYMBOLS[action.action]
-            label = f"({action.action})"
-            print(f'  {symbol} {action.rel_path:<40} {label:<12} "{action.title}"')
+            print(f"  {symbol} {action.rel_path}")
+            print(f"    {action.title}")
 
         for destroy in self.destroy_actions:
-            print(f'  - {destroy.rel_path:<40} {"(destroy)":<12} "{destroy.title}"')
+            print(f"  - {destroy.rel_path}")
+            print(f"    {destroy.title}")
 
         adds = sum(1 for a in self.page_actions if a.action == "add")
         changes = sum(1 for a in self.page_actions if a.action == "change")
@@ -110,15 +116,6 @@ class DeployPlan:
                 for title, deps in graph.unresolved.items():
                     for dep in deps:
                         print(f'  ⚠️  Unresolved link: "{title}" links to "{dep}"')
-            if len(graph.order) > 1:
-                # Show deploy order using titles from actionable items
-                action_titles = {a.filepath: a.title for a in self.page_actions}
-                ordered_titles = [
-                    action_titles.get(f, f.stem) for f in graph.order if f in action_titles
-                ]
-                if len(ordered_titles) > 1:
-                    print(f"  Deploy order: {' → '.join(ordered_titles)}")
-
         print()
 
 
@@ -150,7 +147,6 @@ def compute_plan(
     files: list[Path],
     docs_root: Path,
     force: bool = False,
-    single_file: bool = False,
 ) -> DeployPlan:
     """Compute the full deploy plan by comparing files on disk against stored state.
 
@@ -225,41 +221,39 @@ def compute_plan(
                 )
             )
 
-    # Destroy detection — skip when targeting a single file, since the file list
-    # does not represent the complete set of managed pages.
-    if not single_file:
-        # 1. Orphaned .md files (in state but not on disk)
-        for rel_path in state.find_orphans(files, docs_root):
-            entry = state.get_page(rel_path)
-            if entry:
-                plan.destroy_actions.append(
-                    DestroyAction(
-                        rel_path=rel_path,
-                        page_id=entry["page_id"],
-                        title=entry["title"],
-                    )
+    # Destroy detection — find orphaned pages and empty containers
+    # 1. Orphaned .md files (in state but not on disk)
+    for rel_path in state.find_orphans(files, docs_root):
+        entry = state.get_page(rel_path)
+        if entry:
+            plan.destroy_actions.append(
+                DestroyAction(
+                    rel_path=rel_path,
+                    page_id=entry["page_id"],
+                    title=entry["title"],
                 )
-
-        # 2. Orphaned directory containers (content_hash == "", no .md files remain under them)
-        current_rel_paths = {a.rel_path for a in plan.page_actions}
-        all_pages = state.all_pages
-        for rel_path, entry in all_pages.items():
-            if rel_path.endswith(".md"):
-                continue
-            if entry.get("content_hash") != "":
-                continue
-            # Check if any tracked .md file still exists under this directory
-            has_children = any(
-                child_path.startswith(rel_path + "/") for child_path in current_rel_paths
             )
-            if not has_children:
-                plan.destroy_actions.append(
-                    DestroyAction(
-                        rel_path=rel_path,
-                        page_id=entry["page_id"],
-                        title=entry["title"],
-                    )
+
+    # 2. Orphaned directory containers (content_hash == "", no .md files remain under them)
+    current_rel_paths = {a.rel_path for a in plan.page_actions}
+    all_pages = state.all_pages
+    for rel_path, entry in all_pages.items():
+        if rel_path.endswith(".md"):
+            continue
+        if entry.get("content_hash") != "":
+            continue
+        # Check if any tracked .md file still exists under this directory
+        has_children = any(
+            child_path.startswith(rel_path + "/") for child_path in current_rel_paths
+        )
+        if not has_children:
+            plan.destroy_actions.append(
+                DestroyAction(
+                    rel_path=rel_path,
+                    page_id=entry["page_id"],
+                    title=entry["title"],
                 )
+            )
 
     # Sort destroys deepest-first (children before parents)
     plan.destroy_actions.sort(key=lambda a: a.rel_path.count("/"), reverse=True)

@@ -1,6 +1,5 @@
 """Deployment Orchestration."""
 
-import json
 from pathlib import Path
 
 from ccfm_convert.adf import convert
@@ -389,83 +388,3 @@ def deploy_page(api, space_id, parent_id, filepath, git_repo_url=""):
 
     print(f"   ✅ Success! Page ID: {page_id}")
     return page_id
-
-
-def dump_page(filepath, output_dir, git_repo_url=""):
-    """Convert a single markdown file to ADF and write to output directory.
-
-    No API calls are made. Page link resolution is skipped (requires API).
-
-    Args:
-        filepath: Path to markdown file
-        output_dir: Directory to write .adf.json files into
-        git_repo_url: Git repository URL for CI banner
-
-    Returns:
-        Path to the written .adf.json file, or None on error.
-    """
-    print(f"\n📄 Processing: {filepath.name}")
-
-    content = filepath.read_text()
-    metadata, markdown = parse_frontmatter(content)
-
-    if not metadata.get("deploy_page", True):
-        print("   ⏭️  Skipping: deploy_page is set to false")
-        return None
-
-    title = metadata.get("title", filepath.stem.replace("-", " ").title())
-    print(f"   Title: {title}")
-
-    file_git_url = f"{git_repo_url}/{filepath}" if git_repo_url else ""
-    body = convert(markdown)
-
-    if metadata.get("ci_banner", True):
-        custom_banner_text = metadata.get("ci_banner_text")
-        body = add_ci_banner(body, file_git_url, banner_text=custom_banner_text, metadata=metadata)
-
-    # Write ADF JSON preserving relative path structure
-    try:
-        rel_path = filepath.relative_to(Path.cwd())
-    except ValueError:
-        rel_path = Path(filepath.name)
-
-    out = output_dir / rel_path.with_suffix(".adf.json")
-    try:
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(json.dumps(body, indent=2))
-        print(f"   💾 ADF written to: {out}")
-        return out
-    except OSError as e:
-        print(f"   ❌ Error writing {out}: {e}")
-        return None
-
-
-def dump_tree(root_path, docs_root, output_dir, git_repo_url=""):
-    """Convert all markdown files in a directory tree to ADF and write to output directory.
-
-    No API calls are made. This is a local-only operation for ADF inspection.
-
-    Args:
-        root_path: Path to the directory to scan
-        docs_root: Root documentation directory
-        output_dir: Directory to write .adf.json files into
-        git_repo_url: Git repository URL for CI banner
-
-    Returns:
-        List of output file paths (None entries for failures).
-    """
-    md_files = sorted(root_path.rglob("*.md"))
-    md_files = [f for f in md_files if f.name != ".page_content.md"]
-
-    print(f"\n📚 Found {len(md_files)} markdown files in tree")
-
-    results: list[Path | None] = []
-    for filepath in md_files:
-        try:
-            out = dump_page(filepath, output_dir, git_repo_url)
-            results.append(out)
-        except Exception as e:
-            print(f"   ❌ Error: {e}")
-            results.append(None)
-
-    return results

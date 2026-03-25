@@ -188,19 +188,21 @@ class TestMergeConfigWithArgs:
         assert merged.docs_root == Path("docs")
         assert merged.git_repo_url == "https://github.com/org/repo"
 
-    def test_docs_root_from_config_flag_is_set(self):
-        """_docs_root_from_config flag is set when docs_root comes from config."""
+    def test_docs_root_from_config_sets_path(self):
+        """docs_root from config is coerced to Path."""
         config = {"docs_root": "docs"}
         args = Namespace(domain=None, email=None, token=None, space=None, docs_root=None)
         merged = merge_config_with_args(config, args)
-        assert merged._docs_root_from_config is True
+        assert merged.docs_root == Path("docs")
 
-    def test_docs_root_from_config_flag_not_set_when_absent(self):
-        """_docs_root_from_config flag is not set when docs_root is not in config."""
-        config = {"domain": "d.atlassian.net"}
-        args = Namespace(domain=None, email=None, token=None, space=None, docs_root=None)
+    def test_docs_root_not_overridden_when_set(self):
+        """docs_root from config is not overridden when already set on args."""
+        config = {"docs_root": "config-docs"}
+        args = Namespace(
+            domain=None, email=None, token=None, space=None, docs_root=Path("already-set")
+        )
         merged = merge_config_with_args(config, args)
-        assert not getattr(merged, "_docs_root_from_config", False)
+        assert merged.docs_root == Path("already-set")
 
 
 class TestConfigValidation:

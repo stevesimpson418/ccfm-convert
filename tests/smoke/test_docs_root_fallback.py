@@ -1,4 +1,4 @@
-"""Smoke tests: docs_root from ccfm.yaml used as fallback for --directory."""
+"""Smoke tests: docs_root from ccfm.yaml config."""
 
 import subprocess
 import sys
@@ -12,11 +12,11 @@ pytestmark = pytest.mark.smoke
 CONFIG_FILE = SMOKE_DIR / "ccfm-docs-root-smoke.yaml"
 
 
-class TestDocsRootFallback:
-    """Verify that plan and apply work without --directory when docs_root is in config."""
+class TestDocsRootFromConfig:
+    """Verify that plan and apply work using docs_root from ccfm.yaml config."""
 
-    def test_plan_without_directory_uses_docs_root(self, confluence_live):
-        """plan succeeds without --file or --directory when config has docs_root."""
+    def test_plan_uses_docs_root_from_config(self, confluence_live):
+        """plan succeeds using docs_root from config file."""
         result = subprocess.run(
             [
                 sys.executable,
@@ -33,16 +33,15 @@ class TestDocsRootFallback:
 
         assert (
             result.returncode == 0
-        ), f"plan without --directory failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
-        # Should show plan output (either "No changes" or a list of add/change actions)
+        ), f"plan with docs_root config failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
         assert (
             "No changes" in result.stdout
             or "to add" in result.stdout
             or "to change" in result.stdout
         ), f"Unexpected plan output:\n{result.stdout}"
 
-    def test_apply_without_directory_uses_docs_root(self, confluence_live):
-        """apply --auto-approve succeeds without --directory when config has docs_root."""
+    def test_apply_uses_docs_root_from_config(self, confluence_live):
+        """apply --auto-approve succeeds using docs_root from config file."""
         result = subprocess.run(
             [
                 sys.executable,
@@ -60,7 +59,7 @@ class TestDocsRootFallback:
 
         assert (
             result.returncode == 0
-        ), f"apply without --directory failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
+        ), f"apply with docs_root config failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
         assert (
             "Apply complete" in result.stdout or "No changes" in result.stdout
         ), f"Unexpected apply output:\n{result.stdout}"

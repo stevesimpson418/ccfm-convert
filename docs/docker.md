@@ -9,9 +9,10 @@ docker run --rm \
   -e CONFLUENCE_DOMAIN=company.atlassian.net \
   -e CONFLUENCE_EMAIL=user@example.com \
   -e CONFLUENCE_TOKEN=your-token \
-  -v $(pwd)/docs:/docs \
+  -v $(pwd):/workspace \
+  -w /workspace \
   ghcr.io/stevesimpson418/ccfm-convert:latest \
-  apply --space DOCS --directory /docs --auto-approve
+  apply --space DOCS --auto-approve
 ```
 
 ---
@@ -25,8 +26,7 @@ docker run --rm \
     email:  ${{ secrets.CONFLUENCE_EMAIL }}
     token:  ${{ secrets.CONFLUENCE_TOKEN }}
     space:  DOCS
-    directory: docs
-    args: --auto-approve
+    args: apply --auto-approve
 ```
 
 ---
@@ -93,7 +93,6 @@ jobs:
             --token "$CONFLUENCE_TOKEN" \
             --space DOCS \
             apply \
-            --directory docs \
             --git-repo-url "https://github.com/${{ github.repository }}/blob/main" \
             --auto-approve \
             --lock-id "${{ github.run_id }}"
