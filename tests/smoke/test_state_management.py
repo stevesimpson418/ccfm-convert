@@ -63,8 +63,6 @@ class TestDestroyBehavior:
         try:
             result = ccfm_run(
                 "plan",
-                "--directory",
-                str(STATE_DIR),
                 "--docs-root",
                 str(STATE_DIR),
                 check=False,
@@ -93,8 +91,6 @@ class TestDestroyBehavior:
             result = ccfm_run(
                 "apply",
                 "--auto-approve",
-                "--directory",
-                str(STATE_DIR),
                 "--docs-root",
                 str(STATE_DIR),
             )
