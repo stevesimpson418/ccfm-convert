@@ -16,21 +16,24 @@ docs_root: docs
 git_repo_url: https://github.com/org/repo
 ```
 
-The `docs_root` key sets the default target directory for `plan`, `apply`, and `dump`
-when `--directory` is not passed on the command line. The resolution order is:
+### docs_root (required)
 
-1. `--directory` CLI flag (always wins)
-2. `docs_root` from `ccfm.yaml`
-3. If neither is set, an error is raised
+The `docs_root` key defines the root directory that CCFM manages. All files under this
+directory are deployed to Confluence, and removing files triggers destroy operations.
 
-This means you can run `ccfm plan` or `ccfm apply --auto-approve` without any target
-flags as long as `docs_root` is defined in your config file.
+`docs_root` must be explicitly configured — there is no default. Set it via:
 
-With a config file in place:
+1. `docs_root` in `ccfm.yaml` (recommended)
+2. `--docs-root` CLI flag (takes precedence over config)
+
+If neither is set, ccfm exits with a clear error. This prevents accidental deployment
+of the wrong directory.
+
+With a config file in place, you can run commands without any target flags:
 
 ```bash
-ccfm plan --directory docs
-ccfm apply --directory docs --auto-approve
+ccfm plan
+ccfm apply --auto-approve
 ```
 
 !!! warning "Security note"
@@ -157,13 +160,13 @@ ccfm state push state-backup.json
 Preview what would change without making any modifications:
 
 ```bash
-ccfm plan --directory docs
+ccfm plan
 ```
 
 Apply changes interactively (prompts for confirmation):
 
 ```bash
-ccfm apply --directory docs
+ccfm apply
 ```
 
 Use `--plan-exit-code` with `plan` to exit with code `2` when there are pending changes —
@@ -183,7 +186,7 @@ using Confluence's optimistic concurrency (version numbers) to prevent race cond
 
 - `ccfm apply` automatically acquires a lock before applying and releases it when done
 - If another apply is in progress, the command fails immediately with a lock error
-- `ccfm plan` and `ccfm dump` do **not** acquire locks (they're read-only)
+- `ccfm plan` does **not** acquire locks (it's read-only)
 - Lock owner is auto-detected as `user@hostname`
 
 ### CI traceability
@@ -191,7 +194,7 @@ using Confluence's optimistic concurrency (version numbers) to prevent race cond
 Pass `--lock-id` to associate the lock with a CI pipeline for easier debugging:
 
 ```bash
-ccfm --space DOCS apply --directory docs --auto-approve --lock-id "$CI_PIPELINE_ID"
+ccfm apply --auto-approve --lock-id "$CI_PIPELINE_ID"
 ```
 
 ### Recovering from stale locks

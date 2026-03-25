@@ -84,23 +84,23 @@ This is **bold** text, this is *italic*.
 
 ```bash
 # See what would change without touching Confluence
-ccfm plan --directory path/to/docs
+ccfm plan
 
-# Apply changes
-ccfm apply --directory path/to/docs
+# Apply changes (interactive confirmation)
+ccfm apply
 
 # Skip confirmation prompt (for CI)
-ccfm apply --directory docs --auto-approve
+ccfm apply --auto-approve
 ```
 
 ### 6. Inspect ADF output
 
-Use the `dump` subcommand to convert markdown to ADF JSON files locally without making any
-API calls:
+Use `--debug-file` to convert a single markdown file to ADF JSON and print it to stdout
+without making any API calls:
 
 ```bash
-ccfm dump --file path/to/my-page.md
-ccfm dump --directory path/to/docs
+ccfm plan --debug-file path/to/my-page.md
+ccfm plan --debug-file path/to/my-page.md | jq '.content[0]'
 ```
 
 ---

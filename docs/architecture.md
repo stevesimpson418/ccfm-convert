@@ -113,15 +113,5 @@ the Confluence API at deploy time and do not affect ordering.
 **Known limitation:** Cross-space page links are not supported. The `[text](<Page Title>)`
 syntax resolves titles within the target space only.
 
-### `--auto-deploy-deps`
-
-When deploying a single file with `--file`, linked pages are not automatically deployed.
-Add `--auto-deploy-deps` to discover and deploy dependency pages from the docs root:
-
-```bash
-ccfm apply --file docs/team/overview.md --auto-deploy-deps --docs-root docs
-```
-
-This scans `docs/` for files whose titles match the linked page titles, resolves transitive
-dependencies, and deploys them all in the correct order. If a linked title cannot be mapped
-to a local file, a warning is printed and deployment continues.
+Since all deployments target the full `docs_root`, dependency resolution happens automatically —
+all linked pages are always included in the deployment set.
