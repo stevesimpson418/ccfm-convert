@@ -24,40 +24,58 @@ Full syntax reference: **[CCFM Syntax Reference](syntax-reference.md)**
 
 ## Design Philosophy
 
-**CCFM follows a single-repo, single-space model.** Each `ccfm.yaml` manages exactly one
-Confluence space. All files under `docs_root` are deployed to that space, and the directory
-structure maps directly to the Confluence page hierarchy.
+Each Confluence space is managed by exactly one `ccfm.yaml` configuration. That configuration
+defines the `docs_root` — the single directory whose contents are deployed to the space. All
+files under `docs_root` are deployed, and the directory structure maps directly to the
+Confluence page hierarchy.
 
-This is an intentional design choice — not a limitation. A single source of truth per space
-means reliable state tracking, predictable orphan detection, and no conflicts between teams.
+This is the foundation of CCFM's state model. Deployment state is stored per-space, so reliable
+change detection, orphan cleanup, and locking all depend on a single configuration owning each
+space. If two configurations deploy to the same space, each one sees the other's pages as
+orphans and will plan to destroy them.
 
-If you need to manage multiple Confluence spaces, use separate repositories (or separate config
-files within one repo) — one per space. See [Deployment Patterns](deployment-patterns.md) for
-examples.
+A single repository can manage multiple Confluence spaces — use a separate `ccfm.yaml` for each
+space, each with its own `docs_root`. This is safe because each space has its own independent
+state. See [Deployment Patterns](deployment-patterns.md) for examples.
 
-!!! warning "One space, one repo"
-    Deploying to the same Confluence space from multiple repositories will cause state conflicts.
-    CCFM's orphan detection treats pages not in the current `docs_root` as deleted — a second
-    repo deploying to the same space will destroy the first repo's pages.
+!!! warning "Never deploy to the same space from multiple repositories"
+    Each space must have exactly one managing configuration. Deploying to the same Confluence
+    space from multiple repositories (or multiple configs targeting the same space) will cause
+    state conflicts — orphan detection will destroy pages it doesn't recognise.
 
-### Why one repo per space?
+### Why one config per space?
 
-CCFM's deployment model tracks state — which pages exist, their content hashes, and when they
+CCFM tracks deployment state per space — which pages exist, their content hashes, and when they
 were last deployed. Orphan detection compares this state against the files in your `docs_root`
-to determine what should be created, updated, or destroyed. This only works when a single source
-of truth owns the state.
+to determine what should be created, updated, or destroyed. This only works when a single
+configuration owns the space's state.
 
-This is the same constraint that Terraform and other state-based tools enforce: each state file
-should be managed by exactly one configuration. When two configurations share state, each one
-sees the other's resources as orphans and plans to destroy them.
+This is the same constraint that Terraform and other state-based infrastructure tools enforce:
+each state backend should be managed by exactly one configuration. When two configurations share
+state, each one sees the other's managed resources as orphans and plans to destroy them.
 
-Unlike infrastructure tools where a bad destroy can be permanent, CCFM docs live in version
-control. If pages are accidentally destroyed, recovery is a re-deploy from the correct
-repository — no data is lost, just temporarily unavailable.
+If following best practices, CCFM docs live in version control. If pages are accidentally
+destroyed, recovery is a re-deploy from the source files — no data is lost, just temporarily
+unavailable.
 
 The `plan` command always shows pending destroy actions before any changes are applied, and
 `apply` requires explicit confirmation (or `--auto-approve` for CI). These guardrails give
 you visibility before any destructive action is taken.
+
+### Best practices: store documentation in version control
+
+While CCFM can deploy markdown files from any local directory, we strongly recommend storing
+your documentation in a version control system such as Git. This enables:
+
+- **Recovery** — if pages are accidentally destroyed or overwritten, restore from history and
+  re-deploy
+- **Review** — documentation changes go through the same review process as code (pull requests,
+  merge requests)
+- **Audit trail** — full history of who changed what and when
+- **CI/CD integration** — automate deployments on merge to your main branch, ensuring Confluence
+  stays in sync with the source
+- **Collaboration** — multiple authors can work on documentation concurrently using branches
+  without conflicting
 
 ---
 
@@ -209,9 +227,18 @@ pipelines, linting, and CCFM config pre-configured.
 
 ### Can I deploy from multiple repositories to the same Confluence space?
 
-No. CCFM's state tracking and orphan detection assume a single source of truth per space.
-Deploying from a second repository will destroy pages created by the first. This is by design —
-it keeps the model simple and predictable.
+No. Each Confluence space must be managed by exactly one `ccfm.yaml` configuration. Deploying
+from a second configuration will cause orphan detection to destroy pages created by the first.
+
+If multiple teams need to contribute to the same space, use a single repository with
+team-owned subdirectories under one `docs_root`.
+
+### Can I manage multiple Confluence spaces from one repository?
+
+Yes. Create a separate `ccfm.yaml` for each space, each with its own `docs_root` directory.
+Each space has independent state, so there is no conflict. See
+[Deployment Patterns — Multi-Source](deployment-patterns.md#pattern-3-multi-source) for a
+worked example.
 
 ### Can I use CCFM without a config file?
 
