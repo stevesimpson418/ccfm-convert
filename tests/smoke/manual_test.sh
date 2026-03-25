@@ -150,7 +150,7 @@ read -r
 
 phase "Phase 1: Verify CLI Help"
 
-step_header "1.1" "Root help" "Shows all subcommands (init, plan, apply, state, lock)"
+step_header "1.1" "Root help" "Shows subcommands: init, plan, apply, state, lock (no dump)"
 run_cmd ccfm --help
 verdict
 
@@ -158,11 +158,11 @@ step_header "1.2" "Init help" "Shows init options"
 run_cmd ccfm init --help
 verdict
 
-step_header "1.3" "Plan help" "Shows --docs-root, --debug-file, --plan-exit-code, --force"
+step_header "1.3" "Plan help" "Shows --docs-root, --debug-file, --plan-exit-code, --force. No --file/--directory"
 run_cmd ccfm plan --help
 verdict
 
-step_header "1.4" "Apply help" "Shows --docs-root, --auto-approve, --force, --lock-id"
+step_header "1.4" "Apply help" "Shows --docs-root, --auto-approve, --force, --lock-id. No --file/--directory"
 run_cmd ccfm apply --help
 verdict
 
@@ -181,14 +181,19 @@ verdict
 phase "Phase 2: Plan"
 
 step_header "2.1" "Plan with no docs_root" "Error: No docs_root configured"
-run_cmd ccfm plan
+# Run from /tmp to ensure no ccfm.yaml is found
+run_cmd "cd /tmp && ccfm plan; cd '$PROJECT_ROOT'"
 verdict
 
 step_header "2.2" "Plan docs_root from config" "Plan: 8 to add."
 run_cmd ccfm $CFG plan
 verdict
 
-step_header "2.3" "Plan with --plan-exit-code" "Exit code 2"
+step_header "2.3" "Plan with --docs-root override" "Plan: 1 to add. (overrides config docs_root)"
+run_cmd ccfm $CFG plan --docs-root "$SMOKE_DOCS/single-page"
+verdict
+
+step_header "2.4" "Plan with --plan-exit-code (pending changes)" "Exit code 2"
 echo -e "${DIM}\$ ccfm $CFG plan --plan-exit-code${NC}"
 echo ""
 rc=0
@@ -197,50 +202,53 @@ echo ""
 echo -e "${DIM}Exit code: $rc${NC}"
 verdict
 
-step_header "2.4" "Debug file" "Prints valid ADF JSON to stdout"
-run_cmd ccfm plan --debug-file "$SINGLE_PAGE"
+step_header "2.5" "Plan with --force" "Plan: 8 to add. (force treats all as new)"
+run_cmd ccfm $CFG plan --force
 verdict
 
 # ===================================================================
-# Phase 3: Apply
+# Phase 3: Apply (initial deployment)
 # ===================================================================
 
-phase "Phase 3: Apply"
+phase "Phase 3: Apply (initial deployment)"
 
-step_header "3.1" "Apply (interactive)" "Prompts for 'yes', creates pages on 'yes'"
+step_header "3.1" "Apply (interactive)" "Prompts for 'yes', deploys all pages on 'yes'"
 manual_note "Type 'yes' at the prompt"
 run_cmd_interactive ccfm $CFG apply
 verdict
 
-step_header "3.2" "Re-apply (no changes)" "No changes. Your Confluence pages are up to date."
+step_header "3.2" "Re-apply (idempotent)" "No changes to apply."
 run_cmd ccfm $CFG apply --auto-approve
 verdict
 
-step_header "3.3" "Apply changed file (interactive)" "Plan: 1 to change."
+step_header "3.3" "Apply changed file" "Plan: 1 to change. then updates"
 manual_note "Appending a line to single-page.md for change detection..."
 echo "" >> "$SINGLE_PAGE"
 echo "<!-- manual test change -->" >> "$SINGLE_PAGE"
-manual_note "Type 'yes' at the prompt"
-run_cmd_interactive ccfm $CFG apply
+run_cmd ccfm $CFG apply --auto-approve
 manual_note "Reverting change..."
 git checkout -- "$SINGLE_PAGE"
 verdict
 
-step_header "3.4" "Apply with --auto-approve" "Deploys files, no prompt"
+step_header "3.4" "Apply reverted change" "Plan: 1 to change. (reverts back)"
 run_cmd ccfm $CFG apply --auto-approve
 verdict
 
-step_header "3.5" "Re-apply (no changes)" "No changes to apply."
-run_cmd ccfm $CFG apply --auto-approve
-verdict
-
-step_header "3.6" "Apply with --force (interactive)" "Plan: 8 to add. (force treats all as new)"
-manual_note "Type 'yes' at the prompt"
-run_cmd_interactive ccfm $CFG apply --force
-verdict
-
-step_header "3.7" "Apply with --force --auto-approve" "Same as 3.6, no prompt"
+step_header "3.5" "Apply with --force --auto-approve" "Plan: 8 to add. (force re-deploys all)"
 run_cmd ccfm $CFG apply --force --auto-approve
+verdict
+
+step_header "3.6" "Re-apply (no changes)" "No changes to apply."
+run_cmd ccfm $CFG apply --auto-approve
+verdict
+
+step_header "3.7" "Plan --plan-exit-code after full deploy" "Exit code 0 (no pending changes)"
+echo -e "${DIM}\$ ccfm $CFG plan --plan-exit-code${NC}"
+echo ""
+rc=0
+ccfm $CFG plan --plan-exit-code || rc=$?
+echo ""
+echo -e "${DIM}Exit code: $rc${NC}"
 verdict
 
 step_header "3.8" "Interactive rejection: 'no'" "Apply cancelled."
@@ -262,18 +270,29 @@ verdict
 # Phase 4: Debug File
 # ===================================================================
 
-phase "Phase 4: Debug File"
+phase "Phase 4: Debug File (no credentials needed)"
 
 step_header "4.1" "Debug file single page" "Prints ADF JSON to stdout"
 run_cmd ccfm plan --debug-file "$SINGLE_PAGE"
 verdict
 
 step_header "4.2" "Debug file piped to jq" 'Prints "doc"'
-run_cmd 'ccfm plan --debug-file "'"$SINGLE_PAGE"'" | jq .type'
+run_cmd ccfm plan --debug-file "$SINGLE_PAGE" '|' jq .type
 verdict
 
-step_header "4.3" "Debug file with page links (regression)" "Succeeds (no crash)"
-run_cmd ccfm plan --debug-file "\"$COMPLETE_EXAMPLE\""
+step_header "4.3" "Debug file with page links (regression)" "Succeeds (no crash on page links)"
+run_cmd ccfm plan --debug-file "$COMPLETE_EXAMPLE"
+verdict
+
+step_header "4.4" "Debug file with --git-repo-url" "ADF JSON has panel (CI banner) as first content node"
+run_cmd ccfm plan --debug-file "$SINGLE_PAGE" --git-repo-url "https://github.com/org/repo" '|' jq '.content[0].type'
+verdict
+
+step_header "4.5" "Debug file with ci_banner: false" "ADF JSON has heading as first node (no banner)"
+TMPFILE=$(mktemp /tmp/ccfm-test-XXXXX.md)
+echo -e "---\ndeploy_config:\n  ci_banner: false\n---\n# No Banner" > "$TMPFILE"
+run_cmd ccfm plan --debug-file "$TMPFILE" '|' jq '.content[0].type'
+rm -f "$TMPFILE"
 verdict
 
 # ===================================================================
@@ -282,7 +301,7 @@ verdict
 
 phase "Phase 5: Destroy"
 
-step_header "5.1-5.2" "Move file and plan destroy" "Shows destroy for single-page"
+step_header "5.1-5.2" "Move file and plan destroy" "Shows destroy for single-page and its container"
 mv "$SINGLE_PAGE" "$SINGLE_PAGE.bak"
 run_cmd ccfm $CFG plan
 verdict
@@ -338,7 +357,7 @@ verdict
 
 phase "Phase 6: State Commands"
 
-step_header "6.1" "State list" "Shows tracked pages"
+step_header "6.1" "State list" "Shows tracked pages (8 md + 8 container = 16)"
 run_cmd ccfm $CFG state list
 verdict
 
@@ -409,16 +428,24 @@ verdict
 
 phase "Phase 8: Error Handling"
 
-step_header "8.1" "Missing docs_root" "Error: docs_root not found: nonexistent-dir"
-run_cmd ccfm $CFG plan --docs-root nonexistent-dir
+step_header "8.1" "No docs_root configured" "Error: No docs_root configured"
+run_cmd "cd /tmp && ccfm plan; cd '$PROJECT_ROOT'"
 verdict
 
-step_header "8.2" "No docs_root configured" "Error: No docs_root configured"
-run_cmd ccfm plan
+step_header "8.2" "Missing docs_root directory" "Error: docs_root not found: nonexistent-dir"
+run_cmd ccfm plan --docs-root nonexistent-dir
 verdict
 
-step_header "8.3" "Debug file missing" "error: File not found: nonexistent.md"
+step_header "8.3" "docs_root is a file, not a directory" "Error: docs_root is not a directory"
+run_cmd ccfm plan --docs-root "$SINGLE_PAGE"
+verdict
+
+step_header "8.4" "Debug file missing" "error: File not found: nonexistent.md"
 run_cmd ccfm plan --debug-file nonexistent.md
+verdict
+
+step_header "8.5" "Apply with no docs_root" "Error: No docs_root configured"
+run_cmd "cd /tmp && ccfm apply --auto-approve; cd '$PROJECT_ROOT'"
 verdict
 
 # ===================================================================
@@ -427,12 +454,16 @@ verdict
 
 phase "Phase 9: Dependency Ordering"
 
-step_header "9.1" "Plan shows dependency order" "Plan output includes Deploy order line"
+step_header "9.1" "Plan shows dependency order" "Output includes 'Deploy order:' line"
 run_cmd ccfm $CFG plan
 verdict
 
-step_header "9.2" "Apply deploys in dependency order" "No 'Page not found for link' warnings"
-run_cmd ccfm $CFG apply --auto-approve
+step_header "9.2" "Force apply deploys in dependency order" "No 'Page not found for link' warnings"
+run_cmd ccfm $CFG apply --auto-approve --force
+verdict
+
+step_header "9.3" "Verify page links in Confluence" "complete_example has working smart links to My Team and My App"
+manual_note "Open complete_example page in Confluence and verify smart links work."
 verdict
 
 # ===================================================================
