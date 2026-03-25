@@ -1848,7 +1848,7 @@ class TestApplyErrorHandling:
                 main.main()
 
     def test_apply_missing_file_exits(self, tmp_path):
-        """Apply with --file pointing to nonexistent file exits 1."""
+        """Apply with nonexistent docs_root exits 1."""
         missing = tmp_path / "nonexistent.md"
         with pytest.raises(SystemExit):
             with patch("sys.argv", _base_apply_argv(missing)):

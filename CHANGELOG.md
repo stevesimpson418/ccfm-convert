@@ -8,10 +8,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Breaking Changes
 
-- **Removed `--file` and `--directory` flags** from `plan` and `apply` — all deployments
-  now target the full `docs_root` directory. Set via `--docs-root` or `docs_root` in
-  `ccfm.yaml`. This ensures consistent page hierarchy, reliable orphan detection, and
-  complete dependency resolution.
+- **Removed `--file`, `--directory`, and `--docs-root` flags** from `plan` and `apply` — all
+  deployments now target the full `docs_root` directory, set exclusively via `ccfm.yaml`.
+  This ensures consistent page hierarchy, reliable orphan detection, and complete dependency
+  resolution.
 - **Removed `dump` subcommand** — replaced by `plan --debug-file <path>` which prints
   ADF JSON to stdout (no file I/O, pipeable).
 - **Removed `--auto-deploy-deps` flag** — no longer needed since all deployments cover

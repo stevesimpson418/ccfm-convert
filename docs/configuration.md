@@ -21,13 +21,9 @@ git_repo_url: https://github.com/org/repo
 The `docs_root` key defines the root directory that CCFM manages. All files under this
 directory are deployed to Confluence, and removing files triggers destroy operations.
 
-`docs_root` must be explicitly configured — there is no default. Set it via:
-
-1. `docs_root` in `ccfm.yaml` (recommended)
-2. `--docs-root` CLI flag (takes precedence over config)
-
-If neither is set, ccfm exits with a clear error. This prevents accidental deployment
-of the wrong directory.
+`docs_root` must be explicitly configured in `ccfm.yaml` — there is no default and no CLI
+flag. If not set, ccfm exits with a clear error. This prevents accidental deployment of the
+wrong directory.
 
 With a config file in place, you can run commands without any target flags:
 

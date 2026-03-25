@@ -10,8 +10,8 @@ deploy_config:
 
 # CCFM Smoke Test — Single Page
 
-This page is deployed by the CCFM smoke test suite to verify that single-file deployment
-via `--file` works correctly end-to-end.
+This page is deployed by the CCFM smoke test suite to verify that deployment
+works correctly end-to-end.
 
 ## Features exercised
 

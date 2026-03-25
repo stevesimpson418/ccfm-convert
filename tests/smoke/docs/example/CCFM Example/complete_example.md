@@ -267,14 +267,8 @@ async function deployPage(domain, space, title, adfBody) {
 #!/bin/bash
 set -euo pipefail
 
-# Deploy a single file
-ccfm apply \
-    --domain "${CONFLUENCE_DOMAIN}" \
-    --email "${CONFLUENCE_EMAIL}" \
-    --token "${CONFLUENCE_TOKEN}" \
-    --space "${CONFLUENCE_SPACE}" \
-    --file docs/my-page.md \
-    --auto-approve
+# Deploy all docs from ccfm.yaml config
+ccfm apply --auto-approve
 
 echo "Deployment complete."
 ```
@@ -287,7 +281,7 @@ deploy_docs:
   image: python:3.12-slim
   script:
     - pip install ccfm-convert
-    - ccfm apply --directory docs/ --auto-approve
+    - ccfm apply --auto-approve
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
 ```
