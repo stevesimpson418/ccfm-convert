@@ -380,7 +380,6 @@ def _handle_apply(args, parser):
                 api,
                 space_id,
                 args.docs_root,
-                args.docs_root,
                 git_repo_url,
                 files=actionable_files,
             )

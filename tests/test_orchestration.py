@@ -724,7 +724,7 @@ class TestDeployTree:
         mock_api.find_page_by_title.return_value = None
         mock_api.create_page.return_value = "page-123"
 
-        deploy_tree(mock_api, "space123", docs_root, docs_root)
+        deploy_tree(mock_api, "space123", docs_root)
 
         # Should deploy the file
         assert mock_api.create_page.call_count >= 1
@@ -741,7 +741,7 @@ class TestDeployTree:
         mock_api.find_page_by_title.return_value = None
         mock_api.create_page.return_value = "page-123"
 
-        deploy_tree(mock_api, "space123", docs_root, docs_root)
+        deploy_tree(mock_api, "space123", docs_root)
 
         # Should deploy all files
         assert mock_api.create_page.call_count >= 3
@@ -766,7 +766,7 @@ class TestDeployTree:
 
         mock_api.create_page.side_effect = mock_create
 
-        deploy_tree(mock_api, "space123", docs_root, docs_root)
+        deploy_tree(mock_api, "space123", docs_root)
 
         # Should create hierarchy and files
         assert mock_api.create_page.call_count >= 2
@@ -788,7 +788,7 @@ class TestDeployTree:
         mock_api.find_page_by_title.return_value = None
         mock_api.create_page.return_value = "page-123"
 
-        deploy_tree(mock_api, "space123", docs_root, docs_root)
+        deploy_tree(mock_api, "space123", docs_root)
 
         # Should only deploy regular page (not .page_content.md)
         # Plus one for the container page created from .page_content.md
@@ -812,46 +812,10 @@ class TestDeployTree:
         ]
 
         # Should not crash - continues with other files
-        deploy_tree(mock_api, "space123", docs_root, docs_root)
+        deploy_tree(mock_api, "space123", docs_root)
 
         # Should have attempted both
         assert mock_api.create_page.call_count == 2
-
-    def test_deploy_tree_uses_root_path_for_hierarchy(self, mock_api, tmp_path):
-        """deploy_tree builds hierarchy relative to root_path, not docs_root."""
-        # root_path is OUTSIDE docs_root
-        root_path = tmp_path / "example" / "My Section"
-        subdir = root_path / "Sub"
-        subdir.mkdir(parents=True)
-        (root_path / "index.md").write_text("# Index")
-        (subdir / "child.md").write_text("# Child")
-
-        docs_root = tmp_path / "docs"  # different, doesn't contain root_path
-
-        page_ids = {}
-
-        def mock_find(space_id, title):
-            return page_ids.get(title)
-
-        def mock_create(space_id, parent_id, title, body, status="current"):
-            pid = f"page-{title}"
-            page_ids[title] = pid
-            return pid
-
-        mock_api.find_page_by_title.side_effect = mock_find
-        mock_api.create_page.side_effect = mock_create
-
-        deploy_tree(mock_api, "space123", root_path, docs_root)
-
-        # Container page "Sub" must have been created with parent_id=None (at space root)
-        sub_create_call = next(c for c in mock_api.create_page.call_args_list if c[0][2] == "Sub")
-        assert sub_create_call[0][1] is None  # Sub created at space root
-
-        # Child page must have Sub as its parent
-        child_create_call = next(
-            c for c in mock_api.create_page.call_args_list if "child" in c[0][2].lower()
-        )
-        assert child_create_call[0][1] == "page-Sub"
 
 
 class TestPathTraversalProtection:
@@ -917,7 +881,7 @@ class TestEdgeCases:
         mock_api.create_page.return_value = "page-123"
 
         # Only pass file_a — file_b should NOT be deployed
-        deploy_tree(mock_api, "space123", docs_root, docs_root, files=[file_a])
+        deploy_tree(mock_api, "space123", docs_root, files=[file_a])
 
         # Exactly one page created (alpha only)
         assert mock_api.create_page.call_count == 1
@@ -933,7 +897,7 @@ class TestEdgeCases:
         mock_api.find_page_by_title.return_value = None
         mock_api.create_page.return_value = "page-123"
 
-        deploy_tree(mock_api, "space123", docs_root, docs_root, files=None)
+        deploy_tree(mock_api, "space123", docs_root, files=None)
 
         # Both files discovered and deployed
         assert mock_api.create_page.call_count == 2
@@ -956,7 +920,7 @@ class TestEdgeCases:
         mock_api.create_page.side_effect = mock_create
         mock_api.find_page_by_title.return_value = None
 
-        deploy_tree(mock_api, "space123", docs_root, docs_root, files=[nested])
+        deploy_tree(mock_api, "space123", docs_root, files=[nested])
 
         # Should create container page for "section" + the actual page
         assert mock_api.create_page.call_count == 2
@@ -967,7 +931,7 @@ class TestEdgeCases:
         docs_root.mkdir()
 
         # Should not crash
-        deploy_tree(mock_api, "space123", docs_root, docs_root)
+        deploy_tree(mock_api, "space123", docs_root)
 
         # Should not make any API calls
         mock_api.create_page.assert_not_called()

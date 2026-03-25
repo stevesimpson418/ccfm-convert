@@ -136,14 +136,13 @@ def ensure_page_hierarchy(api, space_id, filepath, docs_root, git_repo_url=""):
     return current_parent_id, hierarchy_pages
 
 
-def deploy_tree(api, space_id, root_path, docs_root, git_repo_url="", files=None):
+def deploy_tree(api, space_id, docs_root, git_repo_url="", files=None):
     """
     Deploy an entire directory tree.
 
     Args:
         api: ConfluenceAPI instance
         space_id: Target space ID
-        root_path: Path to deploy (can be docs root or subfolder)
         docs_root: Root documentation directory
         git_repo_url: Git repository URL for CI banner
         files: Optional pre-filtered list of files to deploy. When provided,
@@ -158,7 +157,7 @@ def deploy_tree(api, space_id, root_path, docs_root, git_repo_url="", files=None
     if files is not None:
         md_files = sorted(files)
     else:
-        md_files = sorted(root_path.rglob("*.md"))
+        md_files = sorted(docs_root.rglob("*.md"))
 
     # Filter out .page_content.md files (these are used for container pages)
     md_files = [f for f in md_files if f.name != ".page_content.md"]
@@ -172,7 +171,7 @@ def deploy_tree(api, space_id, root_path, docs_root, git_repo_url="", files=None
     for filepath in md_files:
         try:
             parent_id, h_pages = ensure_page_hierarchy(
-                api, space_id, filepath, root_path, git_repo_url
+                api, space_id, filepath, docs_root, git_repo_url
             )
             for hp in h_pages:
                 if hp[0] not in seen_dirs:
