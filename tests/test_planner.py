@@ -144,7 +144,7 @@ class TestDeployPlanPrintSummary:
         )
         output = self._capture(plan)
         assert "+" in output
-        assert "(add)" in output
+        assert "docs/new.md" in output
         assert "New Page" in output
 
     def test_print_summary_change_action(self):
@@ -164,7 +164,7 @@ class TestDeployPlanPrintSummary:
         )
         output = self._capture(plan)
         assert "~" in output
-        assert "(change)" in output
+        assert "docs/upd.md" in output
 
     def test_print_summary_destroy_action(self):
         """Destroy actions show '-' symbol and '(destroy)'."""
@@ -173,7 +173,7 @@ class TestDeployPlanPrintSummary:
         )
         output = self._capture(plan)
         assert "-" in output
-        assert "(destroy)" in output
+        assert "docs/gone.md" in output
         assert "Gone Page" in output
 
     def test_print_summary_plan_line_with_all_action_types(self):
@@ -569,98 +569,6 @@ class TestComputePlan:
         assert "docs/team" in destroy_paths
         assert len(plan.page_actions) == 0
 
-    # -----------------------------------------------------------------------
-    # single_file=True — skip orphan detection (#14)
-    # -----------------------------------------------------------------------
-
-    def test_single_file_skips_orphan_detection(self, tmp_path):
-        """single_file=True must not flag other tracked pages as orphans."""
-        docs = tmp_path / "docs"
-        docs.mkdir()
-        f1 = _write_md(docs, "target.md", "# Target")
-        state = _make_state(tmp_path)
-
-        old_cwd = os.getcwd()
-        os.chdir(tmp_path)
-        try:
-            # Track two other pages in state that are NOT in the file list
-            state.set_page("docs/other-a.md", "pa", "A", "SP", "s", "sha256:a")
-            state.set_page("docs/other-b.md", "pb", "B", "SP", "s", "sha256:b")
-            plan = compute_plan(state, [f1], docs, single_file=True)
-        finally:
-            os.chdir(old_cwd)
-
-        assert len(plan.page_actions) == 1
-        assert plan.page_actions[0].action == "add"
-        # No destroys for the other tracked pages
-        assert len(plan.destroy_actions) == 0
-
-    def test_single_file_skips_container_orphan_detection(self, tmp_path):
-        """single_file=True must not destroy directory containers."""
-        docs = tmp_path / "docs"
-        (docs / "team").mkdir(parents=True)
-        f = _write_md(docs / "team", "page.md", "# Content")
-        state = _make_state(tmp_path)
-
-        old_cwd = os.getcwd()
-        os.chdir(tmp_path)
-        try:
-            rel = str(f.relative_to(tmp_path))
-            state.set_page("docs/team", "dir-1", "Team", "SP", "s", "")
-            state.set_page("docs/other", "dir-2", "Other", "SP", "s", "")
-            state.set_page(rel, "p1", "Page", "SP", "s", "sha256:old")
-            plan = compute_plan(state, [f], docs, single_file=True)
-        finally:
-            os.chdir(old_cwd)
-
-        # Target file should be classified as change, no containers destroyed
-        assert plan.page_actions[0].action == "change"
-        assert len(plan.destroy_actions) == 0
-
-    def test_single_file_still_classifies_target_correctly(self, tmp_path):
-        """single_file=True still correctly classifies the target as add/change/no-op."""
-        docs = tmp_path / "docs"
-        docs.mkdir()
-        f = _write_md(docs, "target.md", "# Updated")
-        state = _make_state(tmp_path)
-
-        old_cwd = os.getcwd()
-        os.chdir(tmp_path)
-        try:
-            rel = str(f.relative_to(tmp_path))
-            state.set_page(rel, "p1", "Target", "SP", "s", "sha256:stale")
-            plan = compute_plan(state, [f], docs, single_file=True)
-        finally:
-            os.chdir(old_cwd)
-
-        assert len(plan.page_actions) == 1
-        assert plan.page_actions[0].action == "change"
-        assert plan.page_actions[0].page_id == "p1"
-
-    def test_single_file_with_deploy_page_false_still_destroys_target(self, tmp_path):
-        """deploy_page: false on the target file itself should still generate a destroy."""
-        docs = tmp_path / "docs"
-        docs.mkdir()
-        fm = "---\ndeploy_config:\n  deploy_page: false\n---\n# Retired"
-        f = _write_md(docs, "retired.md", fm)
-        state = _make_state(tmp_path)
-
-        old_cwd = os.getcwd()
-        os.chdir(tmp_path)
-        try:
-            rel = str(f.relative_to(tmp_path))
-            state.set_page(rel, "p-old", "Retired", "SP", "s", "sha256:prev")
-            # Other pages should remain untouched
-            state.set_page("docs/keep.md", "pk", "Keep", "SP", "s", "sha256:k")
-            plan = compute_plan(state, [f], docs, single_file=True)
-        finally:
-            os.chdir(old_cwd)
-
-        assert len(plan.page_actions) == 0
-        assert len(plan.destroy_actions) == 1
-        assert plan.destroy_actions[0].page_id == "p-old"
-        assert plan.destroy_actions[0].rel_path == str(f.relative_to(tmp_path))
-
     def test_empty_files_list_produces_empty_plan(self, tmp_path):
         """compute_plan with no files returns empty page_actions."""
         docs = tmp_path / "docs"
@@ -697,22 +605,30 @@ class TestPrintSummaryDependencyInfo:
             sys.stdout = old
         return buf.getvalue()
 
-    def test_shows_deploy_order(self):
-        """When dependency_graph has multiple files, deploy order is shown."""
+    def test_plan_output_ordered_by_dependency_graph(self):
+        """Actionable items in plan output follow dependency graph order."""
         from ccfm_convert.deploy.dependencies import DependencyGraph
 
         fa = Path("a.md")
         fb = Path("b.md")
-        graph = DependencyGraph(order=[fb, fa], cycles=[], unresolved={})
+        fc = Path("c.md")
+        # Graph order: c first (dep), then b, then a (depends on b)
+        graph = DependencyGraph(order=[fc, fb, fa], cycles=[], unresolved={})
         plan = DeployPlan(
             page_actions=[
+                # Alphabetical order in page_actions (as compute_plan produces)
                 PageAction(fa, "a.md", "add", "Page A", "sha256:a"),
                 PageAction(fb, "b.md", "add", "Page B", "sha256:b"),
+                PageAction(fc, "c.md", "add", "Page C", "sha256:c"),
             ],
             dependency_graph=graph,
         )
         output = self._capture(plan)
-        assert "Deploy order: Page B → Page A" in output
+        lines = [ln for ln in output.split("\n") if ln.strip().startswith("+")]
+        assert len(lines) == 3
+        assert "c.md" in lines[0]
+        assert "b.md" in lines[1]
+        assert "a.md" in lines[2]
 
     def test_shows_cycle_warning(self):
         """Cycles in dependency graph are shown as warnings."""
@@ -760,20 +676,5 @@ class TestPrintSummaryDependencyInfo:
             ],
         )
         output = self._capture(plan)
-        assert "Deploy order" not in output
         assert "Circular" not in output
         assert "Unresolved" not in output
-
-    def test_no_deploy_order_for_single_file(self):
-        """Deploy order not shown when only 1 file in graph."""
-        from ccfm_convert.deploy.dependencies import DependencyGraph
-
-        graph = DependencyGraph(order=[Path("a.md")], cycles=[], unresolved={})
-        plan = DeployPlan(
-            page_actions=[
-                PageAction(Path("a.md"), "a.md", "add", "Page A", "sha256:a"),
-            ],
-            dependency_graph=graph,
-        )
-        output = self._capture(plan)
-        assert "Deploy order" not in output

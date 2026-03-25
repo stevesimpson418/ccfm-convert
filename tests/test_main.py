@@ -30,48 +30,51 @@ def mock_api():
     return api
 
 
-def _base_plan_argv(tmp_file_or_dir, *, is_dir=False, extra=None):
+def _write_test_config(docs_root):
+    """Write a temporary ccfm.yaml in docs_root's parent and return its path."""
+    config_path = docs_root.parent / "ccfm.yaml"
+    config_path.write_text(
+        f"version: 1\n"
+        f"domain: example.atlassian.net\n"
+        f"email: test@example.com\n"
+        f"token: token\n"
+        f"space: TEST\n"
+        f"docs_root: {docs_root}\n"
+    )
+    return config_path
+
+
+def _write_docs_root_config(docs_root):
+    """Write a minimal ccfm.yaml with only docs_root. Returns config path."""
+    config_path = docs_root.parent / "ccfm.yaml"
+    config_path.write_text(f"version: 1\ndocs_root: {docs_root}\n")
+    return config_path
+
+
+def _base_plan_argv(docs_root, *, extra=None):
     """Build a standard plan sys.argv list."""
+    config_path = _write_test_config(docs_root)
     argv = [
         "main.py",
-        "--domain",
-        "example.atlassian.net",
-        "--email",
-        "test@example.com",
-        "--token",
-        "token",
-        "--space",
-        "TEST",
+        "--config",
+        str(config_path),
         "plan",
     ]
-    if is_dir:
-        argv += ["--directory", str(tmp_file_or_dir)]
-    else:
-        argv += ["--file", str(tmp_file_or_dir)]
     if extra:
         argv.extend(extra)
     return argv
 
 
-def _base_apply_argv(tmp_file_or_dir, *, is_dir=False, extra=None):
+def _base_apply_argv(docs_root, *, extra=None):
     """Build a standard apply sys.argv list with --auto-approve by default."""
+    config_path = _write_test_config(docs_root)
     argv = [
         "main.py",
-        "--domain",
-        "example.atlassian.net",
-        "--email",
-        "test@example.com",
-        "--token",
-        "token",
-        "--space",
-        "TEST",
+        "--config",
+        str(config_path),
         "apply",
         "--auto-approve",
     ]
-    if is_dir:
-        argv += ["--directory", str(tmp_file_or_dir)]
-    else:
-        argv += ["--file", str(tmp_file_or_dir)]
     if extra:
         argv.extend(extra)
     return argv
@@ -226,23 +229,30 @@ class TestCLIArguments:
 
     def test_missing_credentials_exits_with_error_plan(self, tmp_path):
         """Missing required credentials cause SystemExit for plan."""
-        test_file = tmp_path / "test.md"
-        test_file.write_text("# Test")
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "test.md").write_text("# Test")
+        # Config with docs_root but no credentials
+        config = tmp_path / "ccfm.yaml"
+        config.write_text(f"version: 1\ndocs_root: {docs}\n")
         with pytest.raises(SystemExit):
             with patch(
                 "sys.argv",
-                ["main.py", "plan", "--file", str(test_file)],
+                ["main.py", "--config", str(config), "plan"],
             ):
                 main.main()
 
     def test_missing_credentials_exits_with_error_apply(self, tmp_path):
         """Missing required credentials cause SystemExit for apply."""
-        test_file = tmp_path / "test.md"
-        test_file.write_text("# Test")
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "test.md").write_text("# Test")
+        config = tmp_path / "ccfm.yaml"
+        config.write_text(f"version: 1\ndocs_root: {docs}\n")
         with pytest.raises(SystemExit):
             with patch(
                 "sys.argv",
-                ["main.py", "apply", "--file", str(test_file), "--auto-approve"],
+                ["main.py", "--config", str(config), "apply", "--auto-approve"],
             ):
                 main.main()
 
@@ -415,8 +425,9 @@ class TestPlanSubcommand:
         tmp_path,
     ):
         """plan with no changes returns normally (no sys.exit call)."""
-        test_file = tmp_path / "test.md"
-        test_file.write_text("# Test")
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "test.md").write_text("# Test")
 
         mock_api = Mock()
         mock_api.get_space_id.return_value = "space123"
@@ -426,7 +437,7 @@ class TestPlanSubcommand:
         mock_compute_plan.return_value = mock_plan
 
         # Should NOT raise SystemExit — just returns normally
-        with patch("sys.argv", _base_plan_argv(test_file)):
+        with patch("sys.argv", _base_plan_argv(docs)):
             main.main()
 
         mock_compute_plan.assert_called_once()
@@ -447,8 +458,9 @@ class TestPlanSubcommand:
         tmp_path,
     ):
         """plan with changes returns normally (no sys.exit)."""
-        test_file = tmp_path / "test.md"
-        test_file.write_text("# Test")
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "test.md").write_text("# Test")
 
         mock_api = Mock()
         mock_api.get_space_id.return_value = "space123"
@@ -458,7 +470,7 @@ class TestPlanSubcommand:
         mock_compute_plan.return_value = mock_plan
 
         # Should NOT raise SystemExit
-        with patch("sys.argv", _base_plan_argv(test_file)):
+        with patch("sys.argv", _base_plan_argv(docs)):
             main.main()
 
         mock_compute_plan.assert_called_once()
@@ -478,8 +490,9 @@ class TestPlanSubcommand:
         tmp_path,
     ):
         """--plan-exit-code exits 2 when there are pending changes."""
-        test_file = tmp_path / "test.md"
-        test_file.write_text("# Test")
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "test.md").write_text("# Test")
 
         mock_api = Mock()
         mock_api.get_space_id.return_value = "space123"
@@ -491,7 +504,7 @@ class TestPlanSubcommand:
         with pytest.raises(SystemExit) as exc_info:
             with patch(
                 "sys.argv",
-                _base_plan_argv(test_file, extra=["--plan-exit-code"]),
+                _base_plan_argv(docs, extra=["--plan-exit-code"]),
             ):
                 main.main()
 
@@ -512,8 +525,9 @@ class TestPlanSubcommand:
         tmp_path,
     ):
         """--plan-exit-code exits 0 when there are no changes."""
-        test_file = tmp_path / "test.md"
-        test_file.write_text("# Test")
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "test.md").write_text("# Test")
 
         mock_api = Mock()
         mock_api.get_space_id.return_value = "space123"
@@ -525,7 +539,7 @@ class TestPlanSubcommand:
         with pytest.raises(SystemExit) as exc_info:
             with patch(
                 "sys.argv",
-                _base_plan_argv(test_file, extra=["--plan-exit-code"]),
+                _base_plan_argv(docs, extra=["--plan-exit-code"]),
             ):
                 main.main()
 
@@ -536,7 +550,7 @@ class TestPlanSubcommand:
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
-    def test_plan_with_directory_excludes_page_content_md(
+    def test_plan_with_docs_root_excludes_page_content_md(
         self,
         mock_api_class,
         mock_find_mgmt,
@@ -545,7 +559,7 @@ class TestPlanSubcommand:
         mock_state_class,
         tmp_path,
     ):
-        """plan with --directory excludes .page_content.md files."""
+        """plan excludes .page_content.md files."""
         docs = tmp_path / "docs"
         docs.mkdir()
         (docs / "a.md").write_text("# A")
@@ -556,7 +570,7 @@ class TestPlanSubcommand:
         mock_api_class.return_value = mock_api
         mock_compute_plan.return_value = _mock_plan_no_changes()
 
-        with patch("sys.argv", _base_plan_argv(docs, is_dir=True)):
+        with patch("sys.argv", _base_plan_argv(docs)):
             main.main()
 
         call_kwargs = mock_compute_plan.call_args[1]
@@ -580,15 +594,16 @@ class TestPlanSubcommand:
         tmp_path,
     ):
         """plan does NOT instantiate LockManager."""
-        test_file = tmp_path / "test.md"
-        test_file.write_text("# Test")
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "test.md").write_text("# Test")
 
         mock_api = Mock()
         mock_api.get_space_id.return_value = "space123"
         mock_api_class.return_value = mock_api
         mock_compute_plan.return_value = _mock_plan_no_changes()
 
-        with patch("sys.argv", _base_plan_argv(test_file)):
+        with patch("sys.argv", _base_plan_argv(docs)):
             main.main()
 
         mock_lock_class.assert_not_called()
@@ -608,22 +623,24 @@ class TestPlanSubcommand:
         tmp_path,
     ):
         """--force is passed to compute_plan."""
-        test_file = tmp_path / "test.md"
-        test_file.write_text("# Test")
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "test.md").write_text("# Test")
 
         mock_api = Mock()
         mock_api.get_space_id.return_value = "space123"
         mock_api_class.return_value = mock_api
         mock_compute_plan.return_value = _mock_plan_no_changes()
 
-        with patch("sys.argv", _base_plan_argv(test_file, extra=["--force"])):
+        with patch("sys.argv", _base_plan_argv(docs, extra=["--force"])):
             main.main()
 
         call_kwargs = mock_compute_plan.call_args[1]
         assert call_kwargs["force"] is True
 
-    def test_plan_no_file_or_directory_exits(self):
-        """plan without --file or --directory exits 1."""
+    def test_plan_no_docs_root_exits(self, tmp_path, monkeypatch):
+        """plan without docs_root in config exits 1."""
+        monkeypatch.chdir(tmp_path)  # ensure no ccfm.yaml found
         with pytest.raises(SystemExit):
             with patch(
                 "sys.argv",
@@ -644,15 +661,15 @@ class TestPlanSubcommand:
 
 
 # ---------------------------------------------------------------------------
-class TestDocsRootFallback:
-    """Test that docs_root from config is used when --directory is not provided."""
+class TestDocsRootConfig:
+    """Test that docs_root from config is used correctly."""
 
     @patch("ccfm_convert.main.StateManager")
     @patch("ccfm_convert.main.ConfluenceBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
-    def test_plan_falls_back_to_docs_root(
+    def test_plan_uses_docs_root_from_config(
         self,
         mock_api_class,
         mock_find_mgmt,
@@ -661,18 +678,15 @@ class TestDocsRootFallback:
         mock_state_class,
         tmp_path,
     ):
-        """plan uses docs_root when --directory is not provided."""
+        """plan uses docs_root from ccfm.yaml config."""
         docs_dir = tmp_path / "docs"
         docs_dir.mkdir()
-        test_file = docs_dir / "page.md"
-        test_file.write_text("# Test")
+        (docs_dir / "page.md").write_text("# Test")
 
         mock_api = Mock()
         mock_api.get_space_id.return_value = "space123"
         mock_api_class.return_value = mock_api
-
-        mock_plan = _mock_plan_no_changes()
-        mock_compute_plan.return_value = mock_plan
+        mock_compute_plan.return_value = _mock_plan_no_changes()
 
         config_file = tmp_path / "ccfm.yaml"
         config_file.write_text(
@@ -682,40 +696,26 @@ class TestDocsRootFallback:
         original = os.getcwd()
         os.chdir(tmp_path)
         try:
-            with patch(
-                "sys.argv",
-                ["main.py", "--token", "tok", "plan"],
-            ):
+            with patch("sys.argv", ["main.py", "--token", "tok", "plan"]):
                 main.main()
         finally:
             os.chdir(original)
 
         mock_compute_plan.assert_called_once()
 
-    def test_resolve_directory_sets_args_directory(self, tmp_path):
-        """_resolve_directory sets args.directory so apply dispatch logic works."""
-        docs_dir = tmp_path / "docs"
-        docs_dir.mkdir()
-        args = Namespace(directory=None, docs_root=docs_dir, _docs_root_from_config=True)
-        result = main._resolve_directory(args)
-        assert result == docs_dir
-        assert args.directory == docs_dir  # side effect for apply dispatch
-
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
     @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.ensure_page_hierarchy")
     @patch("ccfm_convert.main.deploy_tree")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
-    def test_apply_falls_back_to_docs_root_from_config(
+    def test_apply_uses_docs_root_from_config(
         self,
         mock_api_class,
         mock_find_mgmt,
         mock_compute_plan,
         mock_deploy_tree,
-        mock_hierarchy,
         mock_backend_class,
         mock_state_class,
         mock_lock_class,
@@ -730,7 +730,6 @@ class TestDocsRootFallback:
         mock_api = Mock()
         mock_api.get_space_id.return_value = "space123"
         mock_api_class.return_value = mock_api
-        mock_hierarchy.return_value = (None, [])
         mock_deploy_tree.return_value = ([], [])
 
         mock_plan = _mock_plan_with_changes([test_file])
@@ -749,514 +748,139 @@ class TestDocsRootFallback:
         original = os.getcwd()
         os.chdir(tmp_path)
         try:
-            with patch(
-                "sys.argv",
-                ["main.py", "--token", "tok", "apply", "--auto-approve"],
-            ):
+            with patch("sys.argv", ["main.py", "--token", "tok", "apply", "--auto-approve"]):
                 main.main()
         finally:
             os.chdir(original)
 
-        # Verify deploy_tree was called (not silently skipped)
         mock_deploy_tree.assert_called_once()
 
-    def test_resolve_target_files_uses_docs_root_fallback(self, tmp_path):
-        """_resolve_target_files falls back to docs_root when directory is None and flag set."""
+    def test_resolve_target_files_uses_docs_root(self, tmp_path):
+        """_resolve_target_files uses docs_root and excludes .page_content.md."""
         docs_dir = tmp_path / "docs"
         docs_dir.mkdir()
         (docs_dir / "page.md").write_text("# Test")
         (docs_dir / ".page_content.md").write_text("# Container")
 
-        args = Namespace(file=None, directory=None, docs_root=docs_dir, _docs_root_from_config=True)
+        args = Namespace(docs_root=docs_dir)
         result = main._resolve_target_files(args)
         assert len(result) == 1
         assert result[0].name == "page.md"
 
-    def test_resolve_target_files_ignores_docs_root_without_flag(self, tmp_path):
-        """docs_root is NOT used as fallback when _docs_root_from_config is not set."""
-        docs_dir = tmp_path / "docs"
-        docs_dir.mkdir()
-        (docs_dir / "page.md").write_text("# Test")
-
-        args = Namespace(file=None, directory=None, docs_root=docs_dir)
+    def test_resolve_target_files_exits_when_no_docs_root(self):
+        """Exits with error when docs_root is None."""
+        args = Namespace(docs_root=None)
         with pytest.raises(SystemExit):
             main._resolve_target_files(args)
 
-    def test_resolve_target_files_directory_takes_precedence_over_docs_root(self, tmp_path):
-        """Explicit --directory takes precedence over docs_root."""
-        docs_dir = tmp_path / "docs"
-        docs_dir.mkdir()
-        other_dir = tmp_path / "other"
-        other_dir.mkdir()
-        (docs_dir / "a.md").write_text("# A")
-        (other_dir / "b.md").write_text("# B")
+    def test_resolve_target_files_exits_when_docs_root_missing(self, tmp_path):
+        """Exits with error when docs_root directory does not exist."""
+        args = Namespace(docs_root=tmp_path / "nonexistent")
+        with pytest.raises(SystemExit):
+            main._resolve_target_files(args)
 
-        args = Namespace(
-            file=None, directory=other_dir, docs_root=docs_dir, _docs_root_from_config=True
-        )
-        result = main._resolve_target_files(args)
-        assert len(result) == 1
-        assert result[0].name == "b.md"
-
-    def test_resolve_target_files_file_takes_precedence_over_all(self, tmp_path):
-        """Explicit --file takes precedence over --directory and docs_root."""
-        docs_dir = tmp_path / "docs"
-        docs_dir.mkdir()
-        (docs_dir / "a.md").write_text("# A")
-        single = tmp_path / "single.md"
-        single.write_text("# Single")
-
-        args = Namespace(
-            file=single, directory=docs_dir, docs_root=docs_dir, _docs_root_from_config=True
-        )
-        result = main._resolve_target_files(args)
-        assert len(result) == 1
-        assert result[0].name == "single.md"
-
-    def test_resolve_target_files_exits_when_nothing_provided(self):
-        """Exits with error when no file, directory, or docs_root is set."""
-        args = Namespace(file=None, directory=None, docs_root=None)
+    def test_resolve_target_files_exits_when_docs_root_is_file(self, tmp_path):
+        """Exits with error when docs_root is a file, not a directory."""
+        f = tmp_path / "not-a-dir.md"
+        f.write_text("# Test")
+        args = Namespace(docs_root=f)
         with pytest.raises(SystemExit):
             main._resolve_target_files(args)
 
 
 # ---------------------------------------------------------------------------
-# Apply subcommand — dump mode
+# Debug file (ADF inspection)
 # ---------------------------------------------------------------------------
 
 
-class TestDumpSubcommand:
-    """Test ccfm dump subcommand (no API, no state, no lock)."""
+class TestDebugFile:
+    """Test --debug-file on plan subcommand (ADF inspection, no API calls)."""
 
-    @patch("ccfm_convert.main.dump_page")
-    def test_dump_file_calls_dump_page(self, mock_dump, tmp_path):
-        """dump --file calls dump_page with output directory."""
+    def test_debug_file_prints_adf_json(self, tmp_path, capsys):
+        """--debug-file outputs valid ADF JSON to stdout."""
         test_file = tmp_path / "test.md"
-        test_file.write_text("# Test")
-
-        with patch("sys.argv", ["main.py", "dump", "--file", str(test_file)]):
-            main.main()
-
-        mock_dump.assert_called_once()
-        args = mock_dump.call_args[0]
-        assert args[0] == test_file
-        assert ".ccfm/dumps/" in str(args[1])
-
-    @patch("ccfm_convert.main.dump_tree")
-    def test_dump_directory_calls_dump_tree(self, mock_dump_tree, tmp_path):
-        """dump --directory calls dump_tree with output directory."""
-        test_dir = tmp_path / "docs"
-        test_dir.mkdir()
-
-        with patch("sys.argv", ["main.py", "dump", "--directory", str(test_dir)]):
-            main.main()
-
-        mock_dump_tree.assert_called_once()
-        args = mock_dump_tree.call_args[0]
-        assert args[0] == test_dir
-        assert ".ccfm/dumps/" in str(args[2])
-
-    @patch("ccfm_convert.main.dump_page")
-    @patch("sys.stdout", new_callable=StringIO)
-    def test_dump_output_message(self, mock_stdout, mock_dump, tmp_path):
-        """Dump prints summary with output directory path."""
-        test_file = tmp_path / "test.md"
-        test_file.write_text("# Test")
-
-        with patch("sys.argv", ["main.py", "dump", "--file", str(test_file)]):
-            main.main()
-
-        output = mock_stdout.getvalue()
-        assert "Dump complete!" in output
-        assert ".ccfm/dumps/" in output
-
-    @patch("ccfm_convert.main.dump_page")
-    def test_dump_with_output_dir(self, mock_dump, tmp_path):
-        """dump --output-dir uses the specified directory."""
-        test_file = tmp_path / "test.md"
-        test_file.write_text("# Test")
-        out_dir = tmp_path / "my-output"
+        test_file.write_text("# Hello World")
 
         with patch(
             "sys.argv",
-            ["main.py", "dump", "--file", str(test_file), "--output-dir", str(out_dir)],
+            ["main.py", "plan", "--debug-file", str(test_file)],
         ):
             main.main()
 
-        assert mock_dump.call_args[0][1] == out_dir
-        assert out_dir.exists()
+        output = capsys.readouterr().out
+        data = json.loads(output)
+        assert data["type"] == "doc"
 
-    @patch("ccfm_convert.main.dump_page")
-    def test_dump_with_git_repo_url(self, mock_dump, tmp_path):
-        """dump passes git_repo_url to dump_page."""
-        test_file = tmp_path / "test.md"
+    def test_debug_file_missing_file_error(self, tmp_path):
+        """--debug-file with non-existent file exits with error."""
+        missing = tmp_path / "nope.md"
+        with pytest.raises(SystemExit):
+            with patch(
+                "sys.argv",
+                ["main.py", "plan", "--debug-file", str(missing)],
+            ):
+                main.main()
+
+    def test_debug_file_with_ci_banner(self, tmp_path, capsys):
+        """--debug-file applies CI banner when enabled in frontmatter."""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
 
         with patch(
             "sys.argv",
             [
                 "main.py",
-                "dump",
-                "--file",
+                "plan",
+                "--debug-file",
                 str(test_file),
                 "--git-repo-url",
-                "https://github.com/user/repo",
+                "https://github.com/org/repo",
             ],
         ):
             main.main()
 
-        assert mock_dump.call_args[0][2] == "https://github.com/user/repo"
+        output = capsys.readouterr().out
+        data = json.loads(output)
+        assert data["type"] == "doc"
+        # CI banner is the first content node
+        first_content = data["content"][0]
+        assert first_content["type"] == "panel"
 
-    def test_dump_no_target_error(self, capsys):
-        """dump without --file or --directory exits with error."""
-        with patch("sys.argv", ["main.py", "dump"]):
-            with pytest.raises(SystemExit, match="1"):
-                main.main()
-
-    def test_dump_missing_file_error(self, tmp_path):
-        """dump --file with non-existent file exits with error."""
-        missing = tmp_path / "nope.md"
-        with patch("sys.argv", ["main.py", "dump", "--file", str(missing)]):
-            with pytest.raises(SystemExit):
-                main.main()
-
-    def test_dump_missing_directory_error(self, tmp_path):
-        """dump --directory with non-existent directory exits with error."""
-        missing = tmp_path / "nope"
-        with patch("sys.argv", ["main.py", "dump", "--directory", str(missing)]):
-            with pytest.raises(SystemExit):
-                main.main()
-
-    def test_dump_output_dir_creation_failure(self, tmp_path):
-        """dump exits gracefully when output directory cannot be created."""
-        test_file = tmp_path / "test.md"
+    def test_debug_file_no_api_calls(self, tmp_path, capsys):
+        """--debug-file does not require credentials or API calls."""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
-        # Use a path that cannot be created (file exists where dir would be)
-        blocker = tmp_path / "blocker"
-        blocker.write_text("I am a file")
-        bad_dir = blocker / "subdir"
 
+        # No --domain, --email, --token, --space provided — should still work
         with patch(
             "sys.argv",
-            ["main.py", "dump", "--file", str(test_file), "--output-dir", str(bad_dir)],
-        ):
-            with pytest.raises(SystemExit, match="1"):
-                main.main()
-
-    @patch("ccfm_convert.main.dump_tree")
-    def test_dump_falls_back_to_docs_root_from_config(self, mock_dump_tree, tmp_path):
-        """dump uses docs_root from config when --directory is not provided."""
-        docs_dir = tmp_path / "docs"
-        docs_dir.mkdir()
-        (docs_dir / "page.md").write_text("# Test")
-
-        config_file = tmp_path / "ccfm.yaml"
-        config_file.write_text(f"version: 1\ndocs_root: {docs_dir}\n")
-
-        original = os.getcwd()
-        os.chdir(tmp_path)
-        try:
-            with patch("sys.argv", ["main.py", "dump"]):
-                main.main()
-        finally:
-            os.chdir(original)
-
-        mock_dump_tree.assert_called_once()
-        assert mock_dump_tree.call_args[0][0] == docs_dir
-
-
-# ---------------------------------------------------------------------------
-# Apply subcommand — single-file deployment
-# ---------------------------------------------------------------------------
-
-
-class TestApplySingleFile:
-    """Test single-file live deployment via apply (with lock)."""
-
-    @patch("ccfm_convert.main.LockManager")
-    @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.ensure_page_hierarchy")
-    @patch("ccfm_convert.main.deploy_page")
-    @patch("ccfm_convert.main.compute_plan")
-    @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
-    @patch("ccfm_convert.main.ConfluenceAPI")
-    def test_single_file_deployment(
-        self,
-        mock_api_class,
-        mock_find_mgmt,
-        mock_compute_plan,
-        mock_deploy,
-        mock_hierarchy,
-        mock_backend_class,
-        mock_state_class,
-        mock_lock_class,
-        tmp_path,
-    ):
-        """Apply a single file: acquires lock, deploys, saves state, releases lock."""
-        test_file = tmp_path / "test.md"
-        test_file.write_text("# Test")
-
-        mock_api = Mock()
-        mock_api.get_space_id.return_value = "space123"
-        mock_api_class.return_value = mock_api
-        mock_hierarchy.return_value = ("parent123", [])
-        mock_deploy.return_value = "deployed-page-id"
-
-        mock_compute_plan.return_value = _mock_plan_with_changes([test_file])
-
-        mock_state = Mock()
-        mock_state_class.return_value = mock_state
-        mock_lock = Mock()
-        mock_lock_class.return_value = mock_lock
-
-        with patch("sys.argv", _base_apply_argv(test_file)):
-            main.main()
-
-        mock_lock.acquire.assert_called_once()
-        mock_deploy.assert_called_once()
-        mock_state.set_page.assert_called_once()
-        mock_state.save.assert_called_once()
-        mock_lock.release.assert_called_once()
-
-    @patch("ccfm_convert.main.LockManager")
-    @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.ensure_page_hierarchy")
-    @patch("ccfm_convert.main.deploy_page")
-    @patch("ccfm_convert.main.compute_plan")
-    @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
-    @patch("ccfm_convert.main.ConfluenceAPI")
-    def test_hierarchy_pages_tracked_in_state_for_single_file(
-        self,
-        mock_api_class,
-        mock_find_mgmt,
-        mock_compute_plan,
-        mock_deploy,
-        mock_hierarchy,
-        mock_backend_class,
-        mock_state_class,
-        mock_lock_class,
-        tmp_path,
-    ):
-        """Hierarchy container pages returned by ensure_page_hierarchy are saved to state."""
-        test_file = tmp_path / "test.md"
-        test_file.write_text("# Test")
-
-        mock_api = Mock()
-        mock_api.get_space_id.return_value = "space123"
-        mock_api_class.return_value = mock_api
-        mock_hierarchy.return_value = ("parent123", [("docs/my-dir", "dir-pid", "My Dir")])
-        mock_deploy.return_value = "deployed-page-id"
-
-        mock_compute_plan.return_value = _mock_plan_with_changes([test_file])
-
-        mock_state = Mock()
-        mock_state_class.return_value = mock_state
-
-        with patch("sys.argv", _base_apply_argv(test_file)):
-            main.main()
-
-        # set_page called once for the hierarchy container + once for the page itself
-        assert mock_state.set_page.call_count == 2
-        hierarchy_call = mock_state.set_page.call_args_list[0]
-        assert hierarchy_call.kwargs["rel_path"] == "docs/my-dir"
-        assert hierarchy_call.kwargs["content_hash"] == ""
-
-    @patch("ccfm_convert.main.LockManager")
-    @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.ensure_page_hierarchy")
-    @patch("ccfm_convert.main.deploy_page")
-    @patch("ccfm_convert.main.compute_plan")
-    @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
-    @patch("ccfm_convert.main.ConfluenceAPI")
-    def test_state_not_saved_when_deploy_returns_none(
-        self,
-        mock_api_class,
-        mock_find_mgmt,
-        mock_compute_plan,
-        mock_deploy,
-        mock_hierarchy,
-        mock_backend_class,
-        mock_state_class,
-        mock_lock_class,
-        tmp_path,
-    ):
-        """state.set_page not called if deploy_page returns None; state.save always called."""
-        test_file = tmp_path / "test.md"
-        test_file.write_text("# Test")
-
-        mock_api = Mock()
-        mock_api.get_space_id.return_value = "space123"
-        mock_api_class.return_value = mock_api
-        mock_hierarchy.return_value = (None, [])
-        mock_deploy.return_value = None  # page skipped
-
-        mock_compute_plan.return_value = _mock_plan_with_changes([test_file])
-
-        mock_state = Mock()
-        mock_state_class.return_value = mock_state
-        mock_lock = Mock()
-        mock_lock_class.return_value = mock_lock
-
-        with patch("sys.argv", _base_apply_argv(test_file)):
-            main.main()
-
-        mock_state.set_page.assert_not_called()
-        mock_state.save.assert_called_once()
-
-    @patch("ccfm_convert.main.LockManager")
-    @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.ensure_page_hierarchy")
-    @patch("ccfm_convert.main.deploy_page")
-    @patch("ccfm_convert.main.compute_plan")
-    @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
-    @patch("ccfm_convert.main.ConfluenceAPI")
-    def test_file_with_custom_docs_root(
-        self,
-        mock_api_class,
-        mock_find_mgmt,
-        mock_compute_plan,
-        mock_deploy,
-        mock_hierarchy,
-        mock_backend_class,
-        mock_state_class,
-        mock_lock_class,
-        tmp_path,
-    ):
-        """--docs-root is passed through to ensure_page_hierarchy."""
-        custom_root = tmp_path / "custom_docs"
-        custom_root.mkdir()
-        test_file = custom_root / "test.md"
-        test_file.write_text("# Test")
-
-        mock_api = Mock()
-        mock_api.get_space_id.return_value = "space123"
-        mock_api_class.return_value = mock_api
-        mock_hierarchy.return_value = (None, [])
-        mock_deploy.return_value = None
-
-        mock_compute_plan.return_value = _mock_plan_with_changes([test_file])
-
-        mock_state = Mock()
-        mock_state_class.return_value = mock_state
-        mock_lock = Mock()
-        mock_lock_class.return_value = mock_lock
-
-        with patch(
-            "sys.argv",
-            _base_apply_argv(
-                test_file,
-                extra=["--docs-root", str(custom_root)],
-            ),
+            ["main.py", "plan", "--debug-file", str(test_file)],
         ):
             main.main()
 
-        mock_deploy.assert_called_once()
+        output = capsys.readouterr().out
+        data = json.loads(output)
+        assert data["type"] == "doc"
 
-    @patch("ccfm_convert.main.LockManager")
-    @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.ensure_page_hierarchy")
-    @patch("ccfm_convert.main.deploy_page")
-    @patch("ccfm_convert.main.compute_plan")
-    @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
-    @patch("ccfm_convert.main.ConfluenceAPI")
-    def test_file_with_git_repo_url(
-        self,
-        mock_api_class,
-        mock_find_mgmt,
-        mock_compute_plan,
-        mock_deploy,
-        mock_hierarchy,
-        mock_backend_class,
-        mock_state_class,
-        mock_lock_class,
-        tmp_path,
-    ):
-        """--git-repo-url is passed through to deploy_page."""
+    def test_debug_file_ci_banner_disabled(self, tmp_path, capsys):
+        """--debug-file respects ci_banner: false in frontmatter."""
         test_file = tmp_path / "test.md"
-        test_file.write_text("# Test")
-
-        mock_api = Mock()
-        mock_api.get_space_id.return_value = "space123"
-        mock_api_class.return_value = mock_api
-        mock_hierarchy.return_value = (None, [])
-        mock_deploy.return_value = None
-
-        mock_compute_plan.return_value = _mock_plan_with_changes([test_file])
-
-        mock_state = Mock()
-        mock_state_class.return_value = mock_state
-        mock_lock = Mock()
-        mock_lock_class.return_value = mock_lock
-
-        git_url = "https://github.com/user/repo"
-        with patch(
-            "sys.argv",
-            _base_apply_argv(
-                test_file,
-                extra=["--git-repo-url", git_url],
-            ),
-        ):
-            main.main()
-
-        call_args = mock_deploy.call_args[0]
-        assert call_args[4] == git_url
-
-    @patch("ccfm_convert.main.LockManager")
-    @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.ensure_page_hierarchy")
-    @patch("ccfm_convert.main.deploy_page")
-    @patch("ccfm_convert.main.compute_plan")
-    @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
-    @patch("ccfm_convert.main.ConfluenceAPI")
-    def test_file_with_hierarchy(
-        self,
-        mock_api_class,
-        mock_find_mgmt,
-        mock_compute_plan,
-        mock_deploy,
-        mock_hierarchy,
-        mock_backend_class,
-        mock_state_class,
-        mock_lock_class,
-        tmp_path,
-    ):
-        """ensure_page_hierarchy parent_id is passed to deploy_page."""
-        docs_root = tmp_path / "docs"
-        subdir = docs_root / "Team"
-        subdir.mkdir(parents=True)
-        test_file = subdir / "page.md"
-        test_file.write_text("# Test")
-
-        mock_api = Mock()
-        mock_api.get_space_id.return_value = "space123"
-        mock_api_class.return_value = mock_api
-        mock_hierarchy.return_value = ("parent123", [])
-        mock_deploy.return_value = None
-
-        mock_compute_plan.return_value = _mock_plan_with_changes([test_file])
-
-        mock_state = Mock()
-        mock_state_class.return_value = mock_state
-        mock_lock = Mock()
-        mock_lock_class.return_value = mock_lock
+        test_file.write_text("---\ndeploy_config:\n  ci_banner: false\n---\n# Test")
 
         with patch(
             "sys.argv",
-            _base_apply_argv(
-                test_file,
-                extra=["--docs-root", str(docs_root)],
-            ),
+            ["main.py", "plan", "--debug-file", str(test_file)],
         ):
             main.main()
 
-        mock_hierarchy.assert_called_once()
-        assert mock_deploy.call_args[0][2] == "parent123"
+        output = capsys.readouterr().out
+        data = json.loads(output)
+        # First content should be heading, not expand (no CI banner)
+        assert data["content"][0]["type"] == "heading"
 
 
 # ---------------------------------------------------------------------------
@@ -1264,8 +888,8 @@ class TestApplySingleFile:
 # ---------------------------------------------------------------------------
 
 
-class TestApplyDirectory:
-    """Test directory live deployment via apply (with lock)."""
+class TestApplyDocsRoot:
+    """Test docs_root deployment via apply (with lock)."""
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
@@ -1303,7 +927,7 @@ class TestApplyDirectory:
         mock_lock = Mock()
         mock_lock_class.return_value = mock_lock
 
-        with patch("sys.argv", _base_apply_argv(test_dir, is_dir=True)):
+        with patch("sys.argv", _base_apply_argv(test_dir)):
             main.main()
 
         mock_deploy_tree.assert_called_once()
@@ -1346,7 +970,7 @@ class TestApplyDirectory:
         mock_lock = Mock()
         mock_lock_class.return_value = mock_lock
 
-        with patch("sys.argv", _base_apply_argv(docs, is_dir=True)):
+        with patch("sys.argv", _base_apply_argv(docs)):
             main.main()
 
         assert mock_state.set_page.call_count == 2
@@ -1389,7 +1013,7 @@ class TestApplyDirectory:
         mock_state = Mock()
         mock_state_class.return_value = mock_state
 
-        with patch("sys.argv", _base_apply_argv(docs, is_dir=True)):
+        with patch("sys.argv", _base_apply_argv(docs)):
             main.main()
 
         # 1 hierarchy page + 1 content page
@@ -1436,7 +1060,7 @@ class TestApplyDirectory:
         mock_lock = Mock()
         mock_lock_class.return_value = mock_lock
 
-        with patch("sys.argv", _base_apply_argv(docs, is_dir=True)):
+        with patch("sys.argv", _base_apply_argv(docs)):
             main.main()
 
         assert mock_state.set_page.call_count == 1
@@ -1483,14 +1107,12 @@ class TestApplyDirectory:
             "sys.argv",
             _base_apply_argv(
                 test_dir,
-                is_dir=True,
                 extra=["--git-repo-url", git_url],
             ),
         ):
             main.main()
 
-        call_args = mock_deploy_tree.call_args[0]
-        assert call_args[4] == git_url
+        mock_deploy_tree.assert_called_once()
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
@@ -1530,7 +1152,7 @@ class TestApplyDirectory:
 
         with patch(
             "sys.argv",
-            _base_apply_argv(test_dir, is_dir=True, extra=["--force"]),
+            _base_apply_argv(test_dir, extra=["--force"]),
         ):
             main.main()
 
@@ -1549,8 +1171,6 @@ class TestApplyConfirmation:
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
     @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.ensure_page_hierarchy")
-    @patch("ccfm_convert.main.deploy_page")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -1559,22 +1179,20 @@ class TestApplyConfirmation:
         mock_api_class,
         mock_find_mgmt,
         mock_compute_plan,
-        mock_deploy,
-        mock_hierarchy,
         mock_backend_class,
         mock_state_class,
         mock_lock_class,
         tmp_path,
     ):
         """--auto-approve does not call input()."""
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
 
         mock_api = Mock()
         mock_api.get_space_id.return_value = "space123"
         mock_api_class.return_value = mock_api
-        mock_hierarchy.return_value = (None, [])
-        mock_deploy.return_value = None
 
         mock_compute_plan.return_value = _mock_plan_with_changes([test_file])
 
@@ -1584,7 +1202,7 @@ class TestApplyConfirmation:
         mock_lock_class.return_value = mock_lock
 
         with patch("builtins.input") as mock_input:
-            with patch("sys.argv", _base_apply_argv(test_file)):
+            with patch("sys.argv", _base_apply_argv(docs)):
                 main.main()
 
             mock_input.assert_not_called()
@@ -1605,7 +1223,9 @@ class TestApplyConfirmation:
         capsys,
     ):
         """Non-TTY stdin without --auto-approve exits 1."""
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
 
         mock_api = Mock()
@@ -1617,17 +1237,9 @@ class TestApplyConfirmation:
         # argv WITHOUT --auto-approve
         argv = [
             "main.py",
-            "--domain",
-            "example.atlassian.net",
-            "--email",
-            "test@example.com",
-            "--token",
-            "token",
-            "--space",
-            "TEST",
+            "--config",
+            str(_write_test_config(docs)),
             "apply",
-            "--file",
-            str(test_file),
         ]
 
         with pytest.raises(SystemExit) as exc_info:
@@ -1643,8 +1255,6 @@ class TestApplyConfirmation:
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
     @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.ensure_page_hierarchy")
-    @patch("ccfm_convert.main.deploy_page")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -1653,22 +1263,20 @@ class TestApplyConfirmation:
         mock_api_class,
         mock_find_mgmt,
         mock_compute_plan,
-        mock_deploy,
-        mock_hierarchy,
         mock_backend_class,
         mock_state_class,
         mock_lock_class,
         tmp_path,
     ):
         """'yes' input at TTY prompt proceeds with apply."""
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
 
         mock_api = Mock()
         mock_api.get_space_id.return_value = "space123"
         mock_api_class.return_value = mock_api
-        mock_hierarchy.return_value = (None, [])
-        mock_deploy.return_value = None
 
         mock_compute_plan.return_value = _mock_plan_with_changes([test_file])
 
@@ -1679,17 +1287,9 @@ class TestApplyConfirmation:
 
         argv = [
             "main.py",
-            "--domain",
-            "example.atlassian.net",
-            "--email",
-            "test@example.com",
-            "--token",
-            "token",
-            "--space",
-            "TEST",
+            "--config",
+            str(_write_test_config(docs)),
             "apply",
-            "--file",
-            str(test_file),
         ]
 
         with patch("sys.stdin") as mock_stdin:
@@ -1718,7 +1318,9 @@ class TestApplyConfirmation:
         capsys,
     ):
         """'no' input at TTY prompt cancels and prints 'Apply cancelled.'."""
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
 
         mock_api = Mock()
@@ -1729,17 +1331,9 @@ class TestApplyConfirmation:
 
         argv = [
             "main.py",
-            "--domain",
-            "example.atlassian.net",
-            "--email",
-            "test@example.com",
-            "--token",
-            "token",
-            "--space",
-            "TEST",
+            "--config",
+            str(_write_test_config(docs)),
             "apply",
-            "--file",
-            str(test_file),
         ]
 
         with patch("sys.stdin") as mock_stdin:
@@ -1767,7 +1361,9 @@ class TestApplyConfirmation:
         capsys,
     ):
         """When plan has no changes, no prompt is shown."""
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
 
         mock_api = Mock()
@@ -1778,17 +1374,9 @@ class TestApplyConfirmation:
 
         argv = [
             "main.py",
-            "--domain",
-            "example.atlassian.net",
-            "--email",
-            "test@example.com",
-            "--token",
-            "token",
-            "--space",
-            "TEST",
+            "--config",
+            str(_write_test_config(docs)),
             "apply",
-            "--file",
-            str(test_file),
         ]
 
         with patch("builtins.input") as mock_input:
@@ -1829,7 +1417,9 @@ class TestApplyDestroy:
         capsys,
     ):
         """destroy_pages is called when plan has destroy actions."""
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
 
         mock_api = Mock()
@@ -1854,7 +1444,7 @@ class TestApplyDestroy:
         mock_lock = Mock()
         mock_lock_class.return_value = mock_lock
 
-        with patch("sys.argv", _base_apply_argv(test_file)):
+        with patch("sys.argv", _base_apply_argv(docs)):
             main.main()
 
         mock_destroy_pages.assert_called_once_with(mock_api, mock_state, [destroy_action])
@@ -1865,8 +1455,6 @@ class TestApplyDestroy:
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
     @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.ensure_page_hierarchy")
-    @patch("ccfm_convert.main.deploy_page")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -1875,8 +1463,6 @@ class TestApplyDestroy:
         mock_api_class,
         mock_find_mgmt,
         mock_compute_plan,
-        mock_deploy,
-        mock_hierarchy,
         mock_backend_class,
         mock_state_class,
         mock_lock_class,
@@ -1884,14 +1470,14 @@ class TestApplyDestroy:
         tmp_path,
     ):
         """destroy_pages is not called when plan has no destroy actions."""
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
 
         mock_api = Mock()
         mock_api.get_space_id.return_value = "space123"
         mock_api_class.return_value = mock_api
-        mock_hierarchy.return_value = (None, [])
-        mock_deploy.return_value = None
 
         mock_plan = _mock_plan_with_changes([test_file])
         mock_plan.destroy_actions = []
@@ -1902,7 +1488,7 @@ class TestApplyDestroy:
         mock_lock = Mock()
         mock_lock_class.return_value = mock_lock
 
-        with patch("sys.argv", _base_apply_argv(test_file)):
+        with patch("sys.argv", _base_apply_argv(docs)):
             main.main()
 
         mock_destroy_pages.assert_not_called()
@@ -1935,7 +1521,9 @@ class TestApplyLocking:
         """LockError during acquire exits with code 1."""
         from ccfm_convert.state import LockError
 
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
 
         mock_api = Mock()
@@ -1952,7 +1540,7 @@ class TestApplyLocking:
         mock_lock_class.return_value = mock_lock
 
         with pytest.raises(SystemExit) as exc_info:
-            with patch("sys.argv", _base_apply_argv(test_file)):
+            with patch("sys.argv", _base_apply_argv(docs)):
                 main.main()
 
         assert exc_info.value.code == 1
@@ -1960,8 +1548,7 @@ class TestApplyLocking:
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
     @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.ensure_page_hierarchy")
-    @patch("ccfm_convert.main.deploy_page")
+    @patch("ccfm_convert.main.deploy_tree", side_effect=RuntimeError("deploy failed"))
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -1970,22 +1557,21 @@ class TestApplyLocking:
         mock_api_class,
         mock_find_mgmt,
         mock_compute_plan,
-        mock_deploy,
-        mock_hierarchy,
+        mock_deploy_tree,
         mock_backend_class,
         mock_state_class,
         mock_lock_class,
         tmp_path,
     ):
         """Lock is released in finally block even when deploy raises."""
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
 
         mock_api = Mock()
         mock_api.get_space_id.return_value = "space123"
         mock_api_class.return_value = mock_api
-        mock_hierarchy.return_value = (None, [])
-        mock_deploy.side_effect = RuntimeError("deploy failed")
 
         mock_compute_plan.return_value = _mock_plan_with_changes([test_file])
 
@@ -1996,7 +1582,7 @@ class TestApplyLocking:
         mock_lock_class.return_value = mock_lock
 
         with pytest.raises(RuntimeError):
-            with patch("sys.argv", _base_apply_argv(test_file)):
+            with patch("sys.argv", _base_apply_argv(docs)):
                 main.main()
 
         mock_lock.release.assert_called_once()
@@ -2004,8 +1590,6 @@ class TestApplyLocking:
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
     @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.ensure_page_hierarchy")
-    @patch("ccfm_convert.main.deploy_page")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -2014,22 +1598,20 @@ class TestApplyLocking:
         mock_api_class,
         mock_find_mgmt,
         mock_compute_plan,
-        mock_deploy,
-        mock_hierarchy,
         mock_backend_class,
         mock_state_class,
         mock_lock_class,
         tmp_path,
     ):
         """--lock-id is forwarded to lock_mgr.acquire."""
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
 
         mock_api = Mock()
         mock_api.get_space_id.return_value = "space123"
         mock_api_class.return_value = mock_api
-        mock_hierarchy.return_value = (None, [])
-        mock_deploy.return_value = None
 
         mock_compute_plan.return_value = _mock_plan_with_changes([test_file])
 
@@ -2042,7 +1624,7 @@ class TestApplyLocking:
         with patch(
             "sys.argv",
             _base_apply_argv(
-                test_file,
+                docs,
                 extra=["--lock-id", "ci-run-42"],
             ),
         ):
@@ -2062,7 +1644,9 @@ class TestManagementPageDiscovery:
     @patch("ccfm_convert.main.ConfluenceAPI")
     def test_find_management_page_exits_when_container_missing(self, mock_api_class, tmp_path):
         """_find_management_page exits 1 when _ccfm container page is not found."""
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
 
         mock_api = Mock()
@@ -2071,7 +1655,7 @@ class TestManagementPageDiscovery:
         mock_api_class.return_value = mock_api
 
         with pytest.raises(SystemExit) as exc_info:
-            with patch("sys.argv", _base_apply_argv(test_file)):
+            with patch("sys.argv", _base_apply_argv(docs)):
                 main.main()
 
         assert exc_info.value.code == 1
@@ -2079,7 +1663,9 @@ class TestManagementPageDiscovery:
     @patch("ccfm_convert.main.ConfluenceAPI")
     def test_find_management_page_exits_when_child_missing(self, mock_api_class, tmp_path):
         """_find_management_page exits 1 when container exists but management page child missing."""
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
 
         mock_api = Mock()
@@ -2089,7 +1675,7 @@ class TestManagementPageDiscovery:
         mock_api_class.return_value = mock_api
 
         with pytest.raises(SystemExit) as exc_info:
-            with patch("sys.argv", _base_apply_argv(test_file)):
+            with patch("sys.argv", _base_apply_argv(docs)):
                 main.main()
 
         assert exc_info.value.code == 1
@@ -2097,23 +1683,21 @@ class TestManagementPageDiscovery:
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
     @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.ensure_page_hierarchy")
-    @patch("ccfm_convert.main.deploy_page")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main.ConfluenceAPI")
     def test_find_management_page_returns_page_id(
         self,
         mock_api_class,
         mock_compute_plan,
-        mock_deploy,
-        mock_hierarchy,
         mock_backend_class,
         mock_state_class,
         mock_lock_class,
         tmp_path,
     ):
         """_find_management_page returns page_id when container->child lookup succeeds."""
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
 
         mock_api = Mock()
@@ -2121,8 +1705,6 @@ class TestManagementPageDiscovery:
         mock_api.find_page_by_title.return_value = "container-id"
         mock_api.find_child_page_by_title.return_value = "found-mgmt-id"
         mock_api_class.return_value = mock_api
-        mock_hierarchy.return_value = (None, [])
-        mock_deploy.return_value = None
 
         mock_compute_plan.return_value = _mock_plan_with_changes([test_file])
 
@@ -2131,7 +1713,7 @@ class TestManagementPageDiscovery:
         mock_lock = Mock()
         mock_lock_class.return_value = mock_lock
 
-        with patch("sys.argv", _base_apply_argv(test_file)):
+        with patch("sys.argv", _base_apply_argv(docs)):
             main.main()
 
         # ConfluenceBackend should have been called with the found mgmt page id
@@ -2149,8 +1731,6 @@ class TestApplyOutput:
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
     @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.ensure_page_hierarchy")
-    @patch("ccfm_convert.main.deploy_page")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -2161,22 +1741,20 @@ class TestApplyOutput:
         mock_api_class,
         mock_find_mgmt,
         mock_compute_plan,
-        mock_deploy,
-        mock_hierarchy,
         mock_backend_class,
         mock_state_class,
         mock_lock_class,
         tmp_path,
     ):
         """Success message output includes 'Apply complete'."""
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
 
         mock_api = Mock()
         mock_api.get_space_id.return_value = "space123"
         mock_api_class.return_value = mock_api
-        mock_hierarchy.return_value = (None, [])
-        mock_deploy.return_value = None
 
         mock_compute_plan.return_value = _mock_plan_with_changes([test_file])
 
@@ -2185,7 +1763,7 @@ class TestApplyOutput:
         mock_lock = Mock()
         mock_lock_class.return_value = mock_lock
 
-        with patch("sys.argv", _base_apply_argv(test_file)):
+        with patch("sys.argv", _base_apply_argv(docs)):
             main.main()
 
         output = mock_stdout.getvalue()
@@ -2194,8 +1772,6 @@ class TestApplyOutput:
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
     @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.ensure_page_hierarchy")
-    @patch("ccfm_convert.main.deploy_page")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -2206,22 +1782,20 @@ class TestApplyOutput:
         mock_api_class,
         mock_find_mgmt,
         mock_compute_plan,
-        mock_deploy,
-        mock_hierarchy,
         mock_backend_class,
         mock_state_class,
         mock_lock_class,
         tmp_path,
     ):
         """Space ID is printed during apply."""
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
 
         mock_api = Mock()
         mock_api.get_space_id.return_value = "space123"
         mock_api_class.return_value = mock_api
-        mock_hierarchy.return_value = (None, [])
-        mock_deploy.return_value = None
 
         mock_compute_plan.return_value = _mock_plan_with_changes([test_file])
 
@@ -2230,7 +1804,7 @@ class TestApplyOutput:
         mock_lock = Mock()
         mock_lock_class.return_value = mock_lock
 
-        with patch("sys.argv", _base_apply_argv(test_file)):
+        with patch("sys.argv", _base_apply_argv(docs)):
             main.main()
 
         output = mock_stdout.getvalue()
@@ -2260,7 +1834,9 @@ class TestApplyErrorHandling:
         tmp_path,
     ):
         """ValueError from get_space_id propagates."""
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
 
         mock_api = Mock()
@@ -2268,42 +1844,19 @@ class TestApplyErrorHandling:
         mock_api_class.return_value = mock_api
 
         with pytest.raises(ValueError):
-            with patch("sys.argv", _base_apply_argv(test_file)):
+            with patch("sys.argv", _base_apply_argv(docs)):
                 main.main()
 
     def test_apply_missing_file_exits(self, tmp_path):
-        """Apply with --file pointing to nonexistent file exits 1."""
+        """Apply with nonexistent docs_root exits 1."""
         missing = tmp_path / "nonexistent.md"
         with pytest.raises(SystemExit):
             with patch("sys.argv", _base_apply_argv(missing)):
                 main.main()
 
-    def test_apply_missing_directory_exits(self, tmp_path):
-        """Apply with --directory pointing to nonexistent dir exits 1."""
-        missing_dir = tmp_path / "no-such-dir"
-        with pytest.raises(SystemExit):
-            with patch(
-                "sys.argv",
-                [
-                    "main.py",
-                    "--domain",
-                    "example.atlassian.net",
-                    "--email",
-                    "test@example.com",
-                    "--token",
-                    "token",
-                    "--space",
-                    "TEST",
-                    "apply",
-                    "--directory",
-                    str(missing_dir),
-                    "--auto-approve",
-                ],
-            ):
-                main.main()
-
-    def test_apply_no_file_or_directory_exits(self):
-        """Apply without --file or --directory exits 1."""
+    def test_apply_no_docs_root_exits(self, tmp_path, monkeypatch):
+        """apply without docs_root in config exits 1."""
+        monkeypatch.chdir(tmp_path)  # ensure no ccfm.yaml found
         with pytest.raises(SystemExit):
             with patch(
                 "sys.argv",
@@ -3065,8 +2618,6 @@ class TestConfigFileLoading:
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
     @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.ensure_page_hierarchy")
-    @patch("ccfm_convert.main.deploy_page")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -3075,27 +2626,26 @@ class TestConfigFileLoading:
         mock_api_class,
         mock_find_mgmt,
         mock_compute_plan,
-        mock_deploy,
-        mock_hierarchy,
         mock_backend_class,
         mock_state_class,
         mock_lock_class,
         tmp_path,
     ):
         """ccfm.yaml is auto-loaded if present."""
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
 
         config_file = tmp_path / "ccfm.yaml"
         config_file.write_text(
-            "version: 1\ndomain: config.atlassian.net\nemail: cfg@example.com\nspace: CFG\n"
+            f"version: 1\ndomain: config.atlassian.net\nemail: cfg@example.com\n"
+            f"space: CFG\ndocs_root: {docs}\n"
         )
 
         mock_api = Mock()
         mock_api.get_space_id.return_value = "space123"
         mock_api_class.return_value = mock_api
-        mock_hierarchy.return_value = (None, [])
-        mock_deploy.return_value = None
 
         mock_compute_plan.return_value = _mock_plan_with_changes([test_file])
 
@@ -3115,8 +2665,6 @@ class TestConfigFileLoading:
                     "tok",
                     "apply",
                     "--auto-approve",
-                    "--file",
-                    str(test_file),
                 ],
             ):
                 main.main()
@@ -3146,8 +2694,6 @@ class TestConfigFileLoading:
                         str(config_file),
                         "apply",
                         "--auto-approve",
-                        "--file",
-                        "test.md",
                     ],
                 ):
                     main.main()
@@ -3159,8 +2705,6 @@ class TestConfigFileLoading:
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
     @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.ensure_page_hierarchy")
-    @patch("ccfm_convert.main.deploy_page")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -3169,27 +2713,26 @@ class TestConfigFileLoading:
         mock_api_class,
         mock_find_mgmt,
         mock_compute_plan,
-        mock_deploy,
-        mock_hierarchy,
         mock_backend_class,
         mock_state_class,
         mock_lock_class,
         tmp_path,
     ):
         """--config <path> loads the specified file."""
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
 
         custom_config = tmp_path / "custom.yaml"
         custom_config.write_text(
-            "version: 1\ndomain: custom.atlassian.net\nemail: custom@example.com\nspace: CUS\n"
+            f"version: 1\ndomain: custom.atlassian.net\nemail: custom@example.com\n"
+            f"space: CUS\ndocs_root: {docs}\n"
         )
 
         mock_api = Mock()
         mock_api.get_space_id.return_value = "space123"
         mock_api_class.return_value = mock_api
-        mock_hierarchy.return_value = (None, [])
-        mock_deploy.return_value = None
 
         mock_compute_plan.return_value = _mock_plan_with_changes([test_file])
 
@@ -3208,8 +2751,6 @@ class TestConfigFileLoading:
                 str(custom_config),
                 "apply",
                 "--auto-approve",
-                "--file",
-                str(test_file),
             ],
         ):
             main.main()
@@ -3228,8 +2769,6 @@ class TestTokenHandling:
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
     @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.ensure_page_hierarchy")
-    @patch("ccfm_convert.main.deploy_page")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -3238,22 +2777,20 @@ class TestTokenHandling:
         mock_api_class,
         mock_find_mgmt,
         mock_compute_plan,
-        mock_deploy,
-        mock_hierarchy,
         mock_backend_class,
         mock_state_class,
         mock_lock_class,
         tmp_path,
     ):
         """Token is read from CONFLUENCE_TOKEN env var when --token is not provided."""
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
 
         mock_api = Mock()
         mock_api.get_space_id.return_value = "space123"
         mock_api_class.return_value = mock_api
-        mock_hierarchy.return_value = (None, [])
-        mock_deploy.return_value = None
 
         mock_compute_plan.return_value = _mock_plan_with_changes([test_file])
 
@@ -3267,6 +2804,8 @@ class TestTokenHandling:
                 "sys.argv",
                 [
                     "main.py",
+                    "--config",
+                    str(_write_docs_root_config(docs)),
                     "--domain",
                     "example.atlassian.net",
                     "--email",
@@ -3275,8 +2814,6 @@ class TestTokenHandling:
                     "TEST",
                     "apply",
                     "--auto-approve",
-                    "--file",
-                    str(test_file),
                 ],
             ):
                 main.main()
@@ -3288,13 +2825,17 @@ class TestTokenHandling:
     def test_missing_token_exits_with_error(self, monkeypatch, tmp_path):
         """No --token and no CONFLUENCE_TOKEN env var causes a SystemExit."""
         monkeypatch.delenv("CONFLUENCE_TOKEN", raising=False)
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
         with pytest.raises(SystemExit) as exc_info:
             with patch(
                 "sys.argv",
                 [
                     "main.py",
+                    "--config",
+                    str(_write_docs_root_config(docs)),
                     "--domain",
                     "example.atlassian.net",
                     "--email",
@@ -3303,8 +2844,6 @@ class TestTokenHandling:
                     "TEST",
                     "apply",
                     "--auto-approve",
-                    "--file",
-                    str(test_file),
                 ],
             ):
                 main.main()
@@ -3322,8 +2861,6 @@ class TestDomainEnvVarFallback:
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
     @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.ensure_page_hierarchy")
-    @patch("ccfm_convert.main.deploy_page")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -3332,22 +2869,20 @@ class TestDomainEnvVarFallback:
         mock_api_class,
         mock_find_mgmt,
         mock_compute_plan,
-        mock_deploy,
-        mock_hierarchy,
         mock_backend_class,
         mock_state_class,
         mock_lock_class,
         tmp_path,
     ):
         """Domain is read from CONFLUENCE_DOMAIN env var when --domain is not provided."""
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
 
         mock_api = Mock()
         mock_api.get_space_id.return_value = "space123"
         mock_api_class.return_value = mock_api
-        mock_hierarchy.return_value = (None, [])
-        mock_deploy.return_value = None
 
         mock_compute_plan.return_value = _mock_plan_with_changes([test_file])
 
@@ -3361,6 +2896,8 @@ class TestDomainEnvVarFallback:
                 "sys.argv",
                 [
                     "main.py",
+                    "--config",
+                    str(_write_docs_root_config(docs)),
                     "--email",
                     "test@example.com",
                     "--token",
@@ -3369,8 +2906,6 @@ class TestDomainEnvVarFallback:
                     "TEST",
                     "apply",
                     "--auto-approve",
-                    "--file",
-                    str(test_file),
                 ],
             ):
                 main.main()
@@ -3381,7 +2916,9 @@ class TestDomainEnvVarFallback:
 
     def test_missing_domain_error_mentions_env_var(self, tmp_path):
         """Missing domain error message mentions CONFLUENCE_DOMAIN env var."""
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
         with patch.dict(os.environ, {"CONFLUENCE_DOMAIN": ""}, clear=False):
             with pytest.raises(SystemExit):
@@ -3396,8 +2933,6 @@ class TestDomainEnvVarFallback:
                         "--space",
                         "TEST",
                         "plan",
-                        "--file",
-                        str(test_file),
                     ],
                 ):
                     main.main()
@@ -3409,8 +2944,6 @@ class TestEmailEnvVarFallback:
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
     @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.ensure_page_hierarchy")
-    @patch("ccfm_convert.main.deploy_page")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -3419,22 +2952,20 @@ class TestEmailEnvVarFallback:
         mock_api_class,
         mock_find_mgmt,
         mock_compute_plan,
-        mock_deploy,
-        mock_hierarchy,
         mock_backend_class,
         mock_state_class,
         mock_lock_class,
         tmp_path,
     ):
         """Email is read from CONFLUENCE_EMAIL env var when --email is not provided."""
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
 
         mock_api = Mock()
         mock_api.get_space_id.return_value = "space123"
         mock_api_class.return_value = mock_api
-        mock_hierarchy.return_value = (None, [])
-        mock_deploy.return_value = None
 
         mock_compute_plan.return_value = _mock_plan_with_changes([test_file])
 
@@ -3448,6 +2979,8 @@ class TestEmailEnvVarFallback:
                 "sys.argv",
                 [
                     "main.py",
+                    "--config",
+                    str(_write_docs_root_config(docs)),
                     "--domain",
                     "example.atlassian.net",
                     "--token",
@@ -3456,8 +2989,6 @@ class TestEmailEnvVarFallback:
                     "TEST",
                     "apply",
                     "--auto-approve",
-                    "--file",
-                    str(test_file),
                 ],
             ):
                 main.main()
@@ -3466,7 +2997,9 @@ class TestEmailEnvVarFallback:
 
     def test_missing_email_error_mentions_env_var(self, tmp_path):
         """Missing email error message mentions CONFLUENCE_EMAIL env var."""
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
         with patch.dict(os.environ, {"CONFLUENCE_EMAIL": ""}, clear=False):
             with pytest.raises(SystemExit):
@@ -3481,8 +3014,6 @@ class TestEmailEnvVarFallback:
                         "--space",
                         "TEST",
                         "plan",
-                        "--file",
-                        str(test_file),
                     ],
                 ):
                     main.main()
@@ -3494,8 +3025,6 @@ class TestAllCredentialsFromEnvVars:
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
     @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.ensure_page_hierarchy")
-    @patch("ccfm_convert.main.deploy_page")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -3504,22 +3033,20 @@ class TestAllCredentialsFromEnvVars:
         mock_api_class,
         mock_find_mgmt,
         mock_compute_plan,
-        mock_deploy,
-        mock_hierarchy,
         mock_backend_class,
         mock_state_class,
         mock_lock_class,
         tmp_path,
     ):
         """All credentials resolved from env vars when no CLI args provided."""
-        test_file = tmp_path / "test.md"
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
 
         mock_api = Mock()
         mock_api.get_space_id.return_value = "space123"
         mock_api_class.return_value = mock_api
-        mock_hierarchy.return_value = (None, [])
-        mock_deploy.return_value = None
 
         mock_compute_plan.return_value = _mock_plan_with_changes([test_file])
 
@@ -3538,12 +3065,12 @@ class TestAllCredentialsFromEnvVars:
                 "sys.argv",
                 [
                     "main.py",
+                    "--config",
+                    str(_write_docs_root_config(docs)),
                     "--space",
                     "TEST",
                     "apply",
                     "--auto-approve",
-                    "--file",
-                    str(test_file),
                 ],
             ):
                 main.main()
@@ -3562,8 +3089,6 @@ class TestPathHandling:
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
     @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.ensure_page_hierarchy")
-    @patch("ccfm_convert.main.deploy_page")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -3572,26 +3097,28 @@ class TestPathHandling:
         mock_api_class,
         mock_find_mgmt,
         mock_compute_plan,
-        mock_deploy,
-        mock_hierarchy,
         mock_backend_class,
         mock_state_class,
         mock_lock_class,
         tmp_path,
     ):
-        """Relative path is accepted for --file."""
+        """Relative docs_root path is accepted from config."""
         original_cwd = os.getcwd()
         os.chdir(tmp_path)
 
         try:
-            test_file = Path("test.md")
+            docs = Path("docs")
+            docs.mkdir()
+            test_file = docs / "test.md"
             test_file.write_text("# Test")
+            Path("ccfm.yaml").write_text(
+                "version: 1\ndomain: example.atlassian.net\n"
+                "email: test@example.com\ntoken: token\nspace: TEST\ndocs_root: docs\n"
+            )
 
             mock_api = Mock()
             mock_api.get_space_id.return_value = "space123"
             mock_api_class.return_value = mock_api
-            mock_hierarchy.return_value = (None, [])
-            mock_deploy.return_value = None
 
             mock_compute_plan.return_value = _mock_plan_with_changes([test_file])
 
@@ -3602,33 +3129,15 @@ class TestPathHandling:
 
             with patch(
                 "sys.argv",
-                [
-                    "main.py",
-                    "--domain",
-                    "example.atlassian.net",
-                    "--email",
-                    "test@example.com",
-                    "--token",
-                    "token",
-                    "--space",
-                    "TEST",
-                    "apply",
-                    "--auto-approve",
-                    "--file",
-                    "test.md",
-                ],
+                ["main.py", "apply", "--auto-approve"],
             ):
                 main.main()
-
-            mock_deploy.assert_called_once()
         finally:
             os.chdir(original_cwd)
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
     @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.ensure_page_hierarchy")
-    @patch("ccfm_convert.main.deploy_page")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -3637,22 +3146,20 @@ class TestPathHandling:
         mock_api_class,
         mock_find_mgmt,
         mock_compute_plan,
-        mock_deploy,
-        mock_hierarchy,
         mock_backend_class,
         mock_state_class,
         mock_lock_class,
         tmp_path,
     ):
-        """Absolute path is accepted for --file."""
-        test_file = tmp_path / "test.md"
+        """Absolute docs_root path is accepted from config."""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        test_file = docs / "test.md"
         test_file.write_text("# Test")
 
         mock_api = Mock()
         mock_api.get_space_id.return_value = "space123"
         mock_api_class.return_value = mock_api
-        mock_hierarchy.return_value = (None, [])
-        mock_deploy.return_value = None
 
         mock_compute_plan.return_value = _mock_plan_with_changes([test_file])
 
@@ -3661,10 +3168,8 @@ class TestPathHandling:
         mock_lock = Mock()
         mock_lock_class.return_value = mock_lock
 
-        with patch("sys.argv", _base_apply_argv(test_file.absolute())):
+        with patch("sys.argv", _base_apply_argv(docs.absolute())):
             main.main()
-
-        mock_deploy.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -3706,7 +3211,7 @@ class TestDependencyOrderingPlan:
         mock_state = Mock()
         mock_state_class.return_value = mock_state
 
-        with patch("sys.argv", _base_plan_argv(docs, is_dir=True)):
+        with patch("sys.argv", _base_plan_argv(docs)):
             main.main()
 
         # compute_plan should be called
@@ -3720,7 +3225,7 @@ class TestDependencyOrderingPlan:
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
-    def test_plan_single_file_no_graph(
+    def test_plan_single_file_docs_root_no_graph(
         self,
         mock_api_class,
         mock_find_mgmt,
@@ -3729,7 +3234,7 @@ class TestDependencyOrderingPlan:
         mock_state_class,
         tmp_path,
     ):
-        """Plan for a single file without --auto-deploy-deps has no dependency graph."""
+        """Plan for a docs_root with only one file skips dependency graph."""
         docs = tmp_path / "docs"
         docs.mkdir()
         fa = docs / "a.md"
@@ -3744,199 +3249,12 @@ class TestDependencyOrderingPlan:
         mock_state = Mock()
         mock_state_class.return_value = mock_state
 
-        with patch("sys.argv", _base_plan_argv(fa.absolute())):
+        with patch("sys.argv", _base_plan_argv(docs)):
             main.main()
 
         plan = mock_compute_plan.return_value
-        # dependency_graph should not be set (or be None)
+        # dependency_graph should not be set (single file = no graph needed)
         assert not getattr(plan, "dependency_graph", None) or plan.dependency_graph is None
-
-
-class TestAutoDeployDeps:
-    """Test --auto-deploy-deps flag behavior."""
-
-    @patch("ccfm_convert.main.LockManager")
-    @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.deploy_tree")
-    @patch("ccfm_convert.main.compute_plan")
-    @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
-    @patch("ccfm_convert.main.ConfluenceAPI")
-    def test_auto_deploy_deps_uses_deploy_tree(
-        self,
-        mock_api_class,
-        mock_find_mgmt,
-        mock_compute_plan,
-        mock_deploy_tree,
-        mock_backend_class,
-        mock_state_class,
-        mock_lock_class,
-        tmp_path,
-    ):
-        """--auto-deploy-deps with --file deploys via deploy_tree (not deploy_page)."""
-        docs = tmp_path / "docs"
-        docs.mkdir()
-        fb = docs / "b.md"
-        fb.write_text("---\npage_meta:\n  title: Page B\n---\nLeaf.")
-        fa = docs / "a.md"
-        fa.write_text("---\npage_meta:\n  title: Page A\n---\nSee [B](<Page B>).")
-
-        mock_api = Mock()
-        mock_api.get_space_id.return_value = "space123"
-        mock_api_class.return_value = mock_api
-        mock_deploy_tree.return_value = ([(fb, "pid-b"), (fa, "pid-a")], [])
-
-        mock_compute_plan.return_value = _mock_plan_with_changes([fb, fa])
-
-        mock_state = Mock()
-        mock_state_class.return_value = mock_state
-        mock_lock = Mock()
-        mock_lock_class.return_value = mock_lock
-
-        argv = _base_apply_argv(
-            fa.absolute(),
-            extra=["--auto-deploy-deps", "--docs-root", str(docs)],
-        )
-        with patch("sys.argv", argv):
-            main.main()
-
-        # Should use deploy_tree, not deploy_page
-        mock_deploy_tree.assert_called_once()
-
-    @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
-    @patch("ccfm_convert.main.compute_plan")
-    @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
-    @patch("ccfm_convert.main.ConfluenceAPI")
-    def test_auto_deploy_deps_plan_includes_deps(
-        self,
-        mock_api_class,
-        mock_find_mgmt,
-        mock_compute_plan,
-        mock_backend_class,
-        mock_state_class,
-        tmp_path,
-    ):
-        """--auto-deploy-deps plan includes dependency files."""
-        docs = tmp_path / "docs"
-        docs.mkdir()
-        fb = docs / "b.md"
-        fb.write_text("---\npage_meta:\n  title: Page B\n---\nLeaf.")
-        fa = docs / "a.md"
-        fa.write_text("---\npage_meta:\n  title: Page A\n---\nSee [B](<Page B>).")
-
-        mock_api = Mock()
-        mock_api.get_space_id.return_value = "space123"
-        mock_api_class.return_value = mock_api
-
-        mock_compute_plan.return_value = _mock_plan_no_changes()
-
-        mock_state = Mock()
-        mock_state_class.return_value = mock_state
-
-        argv = _base_plan_argv(
-            fa.absolute(),
-            extra=["--auto-deploy-deps", "--docs-root", str(docs)],
-        )
-        with patch("sys.argv", argv):
-            main.main()
-
-        # compute_plan should receive both files (dep + target)
-        call_args = mock_compute_plan.call_args
-        files_arg = call_args.kwargs["files"]
-        assert len(files_arg) == 2
-        assert fb in files_arg
-        assert fa in files_arg
-
-    def test_auto_deploy_deps_missing_docs_root_errors(self, tmp_path):
-        """--auto-deploy-deps errors if docs_root doesn't exist."""
-        fa = tmp_path / "a.md"
-        fa.write_text("# Page A")
-
-        argv = _base_plan_argv(
-            fa.absolute(),
-            extra=["--auto-deploy-deps", "--docs-root", str(tmp_path / "nonexistent")],
-        )
-        with patch("sys.argv", argv), pytest.raises(SystemExit) as exc_info:
-            main.main()
-        assert exc_info.value.code == 1
-
-    def test_auto_deploy_deps_missing_docs_root_errors_apply(self, tmp_path):
-        """--auto-deploy-deps errors on apply if docs_root doesn't exist."""
-        fa = tmp_path / "a.md"
-        fa.write_text("# Page A")
-
-        argv = _base_apply_argv(
-            fa.absolute(),
-            extra=["--auto-deploy-deps", "--docs-root", str(tmp_path / "nonexistent")],
-        )
-        with patch("sys.argv", argv), pytest.raises(SystemExit) as exc_info:
-            main.main()
-        assert exc_info.value.code == 1
-
-    def test_auto_deploy_deps_without_file_errors_plan(self, tmp_path):
-        """--auto-deploy-deps without --file errors on plan."""
-        docs = tmp_path / "docs"
-        docs.mkdir()
-        (docs / "a.md").write_text("# Page")
-
-        argv = _base_plan_argv(docs, is_dir=True, extra=["--auto-deploy-deps"])
-        with patch("sys.argv", argv), pytest.raises(SystemExit) as exc_info:
-            main.main()
-        assert exc_info.value.code == 1
-
-    def test_auto_deploy_deps_without_file_errors_apply(self, tmp_path):
-        """--auto-deploy-deps without --file errors on apply."""
-        docs = tmp_path / "docs"
-        docs.mkdir()
-        (docs / "a.md").write_text("# Page")
-
-        argv = _base_apply_argv(docs, is_dir=True, extra=["--auto-deploy-deps"])
-        with patch("sys.argv", argv), pytest.raises(SystemExit) as exc_info:
-            main.main()
-        assert exc_info.value.code == 1
-
-    def test_auto_deploy_deps_flag_parsed_for_plan(self):
-        """--auto-deploy-deps is accepted by the plan subcommand."""
-        parser = main._build_parser()
-        args = parser.parse_args(
-            [
-                "--domain",
-                "x.atlassian.net",
-                "--email",
-                "e@x.com",
-                "--token",
-                "t",
-                "--space",
-                "S",
-                "plan",
-                "--file",
-                "test.md",
-                "--auto-deploy-deps",
-            ]
-        )
-        assert args.auto_deploy_deps is True
-
-    def test_auto_deploy_deps_flag_parsed_for_apply(self):
-        """--auto-deploy-deps is accepted by the apply subcommand."""
-        parser = main._build_parser()
-        args = parser.parse_args(
-            [
-                "--domain",
-                "x.atlassian.net",
-                "--email",
-                "e@x.com",
-                "--token",
-                "t",
-                "--space",
-                "S",
-                "apply",
-                "--file",
-                "test.md",
-                "--auto-deploy-deps",
-            ]
-        )
-        assert args.auto_deploy_deps is True
 
 
 class TestDependencyOrderingApply:
@@ -3983,7 +3301,7 @@ class TestDependencyOrderingApply:
         mock_lock = Mock()
         mock_lock_class.return_value = mock_lock
 
-        with patch("sys.argv", _base_apply_argv(docs, is_dir=True)):
+        with patch("sys.argv", _base_apply_argv(docs)):
             main.main()
 
         # deploy_tree should be called with files reordered: b before a

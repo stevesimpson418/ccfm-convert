@@ -2,11 +2,12 @@
 
 import pytest
 
-from tests.smoke.conftest import SMOKE_DOCS
+from tests.smoke.conftest import SMOKE_DIR, SMOKE_DOCS
 
 pytestmark = pytest.mark.smoke
 
 STATE_DIR = SMOKE_DOCS / "state-management"
+STATE_CONFIG = SMOKE_DIR / "ccfm-state-smoke.yaml"
 PAGE_ALPHA = STATE_DIR / "page-alpha.md"
 PAGE_BETA = STATE_DIR / "page-beta.md"
 
@@ -21,7 +22,7 @@ class TestPlanMode:
     def test_plan_before_apply_shows_adds(self, ccfm_run, confluence_live):
         """plan --force --plan-exit-code exits 2 and lists add actions."""
         result = ccfm_run(
-            "plan", "--force", "--plan-exit-code", "--directory", str(STATE_DIR), check=False
+            "--config", str(STATE_CONFIG), "plan", "--force", "--plan-exit-code", check=False
         )
 
         assert result.returncode == 2, (
@@ -32,11 +33,10 @@ class TestPlanMode:
 
     def test_plan_after_apply_shows_no_changes(self, ccfm_run, confluence_live):
         """plan after a full apply exits 0 and shows no changes."""
-        # Apply both pages first
-        result = ccfm_run("apply", "--auto-approve", "--directory", str(STATE_DIR))
+        result = ccfm_run("--config", str(STATE_CONFIG), "apply", "--auto-approve")
         assert result.returncode == 0, f"Initial apply failed:\n{result.stderr}"
 
-        result = ccfm_run("plan", "--directory", str(STATE_DIR), check=False)
+        result = ccfm_run("--config", str(STATE_CONFIG), "plan", check=False)
 
         assert result.returncode == 0, (
             f"Expected exit 0 (no changes) after apply, got {result.returncode}.\n"
@@ -53,7 +53,7 @@ class TestDestroyBehavior:
     def test_plan_shows_destroy_for_removed_file(self, ccfm_run, confluence_live):
         """After removing a file, plan shows a destroy action."""
         # Step 1: Deploy both pages to ensure beta is tracked
-        result = ccfm_run("apply", "--auto-approve", "--directory", str(STATE_DIR))
+        result = ccfm_run("--config", str(STATE_CONFIG), "apply", "--auto-approve")
         assert result.returncode == 0, f"Initial apply failed:\n{result.stderr}"
 
         # Step 2: Temporarily move page-beta out of the directory so it becomes an orphan
@@ -61,14 +61,7 @@ class TestDestroyBehavior:
         PAGE_BETA.rename(beta_backup)
 
         try:
-            result = ccfm_run(
-                "plan",
-                "--directory",
-                str(STATE_DIR),
-                "--docs-root",
-                str(STATE_DIR),
-                check=False,
-            )
+            result = ccfm_run("--config", str(STATE_CONFIG), "plan", check=False)
 
             assert result.returncode == 0, f"plan failed:\n{result.stderr}"
             assert (
@@ -82,7 +75,7 @@ class TestDestroyBehavior:
     def test_apply_destroys_removed_page(self, ccfm_run, confluence_live):
         """Apply with --auto-approve destroys the page and removes from state."""
         # Step 1: Deploy both pages
-        result = ccfm_run("apply", "--auto-approve", "--directory", str(STATE_DIR))
+        result = ccfm_run("--config", str(STATE_CONFIG), "apply", "--auto-approve")
         assert result.returncode == 0, f"Initial apply failed:\n{result.stderr}"
 
         # Step 2: Move page-beta out
@@ -90,17 +83,15 @@ class TestDestroyBehavior:
         PAGE_BETA.rename(beta_backup)
 
         try:
-            result = ccfm_run(
-                "apply",
-                "--auto-approve",
-                "--directory",
-                str(STATE_DIR),
-                "--docs-root",
-                str(STATE_DIR),
-            )
+            result = ccfm_run("--config", str(STATE_CONFIG), "apply", "--auto-approve")
 
             assert result.returncode == 0, f"apply with destroy failed:\n{result.stderr}"
 
         finally:
-            # Restore page-beta
             beta_backup.rename(PAGE_BETA)
+
+        # Step 3: Verify beta is gone from state
+        list_result = ccfm_run("state", "list")
+        assert (
+            BETA_KEY not in list_result.stdout
+        ), f"page-beta should have been removed from state.\nstdout: {list_result.stdout}"

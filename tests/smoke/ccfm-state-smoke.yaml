@@ -1,0 +1,10 @@
+version: 1
+
+# Smoke test config for state management tests.
+# Uses the state-management subdirectory as an isolated docs_root.
+
+domain: ${CONFLUENCE_DOMAIN}
+email: ${CONFLUENCE_EMAIL}
+token: ${CONFLUENCE_TOKEN}
+space: CCFMDEV
+docs_root: tests/smoke/docs/state-management

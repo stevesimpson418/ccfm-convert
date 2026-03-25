@@ -5,21 +5,17 @@ import json
 import os
 import re
 import sys
-import uuid
-from datetime import UTC, datetime
 from pathlib import Path
 
+from ccfm_convert.adf.converter import convert
 from ccfm_convert.config import load_config, merge_config_with_args
 from ccfm_convert.deploy import (
     ConfluenceAPI,
-    deploy_page,
+    add_ci_banner,
     deploy_tree,
     destroy_pages,
-    dump_page,
-    dump_tree,
-    ensure_page_hierarchy,
 )
-from ccfm_convert.deploy.dependencies import build_dependency_graph, resolve_file_dependencies
+from ccfm_convert.deploy.dependencies import build_dependency_graph
 from ccfm_convert.deploy.frontmatter import parse_frontmatter
 from ccfm_convert.plan import compute_plan
 from ccfm_convert.state import (
@@ -80,19 +76,7 @@ def _add_global_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _add_target_args(parser: argparse.ArgumentParser) -> None:
-    """Add --file, --directory, --docs-root, --git-repo-url shared by plan and apply."""
-    parser.add_argument("--file", type=Path, help="Single markdown file to target")
-    parser.add_argument(
-        "--directory",
-        type=Path,
-        help="Directory to target, recursive (default: docs_root from ccfm.yaml)",
-    )
-    parser.add_argument(
-        "--docs-root",
-        type=Path,
-        default=None,
-        help="Root documentation directory (default: docs)",
-    )
+    """Add --git-repo-url shared by plan and apply."""
     parser.add_argument("--git-repo-url", default="", help="Git repo URL for CI banner")
 
 
@@ -119,9 +103,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Treat all files as new (force re-deploy on next apply)",
     )
     plan_parser.add_argument(
-        "--auto-deploy-deps",
-        action="store_true",
-        help="Auto-include dependency pages when using --file (requires docs_root)",
+        "--debug-file",
+        type=Path,
+        metavar="PATH",
+        help="Convert a single file to ADF JSON and print to stdout (no API calls)",
     )
 
     # -- apply -----------------------------------------------------------
@@ -138,26 +123,9 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Force re-deploy of all files regardless of state",
     )
     apply_parser.add_argument(
-        "--auto-deploy-deps",
-        action="store_true",
-        help="Auto-deploy dependency pages when using --file (requires docs_root)",
-    )
-    apply_parser.add_argument(
         "--lock-id",
         default=None,
         help="Lock identifier for CI traceability (default: user@hostname)",
-    )
-
-    # -- dump ------------------------------------------------------------
-    dump_parser = subparsers.add_parser(
-        "dump", help="Convert markdown to ADF JSON files for inspection (no API calls)"
-    )
-    _add_target_args(dump_parser)
-    dump_parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=None,
-        help="Output directory for .adf.json files (default: .ccfm/dumps/<timestamp>/)",
     )
 
     # -- state -----------------------------------------------------------
@@ -249,52 +217,27 @@ def _find_management_page(api, space_id):
     return page_id
 
 
-def _resolve_directory(args):
-    """Return the effective target directory from --directory or docs_root fallback.
-
-    Returns --directory if set, otherwise falls back to docs_root when the
-    _docs_root_from_config flag indicates it came from ccfm.yaml (user intent).
-    Also sets args.directory as a side effect so downstream dispatch logic
-    (e.g., _handle_apply's file-vs-directory branching) sees a consistent value.
-    """
-    directory = getattr(args, "directory", None)
-    if not directory and getattr(args, "_docs_root_from_config", False):
-        docs_root = getattr(args, "docs_root", None)
-        if docs_root:
-            directory = docs_root
-            args.directory = directory
-    return directory
-
-
 def _resolve_target_files(args):
-    """Resolve target files from --file, --directory, or docs_root fallback.
+    """Resolve target files from docs_root.
 
-    Precedence order:
-      1. --file (explicit single file)
-      2. --directory (explicit directory)
-      3. docs_root from config when _docs_root_from_config flag is set
-
-    The flag distinguishes a docs_root that came from ccfm.yaml (user intent
-    to deploy that directory) from the handler's internal default of Path("docs")
-    which is only used for hierarchy calculations, not as a deploy target.
+    All deployments target the full docs_root directory. The docs_root must
+    be set via docs_root in ccfm.yaml.
     """
-    if hasattr(args, "file") and args.file:
-        if not args.file.exists():
-            print(f"Error: File not found: {args.file}", file=sys.stderr)
-            sys.exit(1)
-        return [args.file]
-
-    directory = _resolve_directory(args)
-
-    if directory:
-        if not directory.exists():
-            print(f"Error: Directory not found: {directory}", file=sys.stderr)
-            sys.exit(1)
-        all_md = sorted(directory.rglob("*.md"))
-        return [f for f in all_md if f.name != ".page_content.md"]
-    else:
-        print("Error: Specify either --file or --directory (or set docs_root in ccfm.yaml)")
+    docs_root = getattr(args, "docs_root", None)
+    if not docs_root:
+        print(
+            "Error: No docs_root configured. Set docs_root in ccfm.yaml.",
+            file=sys.stderr,
+        )
         sys.exit(1)
+    if not docs_root.exists():
+        print(f"Error: docs_root not found: {docs_root}", file=sys.stderr)
+        sys.exit(1)
+    if not docs_root.is_dir():
+        print(f"Error: docs_root is not a directory: {docs_root}", file=sys.stderr)
+        sys.exit(1)
+    all_md = sorted(docs_root.rglob("*.md"))
+    return [f for f in all_md if f.name != ".page_content.md"]
 
 
 # ======================================================================
@@ -316,32 +259,32 @@ def _handle_init(args, parser):
 
 def _handle_plan(args, parser):
     """Handle the 'plan' subcommand."""
-    if not hasattr(args, "docs_root") or args.docs_root is None:
-        args.docs_root = Path("docs")
+
+    # --debug-file: convert a single file to ADF JSON and print to stdout
+    debug_file = getattr(args, "debug_file", None)
+    if debug_file:
+        if not debug_file.exists():
+            parser.error(f"File not found: {debug_file}")
+        content = debug_file.read_text(encoding="utf-8")
+        metadata, markdown = parse_frontmatter(content)
+        body = convert(markdown)
+        if metadata.get("ci_banner", True):
+            git_repo_url = getattr(args, "git_repo_url", "")
+            file_url = f"{git_repo_url}/{debug_file}" if git_repo_url else ""
+            body = add_ci_banner(
+                body,
+                file_url,
+                banner_text=metadata.get("ci_banner_text"),
+                metadata=metadata,
+            )
+        print(json.dumps(body, indent=2))
+        return
 
     target_files = _resolve_target_files(args)
 
-    single_file = bool(getattr(args, "file", None))
-    auto_deploy_deps = getattr(args, "auto_deploy_deps", False)
-
-    if auto_deploy_deps and not single_file:
-        print("Error: --auto-deploy-deps can only be used with --file", file=sys.stderr)
-        sys.exit(1)
-
-    # Dependency resolution
+    # Build dependency graph for ordering
     dep_graph = None
-    if single_file and auto_deploy_deps:
-        if not args.docs_root.exists():
-            print(
-                f"Error: --auto-deploy-deps requires a valid docs_root " f"(got: {args.docs_root})",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        target_files, dep_graph = resolve_file_dependencies(
-            target_files[0], args.docs_root, return_graph=True
-        )
-        single_file = False  # treat as multi-file deploy
-    elif not single_file and len(target_files) > 1:
+    if len(target_files) > 1:
         dep_graph = build_dependency_graph(target_files)
 
     _require_credentials(args, parser)
@@ -361,7 +304,6 @@ def _handle_plan(args, parser):
         files=target_files,
         docs_root=args.docs_root,
         force=force,
-        single_file=single_file,
     )
     plan.dependency_graph = dep_graph
     plan.print_summary()
@@ -370,66 +312,14 @@ def _handle_plan(args, parser):
         sys.exit(2 if plan.has_changes() else 0)
 
 
-def _handle_dump(args, parser):
-    """Handle the 'dump' subcommand."""
-    if not hasattr(args, "docs_root") or args.docs_root is None:
-        args.docs_root = Path("docs")
-
-    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    output_dir = args.output_dir or Path(".ccfm") / "dumps" / f"{timestamp}_{uuid.uuid4().hex[:8]}"
-    try:
-        output_dir.mkdir(parents=True, exist_ok=True)
-    except OSError as e:
-        print(f"Error: Cannot create output directory '{output_dir}': {e}", file=sys.stderr)
-        sys.exit(1)
-
-    git_repo_url = getattr(args, "git_repo_url", "")
-
-    if hasattr(args, "file") and args.file:
-        if not args.file.exists():
-            parser.error(f"File not found: {args.file}")
-        dump_page(args.file, output_dir, git_repo_url)
-    else:
-        directory = _resolve_directory(args)
-        if directory:
-            if not directory.exists():
-                parser.error(f"Directory not found: {directory}")
-            dump_tree(directory, args.docs_root, output_dir, git_repo_url)
-        else:
-            print("Error: Specify either --file or --directory (or set docs_root in ccfm.yaml)")
-            sys.exit(1)
-
-    print(f"\nDump complete! ADF files written to: {output_dir}")
-
-
 def _handle_apply(args, parser):
     """Handle the 'apply' subcommand."""
-    if not hasattr(args, "docs_root") or args.docs_root is None:
-        args.docs_root = Path("docs")
 
     target_files = _resolve_target_files(args)
 
-    single_file = bool(getattr(args, "file", None))
-    auto_deploy_deps = getattr(args, "auto_deploy_deps", False)
-
-    if auto_deploy_deps and not single_file:
-        print("Error: --auto-deploy-deps can only be used with --file", file=sys.stderr)
-        sys.exit(1)
-
-    # Dependency resolution
+    # Build dependency graph for ordering
     dep_graph = None
-    if single_file and auto_deploy_deps:
-        if not args.docs_root.exists():
-            print(
-                f"Error: --auto-deploy-deps requires a valid docs_root " f"(got: {args.docs_root})",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        target_files, dep_graph = resolve_file_dependencies(
-            target_files[0], args.docs_root, return_graph=True
-        )
-        single_file = False  # treat as multi-file deploy
-    elif not single_file and len(target_files) > 1:
+    if len(target_files) > 1:
         dep_graph = build_dependency_graph(target_files)
 
     _require_credentials(args, parser)
@@ -450,7 +340,6 @@ def _handle_apply(args, parser):
         files=target_files,
         docs_root=args.docs_root,
         force=force,
-        single_file=single_file,
     )
     plan.dependency_graph = dep_graph
     plan.print_summary()
@@ -493,63 +382,33 @@ def _handle_apply(args, parser):
                 ordered_set = set(actionable_files)
                 actionable_files = [f for f in dep_graph.order if f in ordered_set]
 
-            if hasattr(args, "file") and args.file and not auto_deploy_deps:
-                target = actionable_files[0]
-                parent_id, hierarchy_pages = ensure_page_hierarchy(
-                    api, space_id, target, args.docs_root, git_repo_url
+            results, hierarchy_pages = deploy_tree(
+                api,
+                space_id,
+                args.docs_root,
+                args.docs_root,
+                git_repo_url,
+                files=actionable_files,
+            )
+            for h_rel_path, h_page_id, h_title in hierarchy_pages:
+                state.set_page(
+                    rel_path=h_rel_path,
+                    page_id=h_page_id,
+                    title=h_title,
+                    space_key=args.space,
+                    space_id=space_id,
+                    content_hash="",
                 )
-                page_id = deploy_page(api, space_id, parent_id, target, git_repo_url)
-                for h_rel_path, h_page_id, h_title in hierarchy_pages:
-                    state.set_page(
-                        rel_path=h_rel_path,
-                        page_id=h_page_id,
-                        title=h_title,
-                        space_key=args.space,
-                        space_id=space_id,
-                        content_hash="",
-                    )
+            for filepath, page_id in results:
                 if page_id:
                     state.set_page(
-                        rel_path=_rel_path(target),
+                        rel_path=_rel_path(filepath),
                         page_id=page_id,
-                        title=_derive_title(target),
+                        title=_derive_title(filepath),
                         space_key=args.space,
                         space_id=space_id,
-                        content_hash=state.compute_hash(target),
+                        content_hash=state.compute_hash(filepath),
                     )
-            else:
-                deploy_root = (
-                    args.directory
-                    if hasattr(args, "directory") and args.directory
-                    else args.docs_root
-                )
-                results, hierarchy_pages = deploy_tree(
-                    api,
-                    space_id,
-                    deploy_root,
-                    args.docs_root,
-                    git_repo_url,
-                    files=actionable_files,
-                )
-                for h_rel_path, h_page_id, h_title in hierarchy_pages:
-                    state.set_page(
-                        rel_path=h_rel_path,
-                        page_id=h_page_id,
-                        title=h_title,
-                        space_key=args.space,
-                        space_id=space_id,
-                        content_hash="",
-                    )
-                for filepath, page_id in results:
-                    if page_id:
-                        state.set_page(
-                            rel_path=_rel_path(filepath),
-                            page_id=page_id,
-                            title=_derive_title(filepath),
-                            space_key=args.space,
-                            space_id=space_id,
-                            content_hash=state.compute_hash(filepath),
-                        )
 
         # Execute destroys
         if plan.destroy_actions:
@@ -713,8 +572,6 @@ def main():
         _handle_plan(args, parser)
     elif args.command == "apply":
         _handle_apply(args, parser)
-    elif args.command == "dump":
-        _handle_dump(args, parser)
     elif args.command == "state":
         _handle_state(args, parser)
     elif args.command == "lock":

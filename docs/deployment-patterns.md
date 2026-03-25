@@ -29,8 +29,8 @@ docs_root: docs
 ```
 
 ```bash
-ccfm plan --directory docs
-ccfm apply --directory docs --auto-approve
+ccfm plan
+ccfm apply --auto-approve
 ```
 
 **Best for:** Small teams, single product documentation, internal tooling docs.
@@ -46,19 +46,19 @@ separate config files or environment variables.
 # Deploy to staging
 CONFLUENCE_DOMAIN=staging.atlassian.net \
 CONFLUENCE_TOKEN=$STAGING_TOKEN \
-ccfm apply --directory docs --space DOCS-STAGING --auto-approve
+ccfm --config ccfm-staging.yaml apply --auto-approve
 
 # Deploy to production
 CONFLUENCE_DOMAIN=company.atlassian.net \
 CONFLUENCE_TOKEN=$PROD_TOKEN \
-ccfm apply --directory docs --space DOCS --auto-approve
+ccfm --config ccfm-prod.yaml apply --auto-approve
 ```
 
 Or use separate config files:
 
 ```bash
-ccfm --config ccfm-staging.yaml apply --directory docs --auto-approve
-ccfm --config ccfm-prod.yaml apply --directory docs --auto-approve
+ccfm --config ccfm-staging.yaml apply --auto-approve
+ccfm --config ccfm-prod.yaml apply --auto-approve
 ```
 
 **Best for:** Teams that want to review docs in a staging space before publishing to production.
@@ -107,11 +107,11 @@ docs_root: docs-wiki
 Deploy each source independently:
 
 ```bash
-ccfm --config ccfm-api.yaml plan --directory docs
-ccfm --config ccfm-api.yaml apply --directory docs --auto-approve
+ccfm --config ccfm-api.yaml plan
+ccfm --config ccfm-api.yaml apply --auto-approve
 
-ccfm --config ccfm-wiki.yaml plan --directory docs-wiki
-ccfm --config ccfm-wiki.yaml apply --directory docs-wiki --auto-approve
+ccfm --config ccfm-wiki.yaml plan
+ccfm --config ccfm-wiki.yaml apply --auto-approve
 ```
 
 **Best for:** Repos that own documentation across multiple Confluence spaces — e.g., API docs

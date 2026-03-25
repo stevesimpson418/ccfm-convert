@@ -27,8 +27,6 @@ class TestConfigFileDeploy:
                 str(CONFIG_FILE),
                 "apply",
                 "--auto-approve",
-                "--file",
-                str(CONFIG_PAGE),
             ],
             cwd=PROJECT_ROOT,
             capture_output=True,

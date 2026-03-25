@@ -30,18 +30,28 @@ ccfm lock release
 The Confluence v1 attachment update endpoint returns a different response shape than the create
 endpoint. CCFM normalises this automatically — ensure you are running the latest version.
 
+## Broken page links in container pages after first deploy
+
+If a `.page_content.md` file contains page links to child pages (e.g., `[Overview](<Team Overview>)`),
+those links will be unresolved after the initial deploy. This happens because container pages are
+created before their children — the linked pages don't exist yet when the container is deployed.
+
+Run `ccfm apply --force --auto-approve` to re-push all pages. The links will resolve on this
+second pass. Alternatively, use Confluence's **Children Display macro** in the editor instead
+of manual page links — it automatically lists child pages and won't be overwritten by CCFM.
+
 ## Page hierarchy issues
 
-Ensure markdown files are under the directory passed to `--directory`. Directories without
+Ensure markdown files are under your `docs_root` directory. Directories without
 `.page_content.md` get an auto-generated placeholder page. Add one to control the container
 page's title and content.
 
 ## Debugging ADF output
 
-Use `ccfm dump` to write `.adf.json` files to a dedicated output directory. Inspect these to
-verify the ADF structure before deploying to Confluence.
+Use `--debug-file` to convert a single markdown file to ADF JSON and print it to stdout.
+No credentials or API calls needed:
 
 ```bash
-ccfm dump --directory docs
-ccfm dump --file path/to/problem-page.md --output-dir ./debug-output
+ccfm plan --debug-file path/to/problem-page.md
+ccfm plan --debug-file path/to/problem-page.md | jq '.content'
 ```
