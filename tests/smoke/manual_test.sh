@@ -454,7 +454,7 @@ verdict
 
 phase "Phase 9: Dependency Ordering"
 
-step_header "9.1" "Plan shows dependency order" "Output includes 'Deploy order:' line"
+step_header "9.1" "Plan shows no cycle or unresolved warnings" "No warnings in plan output"
 run_cmd ccfm $CFG plan
 verdict
 

@@ -151,7 +151,7 @@ The example directory has page links: `complete_example.md` links to `My Team` a
 
 | # | Command | Expected | Pass/Fail |
 | --- | --------- | ---------- | ----------- |
-| 9.1 | `ccfm $CFG plan` | Plan output includes "Deploy order:" line showing dependency ordering | |
+| 9.1 | `ccfm $CFG plan` | Plan output has no cycle or unresolved link warnings | |
 | 9.2 | `ccfm $CFG apply --auto-approve --force` | Pages deploy without "Page not found for link" warnings (deps deployed first) | |
 | 9.3 | Verify in Confluence: `complete_example` page has working smart links to My Team and My App | Links resolve correctly | |
 

@@ -605,23 +605,6 @@ class TestPrintSummaryDependencyInfo:
             sys.stdout = old
         return buf.getvalue()
 
-    def test_shows_deploy_order(self):
-        """When dependency_graph has multiple files, deploy order is shown."""
-        from ccfm_convert.deploy.dependencies import DependencyGraph
-
-        fa = Path("a.md")
-        fb = Path("b.md")
-        graph = DependencyGraph(order=[fb, fa], cycles=[], unresolved={})
-        plan = DeployPlan(
-            page_actions=[
-                PageAction(fa, "a.md", "add", "Page A", "sha256:a"),
-                PageAction(fb, "b.md", "add", "Page B", "sha256:b"),
-            ],
-            dependency_graph=graph,
-        )
-        output = self._capture(plan)
-        assert "Deploy order: Page B → Page A" in output
-
     def test_shows_cycle_warning(self):
         """Cycles in dependency graph are shown as warnings."""
         from ccfm_convert.deploy.dependencies import DependencyGraph
@@ -668,20 +651,5 @@ class TestPrintSummaryDependencyInfo:
             ],
         )
         output = self._capture(plan)
-        assert "Deploy order" not in output
         assert "Circular" not in output
         assert "Unresolved" not in output
-
-    def test_no_deploy_order_for_single_file(self):
-        """Deploy order not shown when only 1 file in graph."""
-        from ccfm_convert.deploy.dependencies import DependencyGraph
-
-        graph = DependencyGraph(order=[Path("a.md")], cycles=[], unresolved={})
-        plan = DeployPlan(
-            page_actions=[
-                PageAction(Path("a.md"), "a.md", "add", "Page A", "sha256:a"),
-            ],
-            dependency_graph=graph,
-        )
-        output = self._capture(plan)
-        assert "Deploy order" not in output

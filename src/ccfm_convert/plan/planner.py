@@ -110,15 +110,6 @@ class DeployPlan:
                 for title, deps in graph.unresolved.items():
                     for dep in deps:
                         print(f'  ⚠️  Unresolved link: "{title}" links to "{dep}"')
-            if len(graph.order) > 1:
-                # Show deploy order using titles from actionable items
-                action_titles = {a.filepath: a.title for a in self.page_actions}
-                ordered_titles = [
-                    action_titles.get(f, f.stem) for f in graph.order if f in action_titles
-                ]
-                if len(ordered_titles) > 1:
-                    print(f"  Deploy order: {' → '.join(ordered_titles)}")
-
         print()
 
 
