@@ -123,6 +123,17 @@ directory.
 
 ---
 
+## Anti-Pattern: Multiple Repos, Same Space
+
+Do **not** deploy to the same Confluence space from multiple repositories. Each apply compares
+its `docs_root` against state — pages from another repository will appear as orphans and be
+destroyed.
+
+If you need multiple teams contributing to the same space, use a single repository with
+team-owned subdirectories (see Pattern 1 in the [FAQ](index.md#multiple-teams-need-to-publish-documentation--whats-the-best-approach)).
+
+---
+
 ## Examples Repository
 
 For complete working examples of these patterns with CI/CD configurations, see the
