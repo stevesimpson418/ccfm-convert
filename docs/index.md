@@ -40,6 +40,25 @@ examples.
     CCFM's orphan detection treats pages not in the current `docs_root` as deleted — a second
     repo deploying to the same space will destroy the first repo's pages.
 
+### Why one repo per space?
+
+CCFM's deployment model tracks state — which pages exist, their content hashes, and when they
+were last deployed. Orphan detection compares this state against the files in your `docs_root`
+to determine what should be created, updated, or destroyed. This only works when a single source
+of truth owns the state.
+
+This is the same constraint that Terraform and other state-based tools enforce: each state file
+should be managed by exactly one configuration. When two configurations share state, each one
+sees the other's resources as orphans and plans to destroy them.
+
+Unlike infrastructure tools where a bad destroy can be permanent, CCFM docs live in version
+control. If pages are accidentally destroyed, recovery is a re-deploy from the correct
+repository — no data is lost, just temporarily unavailable.
+
+The `plan` command always shows pending destroy actions before any changes are applied, and
+`apply` requires explicit confirmation (or `--auto-approve` for CI). These guardrails give
+you visibility before any destructive action is taken.
+
 ---
 
 ## Quick Start

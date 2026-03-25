@@ -40,6 +40,19 @@ Run `ccfm apply --force --auto-approve` to re-push all pages. The links will res
 second pass. Alternatively, use Confluence's **Children Display macro** in the editor instead
 of manual page links — it automatically lists child pages and won't be overwritten by CCFM.
 
+## Pages unexpectedly destroyed
+
+If pages disappear after an apply, the most likely cause is **two repositories deploying to the
+same Confluence space**. CCFM's orphan detection treats pages not in the current `docs_root` as
+deleted — so the second repository's apply will destroy pages created by the first.
+
+**Recovery:**
+
+1. Re-run `ccfm apply` from the **original** repository — the docs are still in version control
+2. Ensure each Confluence space is managed by exactly one `ccfm.yaml` configuration
+
+See [Design Philosophy — Why one repo per space?](index.md#why-one-repo-per-space) for details.
+
 ## Page hierarchy issues
 
 Ensure markdown files are under your `docs_root` directory. Directories without
