@@ -44,20 +44,21 @@ These apply to all commands:
 ccfm plan [OPTIONS]
 
 Options:
-  --docs-root PATH       Documentation root directory (default: docs, or set in ccfm.yaml)
+  --docs-root PATH       Documentation root directory (or set docs_root in ccfm.yaml)
   --git-repo-url URL     Git repo URL for CI banner source links
   --plan-exit-code       Exit 2 when plan detects pending changes (for CI gates)
   --force                Force re-deploy all files regardless of content changes
   --debug-file PATH      Convert a single file to ADF JSON and print to stdout (no API calls)
 ```
 
-### docs_root
+### docs_root (required)
 
-All deployments target the full `docs_root` directory. The docs_root is resolved from:
+All deployments target the full `docs_root` directory. The docs_root must be explicitly configured via:
 
-1. `--docs-root` CLI flag (explicit)
-2. `docs_root` from `ccfm.yaml` (config)
-3. If neither is set, an error is raised — there is no silent default
+1. `--docs-root` CLI flag (takes precedence), or
+2. `docs_root` in `ccfm.yaml`
+
+There is no default — if neither is set, ccfm exits with an error. This prevents accidental deployment of the wrong directory.
 
 The same resolution applies to both `plan` and `apply`.
 
@@ -92,7 +93,7 @@ ccfm plan --debug-file docs/my-page.md > my-page.adf.json
 ccfm apply [OPTIONS]
 
 Options:
-  --docs-root PATH       Documentation root directory (default: docs, or set in ccfm.yaml)
+  --docs-root PATH       Documentation root directory (or set docs_root in ccfm.yaml)
   --git-repo-url URL     Git repo URL for CI banner source links
   --auto-approve         Skip confirmation prompt (required for CI/non-interactive use)
   --force                Force re-deploy all files regardless of content changes

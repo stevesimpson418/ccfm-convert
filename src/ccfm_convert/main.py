@@ -81,7 +81,7 @@ def _add_target_args(parser: argparse.ArgumentParser) -> None:
         "--docs-root",
         type=Path,
         default=None,
-        help="Root documentation directory (default: docs, or set in ccfm.yaml)",
+        help="Root documentation directory (or set docs_root in ccfm.yaml)",
     )
     parser.add_argument("--git-repo-url", default="", help="Git repo URL for CI banner")
 
@@ -265,8 +265,6 @@ def _handle_init(args, parser):
 
 def _handle_plan(args, parser):
     """Handle the 'plan' subcommand."""
-    if not hasattr(args, "docs_root") or args.docs_root is None:
-        args.docs_root = Path("docs")
 
     # --debug-file: convert a single file to ADF JSON and print to stdout
     debug_file = getattr(args, "debug_file", None)
@@ -322,8 +320,6 @@ def _handle_plan(args, parser):
 
 def _handle_apply(args, parser):
     """Handle the 'apply' subcommand."""
-    if not hasattr(args, "docs_root") or args.docs_root is None:
-        args.docs_root = Path("docs")
 
     target_files = _resolve_target_files(args)
 
