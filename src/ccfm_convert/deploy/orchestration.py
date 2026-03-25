@@ -76,12 +76,8 @@ def ensure_page_hierarchy(api, space_id, filepath, docs_root, git_repo_url=""):
             body = convert(markdown)
 
             # Add CI banner if enabled
-            if metadata.get("ci_banner", True):
-                file_git_url = f"{git_repo_url}/{page_content_file}" if git_repo_url else ""
-                custom_banner_text = metadata.get("ci_banner_text")
-                body = add_ci_banner(
-                    body, file_git_url, banner_text=custom_banner_text, metadata=metadata
-                )
+            file_git_url = f"{git_repo_url}/{page_content_file}" if git_repo_url else ""
+            body = add_ci_banner(body, metadata, file_git_url)
 
             labels = metadata.get("labels", [])
             author = metadata.get("author")
@@ -279,9 +275,7 @@ def deploy_page(api, space_id, parent_id, filepath, git_repo_url=""):
     body = convert(markdown)
 
     # Add CI banner unless explicitly disabled
-    if metadata.get("ci_banner", True):
-        custom_banner_text = metadata.get("ci_banner_text")
-        body = add_ci_banner(body, file_git_url, banner_text=custom_banner_text, metadata=metadata)
+    body = add_ci_banner(body, metadata, file_git_url)
 
     # Resolve internal Confluence page links
     body = resolve_page_links(body, api, space_id)

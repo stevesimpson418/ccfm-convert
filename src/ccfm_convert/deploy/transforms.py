@@ -7,9 +7,29 @@ from ccfm_convert.adf.inline import parse_inline_with_breaks
 from ccfm_convert.adf.nodes import expand, paragraph, resolve_image_width
 
 
-def add_ci_banner(adf_doc, git_url="", banner_text=None, metadata=None):
+def add_ci_banner(adf_doc, metadata, file_git_url=""):
     """
-    Prepend CI banner to ADF document.
+    Conditionally prepend CI banner to ADF document based on metadata.
+
+    Checks metadata["ci_banner"] (defaults to True when absent) and,
+    if enabled, builds and prepends a CI banner panel.
+
+    Args:
+        adf_doc: The ADF document dict
+        metadata: Frontmatter metadata dict (may be empty)
+        file_git_url: Optional git file URL for source link
+    """
+    if metadata.get("ci_banner", True):
+        banner_text = metadata.get("ci_banner_text")
+        adf_doc = _build_ci_banner(
+            adf_doc, file_git_url, banner_text=banner_text, metadata=metadata
+        )
+    return adf_doc
+
+
+def _build_ci_banner(adf_doc, git_url="", banner_text=None, metadata=None):
+    """
+    Build and prepend CI banner panel to ADF document.
 
     Args:
         adf_doc: The ADF document dict
@@ -18,10 +38,14 @@ def add_ci_banner(adf_doc, git_url="", banner_text=None, metadata=None):
         metadata: Optional metadata dict for metadata expand block
     """
     # Default banner text
-    if not banner_text:
+    if banner_text is None:
         banner_text = (
             "⚠️ This page is automatically generated and deployed. Manual edits may be overwritten."
         )
+
+    # Copy the content list so inserts don't mutate the caller's document.
+    # Existing node dicts are shared references — only list membership is protected.
+    adf_doc = {**adf_doc, "content": list(adf_doc.get("content", []))}
 
     banner_content = [{"type": "text", "text": banner_text}]
 

@@ -268,15 +268,9 @@ def _handle_plan(args, parser):
         content = debug_file.read_text(encoding="utf-8")
         metadata, markdown = parse_frontmatter(content)
         body = convert(markdown)
-        if metadata.get("ci_banner", True):
-            git_repo_url = getattr(args, "git_repo_url", "")
-            file_url = f"{git_repo_url}/{debug_file}" if git_repo_url else ""
-            body = add_ci_banner(
-                body,
-                file_url,
-                banner_text=metadata.get("ci_banner_text"),
-                metadata=metadata,
-            )
+        git_repo_url = getattr(args, "git_repo_url", "")
+        file_url = f"{git_repo_url}/{debug_file}" if git_repo_url else ""
+        body = add_ci_banner(body, metadata, file_url)
         print(json.dumps(body, indent=2))
         return
 

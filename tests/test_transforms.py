@@ -9,6 +9,7 @@ from ccfm_convert.adf.nodes import (
     text_node,
 )
 from ccfm_convert.deploy.transforms import (
+    _build_ci_banner,
     add_ci_banner,
     create_metadata_expand,
     resolve_attachment_media_nodes,
@@ -16,13 +17,13 @@ from ccfm_convert.deploy.transforms import (
 )
 
 
-class TestAddCIBanner:
-    """Test CI banner addition."""
+class TestBuildCIBanner:
+    """Test low-level CI banner panel construction."""
 
     def test_add_default_banner(self):
         """Test adding default CI banner."""
         adf_doc = doc([paragraph([text_node("Content")])])
-        result = add_ci_banner(adf_doc)
+        result = _build_ci_banner(adf_doc)
 
         # Banner should be first element
         assert result["content"][0]["type"] == "panel"
@@ -35,7 +36,7 @@ class TestAddCIBanner:
         """Test adding banner with git URL."""
         adf_doc = doc([paragraph([text_node("Content")])])
         git_url = "https://github.com/user/repo/blob/main/file.md"
-        result = add_ci_banner(adf_doc, git_url)
+        result = _build_ci_banner(adf_doc, git_url)
 
         # Should contain link in banner
         banner = result["content"][0]
@@ -52,7 +53,7 @@ class TestAddCIBanner:
         """Test adding banner with custom text."""
         adf_doc = doc([paragraph([text_node("Content")])])
         custom_text = "Custom warning message"
-        result = add_ci_banner(adf_doc, banner_text=custom_text)
+        result = _build_ci_banner(adf_doc, banner_text=custom_text)
 
         # Check custom text is present
         banner_text = result["content"][0]["content"][0]["content"][0]["text"]
@@ -66,7 +67,7 @@ class TestAddCIBanner:
             "author": "John Doe",
             "labels": ["python", "docs"],
         }
-        result = add_ci_banner(adf_doc, metadata=metadata)
+        result = _build_ci_banner(adf_doc, metadata=metadata)
 
         # Should have banner + metadata expand + content
         assert len(result["content"]) >= 3
@@ -80,7 +81,7 @@ class TestAddCIBanner:
             paragraph([text_node("Para 2")]),
         ]
         adf_doc = doc(original_content[:])  # Copy to avoid mutation
-        result = add_ci_banner(adf_doc)
+        result = _build_ci_banner(adf_doc)
 
         # Original content should be preserved after banner
         assert result["content"][1:] == original_content
@@ -88,11 +89,81 @@ class TestAddCIBanner:
     def test_empty_document(self):
         """Test adding banner to empty document."""
         adf_doc = doc([])
-        result = add_ci_banner(adf_doc)
+        result = _build_ci_banner(adf_doc)
 
         # Should have just the banner
         assert len(result["content"]) == 1
         assert result["content"][0]["type"] == "panel"
+
+    def test_empty_string_banner_text_preserved(self):
+        """Empty string banner text should not be replaced with default."""
+        adf_doc = doc([paragraph([text_node("Content")])])
+        result = _build_ci_banner(adf_doc, banner_text="")
+        banner_text = result["content"][0]["content"][0]["content"][0]["text"]
+        assert banner_text == ""
+
+    def test_does_not_mutate_input(self):
+        """Builder should not mutate the original document."""
+        adf_doc = doc([paragraph([text_node("Content")])])
+        original_length = len(adf_doc["content"])
+        _build_ci_banner(adf_doc)
+        assert len(adf_doc["content"]) == original_length
+
+    def test_does_not_mutate_input_with_metadata(self):
+        """Builder should not mutate the original document even with metadata expand."""
+        adf_doc = doc([paragraph([text_node("Content")])])
+        original_length = len(adf_doc["content"])
+        metadata = {"include_page_metadata": True, "author": "Test"}
+        _build_ci_banner(adf_doc, metadata=metadata)
+        assert len(adf_doc["content"]) == original_length
+
+
+class TestAddCIBanner:
+    """Test conditional CI banner wrapper."""
+
+    def test_banner_added_when_metadata_empty(self):
+        """Empty metadata defaults to ci_banner=True."""
+        adf_doc = doc([paragraph([text_node("Content")])])
+        result = add_ci_banner(adf_doc, {})
+        assert result["content"][0]["type"] == "panel"
+
+    def test_banner_added_when_ci_banner_true(self):
+        """Explicit ci_banner=True adds banner."""
+        adf_doc = doc([paragraph([text_node("Content")])])
+        result = add_ci_banner(adf_doc, {"ci_banner": True})
+        assert result["content"][0]["type"] == "panel"
+
+    def test_banner_skipped_when_ci_banner_false(self):
+        """ci_banner=False skips banner entirely."""
+        adf_doc = doc([paragraph([text_node("Content")])])
+        result = add_ci_banner(adf_doc, {"ci_banner": False})
+        assert result["content"][0]["type"] == "paragraph"
+
+    def test_passes_custom_banner_text(self):
+        """Custom banner text is forwarded."""
+        adf_doc = doc([paragraph([text_node("Content")])])
+        result = add_ci_banner(adf_doc, {"ci_banner_text": "Custom"})
+        banner_text = result["content"][0]["content"][0]["content"][0]["text"]
+        assert banner_text == "Custom"
+
+    def test_passes_file_git_url(self):
+        """Git URL is forwarded and appears as link in banner."""
+        adf_doc = doc([paragraph([text_node("Content")])])
+        result = add_ci_banner(adf_doc, {}, file_git_url="https://github.com/x/y")
+        banner = result["content"][0]
+        banner_content = banner["content"][0]["content"]
+        has_link = any(
+            node.get("marks") and any(mark["type"] == "link" for mark in node["marks"])
+            for node in banner_content
+        )
+        assert has_link
+
+    def test_passes_metadata_for_expand(self):
+        """Metadata with include_page_metadata triggers expand block."""
+        adf_doc = doc([paragraph([text_node("Content")])])
+        metadata = {"include_page_metadata": True, "author": "Test"}
+        result = add_ci_banner(adf_doc, metadata)
+        assert result["content"][1]["type"] == "expand"
 
 
 class TestCreateMetadataExpand:
