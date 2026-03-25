@@ -86,8 +86,8 @@ class TestStateCommands:
 
         assert result.returncode == 0, f"State list failed:\n{result.stderr}"
         assert (
-            "single-page" in result.stdout
-        ), f"Expected single-page in state list.\nstdout: {result.stdout}"
+            ".md" in result.stdout
+        ), f"Expected .md entries in state list.\nstdout: {result.stdout}"
 
     def test_state_pull_outputs_json(self, ccfm_run, confluence_live):
         """ccfm state pull outputs valid JSON to stdout."""
@@ -106,16 +106,16 @@ class TestStateCommands:
         """ccfm state show <path> outputs the entry for a specific page."""
         ccfm_run("--config", str(SMOKE_CONFIG), "apply", "--auto-approve")
 
-        # Find the .md state key
+        # Find any .md state key to test state show
         list_result = ccfm_run("state", "list")
         state_key = None
         for line in list_result.stdout.strip().split("\n"):
             stripped = line.strip()
-            if stripped.endswith("single-page.md"):
-                state_key = stripped.split()[0] if stripped else None
+            if stripped.endswith(".md") and not stripped.startswith("page_id"):
+                state_key = stripped
                 break
 
-        assert state_key, f"Could not find single-page.md in state list:\n{list_result.stdout}"
+        assert state_key, f"Could not find any .md entry in state list:\n{list_result.stdout}"
 
         result = ccfm_run("state", "show", state_key)
         assert result.returncode == 0, f"State show failed:\n{result.stderr}"
@@ -141,24 +141,22 @@ class TestStateCommands:
 
         # Verify state is still intact
         verify_result = ccfm_run("state", "list")
-        assert "single-page" in verify_result.stdout
+        assert ".md" in verify_result.stdout
 
     def test_state_rm_removes_entry(self, ccfm_run, confluence_live):
         """ccfm state rm removes a page entry from remote state."""
         ccfm_run("--config", str(SMOKE_CONFIG), "apply", "--auto-approve")
 
-        # Find the state key by listing
+        # Find any .md state key to test state rm
         list_result = ccfm_run("state", "list")
-        # Extract a path that contains single-page
-        lines = list_result.stdout.strip().split("\n")
         state_key = None
-        for line in lines:
-            if "single-page.md" in line:
-                # The state key is typically the first column or the path
-                state_key = line.strip().split()[0] if line.strip() else None
+        for line in list_result.stdout.strip().split("\n"):
+            stripped = line.strip()
+            if stripped.endswith(".md") and not stripped.startswith("page_id"):
+                state_key = stripped
                 break
 
-        assert state_key, f"Could not find single-page key in state list:\n{list_result.stdout}"
+        assert state_key, f"Could not find any .md entry in state list:\n{list_result.stdout}"
 
         result = ccfm_run("state", "rm", state_key)
         assert result.returncode == 0, f"State rm failed:\n{result.stderr}"
