@@ -71,6 +71,11 @@ class DeployPlan:
             print()
             return
 
+        # Reorder actionable items by dependency graph when available
+        if self.dependency_graph and len(actionable) > 1:
+            order_index = {f: i for i, f in enumerate(self.dependency_graph.order)}
+            actionable.sort(key=lambda a: order_index.get(a.filepath, len(order_index)))
+
         print("\nccfm will perform the following actions:\n")
 
         for action in actionable:

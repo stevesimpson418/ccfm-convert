@@ -605,6 +605,31 @@ class TestPrintSummaryDependencyInfo:
             sys.stdout = old
         return buf.getvalue()
 
+    def test_plan_output_ordered_by_dependency_graph(self):
+        """Actionable items in plan output follow dependency graph order."""
+        from ccfm_convert.deploy.dependencies import DependencyGraph
+
+        fa = Path("a.md")
+        fb = Path("b.md")
+        fc = Path("c.md")
+        # Graph order: c first (dep), then b, then a (depends on b)
+        graph = DependencyGraph(order=[fc, fb, fa], cycles=[], unresolved={})
+        plan = DeployPlan(
+            page_actions=[
+                # Alphabetical order in page_actions (as compute_plan produces)
+                PageAction(fa, "a.md", "add", "Page A", "sha256:a"),
+                PageAction(fb, "b.md", "add", "Page B", "sha256:b"),
+                PageAction(fc, "c.md", "add", "Page C", "sha256:c"),
+            ],
+            dependency_graph=graph,
+        )
+        output = self._capture(plan)
+        lines = [ln for ln in output.split("\n") if ln.strip().startswith("+")]
+        assert len(lines) == 3
+        assert '"Page C"' in lines[0]
+        assert '"Page B"' in lines[1]
+        assert '"Page A"' in lines[2]
+
     def test_shows_cycle_warning(self):
         """Cycles in dependency graph are shown as warnings."""
         from ccfm_convert.deploy.dependencies import DependencyGraph
