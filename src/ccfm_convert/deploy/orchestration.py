@@ -158,6 +158,7 @@ def deploy_tree(api, space_id, docs_root, git_repo_url="", files=None, ci_banner
         (rel_path, page_id, title) for each directory container page.
     """
     if files is not None:
+        # Preserve caller-provided ordering (e.g. dependency-sorted by _handle_apply)
         md_files = list(files)
     else:
         md_files = sorted(docs_root.rglob("*.md"))
