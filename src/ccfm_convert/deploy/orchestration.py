@@ -149,6 +149,8 @@ def deploy_tree(api, space_id, docs_root, git_repo_url="", files=None, ci_banner
         files: Optional pre-filtered list of files to deploy. When provided,
             only these files are deployed instead of discovering all .md files
             via rglob. Used by apply to limit deployment to actionable files.
+        ci_banner_text: Optional global CI banner text from ccfm.yaml.
+            Per-page frontmatter ci_banner_text takes precedence.
 
     Returns:
         Tuple of (results, hierarchy_pages) where results is a list of
@@ -257,6 +259,8 @@ def deploy_page(api, space_id, parent_id, filepath, git_repo_url="", ci_banner_t
         parent_id: Parent page ID (computed from folder hierarchy)
         filepath: Path to markdown file
         git_repo_url: Git repository URL for CI banner
+        ci_banner_text: Optional global CI banner text from ccfm.yaml.
+            Per-page frontmatter ci_banner_text takes precedence.
     """
     print(f"\n📄 Processing: {filepath.name}")
 

@@ -193,6 +193,14 @@ class TestAddCIBanner:
         result = add_ci_banner(adf_doc, {"ci_banner": False}, global_ci_banner_text="Global banner")
         assert result["content"][0]["type"] == "paragraph"
 
+    def test_empty_string_frontmatter_overrides_global(self):
+        """Empty string ci_banner_text in frontmatter is honoured over global."""
+        adf_doc = doc([paragraph([text_node("Content")])])
+        metadata = {"ci_banner_text": ""}
+        result = add_ci_banner(adf_doc, metadata, global_ci_banner_text="Global banner")
+        banner_text = result["content"][0]["content"][0]["content"][0]["text"]
+        assert banner_text == ""
+
 
 class TestCreateMetadataExpand:
     """Test metadata expand creation."""

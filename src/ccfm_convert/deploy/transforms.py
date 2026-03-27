@@ -22,7 +22,8 @@ def add_ci_banner(adf_doc, metadata, file_git_url="", global_ci_banner_text=None
             Per-page frontmatter ci_banner_text takes precedence.
     """
     if metadata.get("ci_banner", True):
-        banner_text = metadata.get("ci_banner_text") or global_ci_banner_text
+        fm_text = metadata.get("ci_banner_text")
+        banner_text = fm_text if fm_text is not None else global_ci_banner_text
         adf_doc = _build_ci_banner(
             adf_doc, file_git_url, banner_text=banner_text, metadata=metadata
         )
