@@ -109,7 +109,7 @@ class TestConfluenceBackendSave:
         # Capture the uploaded content by reading the temp file before it's deleted
         uploaded_content = None
 
-        def capture_upload(page_id, filepath, name=None):
+        def capture_upload(page_id, filepath, name=None, quiet=False):
             nonlocal uploaded_content
             uploaded_content = filepath.read_bytes()
             return {"results": [{"id": "att1"}]}
@@ -119,3 +119,25 @@ class TestConfluenceBackendSave:
 
         parsed = json.loads(uploaded_content.decode("utf-8"))
         assert list(parsed["pages"].keys()) == sorted(parsed["pages"].keys())
+
+    def test_save_passes_quiet_to_upload_attachment(self):
+        """save() passes quiet=True to suppress noisy attachment messages."""
+        api = Mock()
+        api.upload_attachment.return_value = {"results": [{"id": "att1"}]}
+        backend = ConfluenceBackend(api, "page-123")
+
+        backend.save({"version": "1", "pages": {}})
+
+        call_kwargs = api.upload_attachment.call_args[1]
+        assert call_kwargs["quiet"] is True
+
+    def test_save_prints_success_message(self, capsys):
+        """save() prints a success message after uploading state."""
+        api = Mock()
+        api.upload_attachment.return_value = {"results": [{"id": "att1"}]}
+        backend = ConfluenceBackend(api, "page-123")
+
+        backend.save({"version": "1", "pages": {}})
+
+        captured = capsys.readouterr()
+        assert "CCFM State updated successfully" in captured.out
