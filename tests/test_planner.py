@@ -428,8 +428,8 @@ class TestComputePlan:
         assert destroy_paths.index("docs/a/b/page.md") < destroy_paths.index("docs/a/b")
         assert destroy_paths.index("docs/a/b") < destroy_paths.index("docs/a")
 
-    def test_non_empty_hash_non_md_entry_ignored(self, tmp_path):
-        """State entries without .md suffix and with non-empty content_hash are ignored."""
+    def test_non_md_entry_without_children_destroyed(self, tmp_path):
+        """Non-.md state entries without children are destroyed (orphaned containers)."""
         docs = tmp_path / "docs"
         docs.mkdir()
         state = _make_state(tmp_path)
@@ -437,15 +437,13 @@ class TestComputePlan:
         old_cwd = os.getcwd()
         os.chdir(tmp_path)
         try:
-            # Simulate a non-directory, non-.md entry with a real hash
             state.set_page("docs/weird-entry", "p99", "Weird", "SP", "s", "sha256:notempty")
 
             plan = compute_plan(state, [], Path("docs"))
         finally:
             os.chdir(old_cwd)
 
-        # Should not be destroyed (content_hash != "")
-        assert all(a.rel_path != "docs/weird-entry" for a in plan.destroy_actions)
+        assert any(a.rel_path == "docs/weird-entry" for a in plan.destroy_actions)
 
     def test_files_sorted_in_output(self, tmp_path):
         """Files are processed in sorted order."""
@@ -678,3 +676,237 @@ class TestPrintSummaryDependencyInfo:
         output = self._capture(plan)
         assert "Circular" not in output
         assert "Unresolved" not in output
+
+
+# ---------------------------------------------------------------------------
+# .page_content.md change detection
+# ---------------------------------------------------------------------------
+
+
+class TestPageContentChangeDetection:
+    """Tests for .page_content.md files in compute_plan."""
+
+    def test_page_content_add_when_no_state_entry(self, tmp_path):
+        """.page_content.md with no state entry for its directory → add action."""
+        docs = tmp_path / "docs"
+        section = docs / "my-section"
+        section.mkdir(parents=True)
+        pc = section / ".page_content.md"
+        pc.write_text("# Section landing page", encoding="utf-8")
+        state = _make_state(tmp_path)
+
+        old_cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            plan = compute_plan(state, [], docs, page_content_files=[pc])
+        finally:
+            os.chdir(old_cwd)
+
+        pc_actions = [a for a in plan.page_actions if a.filepath.name == ".page_content.md"]
+        assert len(pc_actions) == 1
+        assert pc_actions[0].action == "add"
+        assert "my-section" in pc_actions[0].rel_path
+
+    def test_page_content_change_when_hash_differs(self, tmp_path):
+        """.page_content.md with mismatched hash → change action."""
+        docs = tmp_path / "docs"
+        section = docs / "my-section"
+        section.mkdir(parents=True)
+        pc = section / ".page_content.md"
+        pc.write_text("# Updated content", encoding="utf-8")
+        state = _make_state(tmp_path)
+
+        old_cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            state.set_page("docs/my-section", "p1", "My Section", "SP", "s", "sha256:old")
+            plan = compute_plan(state, [], docs, page_content_files=[pc])
+        finally:
+            os.chdir(old_cwd)
+
+        pc_actions = [a for a in plan.page_actions if a.filepath.name == ".page_content.md"]
+        assert len(pc_actions) == 1
+        assert pc_actions[0].action == "change"
+        assert pc_actions[0].page_id == "p1"
+        assert pc_actions[0].stored_hash == "sha256:old"
+
+    def test_page_content_no_op_when_hash_matches(self, tmp_path):
+        """.page_content.md with matching hash → no-op action."""
+        docs = tmp_path / "docs"
+        section = docs / "my-section"
+        section.mkdir(parents=True)
+        pc = section / ".page_content.md"
+        pc.write_text("# Stable content", encoding="utf-8")
+        state = _make_state(tmp_path)
+
+        old_cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            current_hash = state.compute_hash(pc)
+            state.set_page("docs/my-section", "p1", "My Section", "SP", "s", current_hash)
+            plan = compute_plan(state, [], docs, page_content_files=[pc])
+        finally:
+            os.chdir(old_cwd)
+
+        pc_actions = [a for a in plan.page_actions if a.filepath.name == ".page_content.md"]
+        assert len(pc_actions) == 1
+        assert pc_actions[0].action == "no-op"
+
+    def test_page_content_force_classifies_as_add(self, tmp_path):
+        """force=True makes .page_content.md show as add regardless of state."""
+        docs = tmp_path / "docs"
+        section = docs / "my-section"
+        section.mkdir(parents=True)
+        pc = section / ".page_content.md"
+        pc.write_text("# Content", encoding="utf-8")
+        state = _make_state(tmp_path)
+
+        old_cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            current_hash = state.compute_hash(pc)
+            state.set_page("docs/my-section", "p1", "My Section", "SP", "s", current_hash)
+            plan = compute_plan(state, [], docs, force=True, page_content_files=[pc])
+        finally:
+            os.chdir(old_cwd)
+
+        pc_actions = [a for a in plan.page_actions if a.filepath.name == ".page_content.md"]
+        assert pc_actions[0].action == "add"
+
+    def test_page_content_title_from_frontmatter(self, tmp_path):
+        """Title is derived from .page_content.md frontmatter when present."""
+        docs = tmp_path / "docs"
+        section = docs / "my-section"
+        section.mkdir(parents=True)
+        pc = section / ".page_content.md"
+        pc.write_text("---\npage_meta:\n  title: Custom Title\n---\n# Content", encoding="utf-8")
+        state = _make_state(tmp_path)
+
+        old_cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            plan = compute_plan(state, [], docs, page_content_files=[pc])
+        finally:
+            os.chdir(old_cwd)
+
+        assert plan.page_actions[0].title == "Custom Title"
+
+    def test_page_content_title_falls_back_to_dir_name(self, tmp_path):
+        """Title falls back to parent directory name when no frontmatter title."""
+        docs = tmp_path / "docs"
+        section = docs / "my-section"
+        section.mkdir(parents=True)
+        pc = section / ".page_content.md"
+        pc.write_text("# No frontmatter here", encoding="utf-8")
+        state = _make_state(tmp_path)
+
+        old_cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            plan = compute_plan(state, [], docs, page_content_files=[pc])
+        finally:
+            os.chdir(old_cwd)
+
+        assert plan.page_actions[0].title == "my-section"
+
+    def test_page_content_keeps_container_alive_in_orphan_detection(self, tmp_path):
+        """Container with .page_content.md in plan is not destroyed as orphan."""
+        docs = tmp_path / "docs"
+        section = docs / "my-section"
+        section.mkdir(parents=True)
+        pc = section / ".page_content.md"
+        pc.write_text("# Landing page", encoding="utf-8")
+        state = _make_state(tmp_path)
+
+        old_cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            current_hash = state.compute_hash(pc)
+            state.set_page("docs/my-section", "p1", "My Section", "SP", "s", current_hash)
+            plan = compute_plan(state, [], docs, page_content_files=[pc])
+        finally:
+            os.chdir(old_cwd)
+
+        destroy_paths = [a.rel_path for a in plan.destroy_actions]
+        assert "docs/my-section" not in destroy_paths
+
+    def test_page_content_mixed_with_regular_files(self, tmp_path):
+        """Plan includes both regular files and .page_content.md actions."""
+        docs = tmp_path / "docs"
+        section = docs / "my-section"
+        section.mkdir(parents=True)
+        pc = section / ".page_content.md"
+        pc.write_text("# Landing page", encoding="utf-8")
+        child = _write_md(section, "child.md", "# Child page")
+        state = _make_state(tmp_path)
+
+        old_cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            plan = compute_plan(state, [child], docs, page_content_files=[pc])
+        finally:
+            os.chdir(old_cwd)
+
+        assert len(plan.page_actions) == 2
+        actions_by_name = {a.filepath.name: a for a in plan.page_actions}
+        assert "child.md" in actions_by_name
+        assert ".page_content.md" in actions_by_name
+        assert all(a.action == "add" for a in plan.page_actions)
+
+    def test_page_content_none_defaults_to_empty(self, tmp_path):
+        """page_content_files=None is treated as empty list."""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        state = _make_state(tmp_path)
+
+        old_cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            plan = compute_plan(state, [], docs, page_content_files=None)
+        finally:
+            os.chdir(old_cwd)
+
+        assert plan.page_actions == []
+
+    def test_page_content_deploy_page_false_skipped(self, tmp_path):
+        """.page_content.md with deploy_page: false is skipped entirely."""
+        docs = tmp_path / "docs"
+        section = docs / "section"
+        section.mkdir(parents=True)
+        pc = section / ".page_content.md"
+        pc.write_text(
+            "---\ndeploy_config:\n  deploy_page: false\n---\n# Skip me",
+            encoding="utf-8",
+        )
+        state = _make_state(tmp_path)
+
+        old_cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            plan = compute_plan(state, [], docs, page_content_files=[pc])
+        finally:
+            os.chdir(old_cwd)
+
+        assert len(plan.page_actions) == 0
+
+    def test_page_content_rel_path_falls_back_when_outside_cwd(self, tmp_path):
+        """ValueError from relative_to falls back to str for .page_content.md."""
+        docs = tmp_path / "docs"
+        section = docs / "section"
+        section.mkdir(parents=True)
+        pc = section / ".page_content.md"
+        pc.write_text("# Content", encoding="utf-8")
+        state = _make_state(tmp_path)
+
+        unrelated_cwd = tmp_path.parent / "unrelated_pc_cwd"
+        unrelated_cwd.mkdir(exist_ok=True)
+
+        old_cwd = os.getcwd()
+        os.chdir(unrelated_cwd)
+        try:
+            plan = compute_plan(state, [], docs, page_content_files=[pc])
+        finally:
+            os.chdir(old_cwd)
+
+        assert len(plan.page_actions) == 1
+        assert str(pc) == plan.page_actions[0].rel_path

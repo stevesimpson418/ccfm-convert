@@ -131,7 +131,8 @@ def _read_deploy_flag(filepath: Path) -> bool:
 
 def _derive_title(filepath: Path) -> str:
     """Derive a page title from a markdown file — reads frontmatter if present,
-    otherwise generates from the filename stem (same logic as deploy_page)."""
+    otherwise generates from the filename stem (same logic as deploy_page).
+    For .page_content.md files, falls back to the parent directory name."""
     try:
         content = filepath.read_text(encoding="utf-8")
         metadata, _ = parse_frontmatter(content)
@@ -139,6 +140,8 @@ def _derive_title(filepath: Path) -> str:
             return metadata["title"]
     except OSError:
         pass
+    if filepath.name == ".page_content.md":
+        return filepath.parent.name
     return filepath.stem.replace("-", " ").title()
 
 
@@ -147,6 +150,7 @@ def compute_plan(
     files: list[Path],
     docs_root: Path,
     force: bool = False,
+    page_content_files: list[Path] | None = None,
 ) -> DeployPlan:
     """Compute the full deploy plan by comparing files on disk against stored state.
 
@@ -157,6 +161,10 @@ def compute_plan(
 
     Files tracked in state but absent from disk are added as destroy actions.
     Directory container pages are also destroyed when no files remain under them.
+
+    Args:
+        page_content_files: .page_content.md files to include in change detection.
+            These are tracked in state by their parent directory path.
     """
     plan = DeployPlan()
 
@@ -221,6 +229,60 @@ def compute_plan(
                 )
             )
 
+    # Process .page_content.md files — tracked in state by parent directory path
+    for filepath in sorted(page_content_files or []):
+        try:
+            dir_rel_path = str(filepath.parent.relative_to(cwd))
+        except ValueError:
+            dir_rel_path = str(filepath.parent)
+
+        try:
+            file_rel_path = str(filepath.relative_to(cwd))
+        except ValueError:
+            file_rel_path = str(filepath)
+
+        if not _read_deploy_flag(filepath):
+            continue
+
+        current_hash = state.compute_hash(filepath)
+        entry = state.get_page(dir_rel_path)
+        title = _derive_title(filepath)
+
+        if force or entry is None:
+            plan.page_actions.append(
+                PageAction(
+                    filepath=filepath,
+                    rel_path=file_rel_path,
+                    action="add",
+                    title=title,
+                    current_hash=current_hash,
+                )
+            )
+        elif entry["content_hash"] != current_hash:
+            plan.page_actions.append(
+                PageAction(
+                    filepath=filepath,
+                    rel_path=file_rel_path,
+                    action="change",
+                    title=title,
+                    current_hash=current_hash,
+                    stored_hash=entry["content_hash"],
+                    page_id=entry["page_id"],
+                )
+            )
+        else:
+            plan.page_actions.append(
+                PageAction(
+                    filepath=filepath,
+                    rel_path=file_rel_path,
+                    action="no-op",
+                    title=title,
+                    current_hash=current_hash,
+                    stored_hash=entry["content_hash"],
+                    page_id=entry["page_id"],
+                )
+            )
+
     # Destroy detection — find orphaned pages and empty containers
     # 1. Orphaned .md files (in state but not on disk)
     for rel_path in state.find_orphans(files, docs_root):
@@ -234,15 +296,13 @@ def compute_plan(
                 )
             )
 
-    # 2. Orphaned directory containers (content_hash == "", no .md files remain under them)
+    # 2. Orphaned directory containers (no files remain under them)
     current_rel_paths = {a.rel_path for a in plan.page_actions}
     all_pages = state.all_pages
     for rel_path, entry in all_pages.items():
         if rel_path.endswith(".md"):
             continue
-        if entry.get("content_hash") != "":
-            continue
-        # Check if any tracked .md file still exists under this directory
+        # Check if any tracked file still exists under this directory
         has_children = any(
             child_path.startswith(rel_path + "/") for child_path in current_rel_paths
         )
