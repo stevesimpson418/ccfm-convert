@@ -47,7 +47,6 @@ Every CCFM file should begin with a YAML frontmatter block. Two top-level keys:
 ---
 page_meta:
   title: My Page Title
-  parent: Architecture Overview   # Optional — overrides directory-based hierarchy
   author: Jane Smith              # Optional — added as an author-* label
   labels:
     - backend
