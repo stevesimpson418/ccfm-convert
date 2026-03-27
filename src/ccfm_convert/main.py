@@ -38,7 +38,8 @@ def _rel_path(filepath: Path) -> str:
 
 
 def _derive_title(filepath: Path) -> str:
-    """Derive the page title from frontmatter, or fall back to the filename stem."""
+    """Derive the page title from frontmatter, or fall back to the filename stem.
+    For .page_content.md files, falls back to the parent directory name."""
     try:
         content = filepath.read_text(encoding="utf-8")
         metadata, _ = parse_frontmatter(content)
@@ -46,6 +47,8 @@ def _derive_title(filepath: Path) -> str:
             return metadata["title"]
     except OSError:
         pass
+    if filepath.name == ".page_content.md":
+        return filepath.parent.name
     return filepath.stem.replace("-", " ").title()
 
 

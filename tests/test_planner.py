@@ -705,7 +705,8 @@ class TestPageContentChangeDetection:
         pc_actions = [a for a in plan.page_actions if a.filepath.name == ".page_content.md"]
         assert len(pc_actions) == 1
         assert pc_actions[0].action == "add"
-        assert "my-section" in pc_actions[0].rel_path
+        # rel_path uses the directory path (state key), not the file path
+        assert pc_actions[0].rel_path == "docs/my-section"
 
     def test_page_content_change_when_hash_differs(self, tmp_path):
         """.page_content.md with mismatched hash → change action."""
@@ -810,7 +811,12 @@ class TestPageContentChangeDetection:
         assert plan.page_actions[0].title == "my-section"
 
     def test_page_content_keeps_container_alive_in_orphan_detection(self, tmp_path):
-        """Container with .page_content.md in plan is not destroyed as orphan."""
+        """Container with .page_content.md in plan is not destroyed as orphan.
+
+        Simulates a round-trip: state written after first apply, then re-planned.
+        The container directory path is in both state and page_actions (via
+        .page_content.md), so orphan detection must keep it alive.
+        """
         docs = tmp_path / "docs"
         section = docs / "my-section"
         section.mkdir(parents=True)
@@ -827,8 +833,13 @@ class TestPageContentChangeDetection:
         finally:
             os.chdir(old_cwd)
 
+        # Container must NOT be destroyed — .page_content.md action uses dir_rel_path
+        # which matches the state key, keeping the container alive
         destroy_paths = [a.rel_path for a in plan.destroy_actions]
         assert "docs/my-section" not in destroy_paths
+        # And the .page_content.md should be no-op (hash matches)
+        pc_actions = [a for a in plan.page_actions if a.filepath.name == ".page_content.md"]
+        assert pc_actions[0].action == "no-op"
 
     def test_page_content_mixed_with_regular_files(self, tmp_path):
         """Plan includes both regular files and .page_content.md actions."""
@@ -890,7 +901,7 @@ class TestPageContentChangeDetection:
         assert len(plan.page_actions) == 0
 
     def test_page_content_rel_path_falls_back_when_outside_cwd(self, tmp_path):
-        """ValueError from relative_to falls back to str for .page_content.md."""
+        """ValueError from relative_to falls back to str(parent) for .page_content.md."""
         docs = tmp_path / "docs"
         section = docs / "section"
         section.mkdir(parents=True)
@@ -909,4 +920,5 @@ class TestPageContentChangeDetection:
             os.chdir(old_cwd)
 
         assert len(plan.page_actions) == 1
-        assert str(pc) == plan.page_actions[0].rel_path
+        # rel_path falls back to str(filepath.parent) when outside cwd
+        assert str(section) == plan.page_actions[0].rel_path

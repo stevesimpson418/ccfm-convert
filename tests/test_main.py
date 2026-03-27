@@ -211,6 +211,14 @@ class TestDeriveTitle:
         # Don't create the file — read_text will raise OSError
         assert _derive_title(f) == "Unreadable Doc"
 
+    def test_page_content_falls_back_to_dir_name(self, tmp_path):
+        """Returns parent directory name for .page_content.md without frontmatter title."""
+        section = tmp_path / "my-section"
+        section.mkdir()
+        f = section / ".page_content.md"
+        f.write_text("# No frontmatter title")
+        assert _derive_title(f) == "my-section"
+
 
 # ---------------------------------------------------------------------------
 # CLI argument parsing and no-subcommand

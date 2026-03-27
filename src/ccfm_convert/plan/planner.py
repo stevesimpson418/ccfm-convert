@@ -236,11 +236,6 @@ def compute_plan(
         except ValueError:
             dir_rel_path = str(filepath.parent)
 
-        try:
-            file_rel_path = str(filepath.relative_to(cwd))
-        except ValueError:
-            file_rel_path = str(filepath)
-
         if not _read_deploy_flag(filepath):
             continue
 
@@ -252,7 +247,7 @@ def compute_plan(
             plan.page_actions.append(
                 PageAction(
                     filepath=filepath,
-                    rel_path=file_rel_path,
+                    rel_path=dir_rel_path,
                     action="add",
                     title=title,
                     current_hash=current_hash,
@@ -262,7 +257,7 @@ def compute_plan(
             plan.page_actions.append(
                 PageAction(
                     filepath=filepath,
-                    rel_path=file_rel_path,
+                    rel_path=dir_rel_path,
                     action="change",
                     title=title,
                     current_hash=current_hash,
@@ -274,7 +269,7 @@ def compute_plan(
             plan.page_actions.append(
                 PageAction(
                     filepath=filepath,
-                    rel_path=file_rel_path,
+                    rel_path=dir_rel_path,
                     action="no-op",
                     title=title,
                     current_hash=current_hash,
@@ -302,11 +297,12 @@ def compute_plan(
     for rel_path, entry in all_pages.items():
         if rel_path.endswith(".md"):
             continue
-        # Check if any tracked file still exists under this directory
-        has_children = any(
+        # Check if the container itself is in the plan (via .page_content.md)
+        # or if any child file still exists under this directory
+        has_content = rel_path in current_rel_paths or any(
             child_path.startswith(rel_path + "/") for child_path in current_rel_paths
         )
-        if not has_children:
+        if not has_content:
             plan.destroy_actions.append(
                 DestroyAction(
                     rel_path=rel_path,
