@@ -12,6 +12,7 @@ Supported schema:
     space: DOCS
     docs_root: docs
     git_repo_url: https://github.com/org/repo
+    ci_banner_text: "⚠️ Custom banner text applied to all pages"
 
     # Optional multi-space routing
     deployments:
@@ -45,6 +46,7 @@ _CONFIG_TO_ARG = {
     "space": "space",
     "docs_root": "docs_root",
     "git_repo_url": "git_repo_url",
+    "ci_banner_text": "ci_banner_text",
 }
 
 # All recognised top-level keys (mapped args + structural keys)

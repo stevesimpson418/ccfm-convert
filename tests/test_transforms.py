@@ -165,6 +165,42 @@ class TestAddCIBanner:
         result = add_ci_banner(adf_doc, metadata)
         assert result["content"][1]["type"] == "expand"
 
+    def test_global_ci_banner_text_used_when_no_frontmatter_override(self):
+        """Global ci_banner_text from config is used when frontmatter has none."""
+        adf_doc = doc([paragraph([text_node("Content")])])
+        result = add_ci_banner(adf_doc, {}, global_ci_banner_text="Global banner")
+        banner_text = result["content"][0]["content"][0]["content"][0]["text"]
+        assert banner_text == "Global banner"
+
+    def test_frontmatter_ci_banner_text_overrides_global(self):
+        """Per-page frontmatter ci_banner_text takes precedence over global."""
+        adf_doc = doc([paragraph([text_node("Content")])])
+        metadata = {"ci_banner_text": "Page-specific banner"}
+        result = add_ci_banner(adf_doc, metadata, global_ci_banner_text="Global banner")
+        banner_text = result["content"][0]["content"][0]["content"][0]["text"]
+        assert banner_text == "Page-specific banner"
+
+    def test_default_banner_when_no_global_or_frontmatter(self):
+        """Default banner text used when neither global nor frontmatter is set."""
+        adf_doc = doc([paragraph([text_node("Content")])])
+        result = add_ci_banner(adf_doc, {}, global_ci_banner_text=None)
+        banner_text = result["content"][0]["content"][0]["content"][0]["text"]
+        assert "automatically generated" in banner_text
+
+    def test_global_ci_banner_text_ignored_when_banner_disabled(self):
+        """Global ci_banner_text is not applied when ci_banner is False."""
+        adf_doc = doc([paragraph([text_node("Content")])])
+        result = add_ci_banner(adf_doc, {"ci_banner": False}, global_ci_banner_text="Global banner")
+        assert result["content"][0]["type"] == "paragraph"
+
+    def test_empty_string_frontmatter_overrides_global(self):
+        """Empty string ci_banner_text in frontmatter is honoured over global."""
+        adf_doc = doc([paragraph([text_node("Content")])])
+        metadata = {"ci_banner_text": ""}
+        result = add_ci_banner(adf_doc, metadata, global_ci_banner_text="Global banner")
+        banner_text = result["content"][0]["content"][0]["content"][0]["text"]
+        assert banner_text == ""
+
 
 class TestCreateMetadataExpand:
     """Test metadata expand creation."""
