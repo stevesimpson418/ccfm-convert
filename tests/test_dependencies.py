@@ -118,6 +118,14 @@ class TestBuildTitleMap:
         result = build_title_map([f1])
         assert result == {"Container Page": f1}
 
+    def test_page_content_md_no_frontmatter(self, tmp_path):
+        """Container .page_content.md without frontmatter uses parent directory name."""
+        f1 = tmp_path / "my-section" / ".page_content.md"
+        f1.parent.mkdir()
+        f1.write_text("Just body content, no frontmatter.")
+        result = build_title_map([f1])
+        assert result == {"my-section": f1}
+
     def test_empty_file(self, tmp_path):
         f1 = tmp_path / "empty.md"
         f1.write_text("")

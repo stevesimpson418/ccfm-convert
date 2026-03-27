@@ -1333,6 +1333,7 @@ class TestApplyDocsRoot:
         mock_ensure_hierarchy.assert_called_once()
         call_args = mock_ensure_hierarchy.call_args
         assert call_args[0][2] == pc  # filepath arg
+        assert call_args[1].get("ci_banner_text") is None  # default when not configured
 
         # State should have the actual hash
         hierarchy_calls = [
@@ -1340,6 +1341,78 @@ class TestApplyDocsRoot:
         ]
         assert len(hierarchy_calls) == 1
         assert hierarchy_calls[0].kwargs["content_hash"] == "sha256:new-hash"
+
+    @patch("ccfm_convert.main.ensure_page_hierarchy")
+    @patch("ccfm_convert.main.LockManager")
+    @patch("ccfm_convert.main.StateManager")
+    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.deploy_tree")
+    @patch("ccfm_convert.main.compute_plan")
+    @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    def test_standalone_page_content_passes_ci_banner_text(
+        self,
+        mock_api_class,
+        mock_find_mgmt,
+        mock_compute_plan,
+        mock_deploy_tree,
+        mock_backend_class,
+        mock_state_class,
+        mock_lock_class,
+        mock_ensure_hierarchy,
+        tmp_path,
+    ):
+        """Standalone .page_content.md deploy forwards ci_banner_text to ensure_page_hierarchy."""
+        docs = tmp_path / "docs"
+        sub = docs / "sub"
+        sub.mkdir(parents=True)
+        pc = sub / ".page_content.md"
+        pc.write_text("# Updated landing")
+
+        config_path = tmp_path / "ccfm.yaml"
+        config_path.write_text(
+            f"version: 1\n"
+            f"domain: example.atlassian.net\n"
+            f"email: test@example.com\n"
+            f"token: token\n"
+            f"space: TEST\n"
+            f"docs_root: {docs}\n"
+            f'ci_banner_text: "Custom CI banner"\n'
+        )
+
+        mock_api = Mock()
+        mock_api.get_space_id.return_value = "space123"
+        mock_api_class.return_value = mock_api
+
+        pc_action = Mock()
+        pc_action.action = "change"
+        pc_action.filepath = pc
+        plan = Mock()
+        plan.has_changes.return_value = True
+        plan.page_actions = [pc_action]
+        plan.destroy_actions = []
+        mock_compute_plan.return_value = plan
+
+        sub_rel = str(sub.resolve().relative_to(tmp_path))
+        mock_ensure_hierarchy.return_value = (
+            "sub-pid",
+            [(sub_rel, "sub-pid", "Sub")],
+        )
+
+        mock_state = Mock()
+        mock_state.compute_hash.return_value = "sha256:new-hash"
+        mock_state_class.return_value = mock_state
+
+        with patch(
+            "sys.argv",
+            ["main.py", "--config", str(config_path), "apply", "--auto-approve"],
+        ):
+            main.main()
+
+        mock_deploy_tree.assert_not_called()
+        mock_ensure_hierarchy.assert_called_once()
+        call_args = mock_ensure_hierarchy.call_args
+        assert call_args[1]["ci_banner_text"] == "Custom CI banner"
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")

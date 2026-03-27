@@ -38,6 +38,8 @@ def _derive_title(filepath: Path) -> str:
             return metadata["title"]
     except OSError:
         pass
+    if filepath.name == ".page_content.md":
+        return filepath.parent.name
     return filepath.stem.replace("-", " ").title()
 
 
