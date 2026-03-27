@@ -958,6 +958,34 @@ class TestEdgeCases:
         # Exactly one page created (alpha only)
         assert mock_api.create_page.call_count == 1
 
+    def test_files_param_preserves_ordering(self, mock_api, tmp_path):
+        """deploy_tree with files= preserves the caller's ordering (e.g. dependency order)."""
+        docs_root = tmp_path / "docs"
+        docs_root.mkdir()
+
+        # Create files with names that would sort alphabetically as alpha, beta, gamma
+        file_alpha = docs_root / "alpha.md"
+        file_beta = docs_root / "beta.md"
+        file_gamma = docs_root / "gamma.md"
+        file_alpha.write_text("# Alpha")
+        file_beta.write_text("# Beta")
+        file_gamma.write_text("# Gamma")
+
+        created_titles = []
+
+        def mock_create(space_id, parent_id, title, body, status="current"):
+            created_titles.append(title)
+            return f"page-{len(created_titles)}"
+
+        mock_api.create_page.side_effect = mock_create
+        mock_api.find_page_by_title.return_value = None
+
+        # Pass files in reverse-alphabetical order (simulating dependency ordering)
+        deploy_tree(mock_api, "space123", docs_root, files=[file_gamma, file_beta, file_alpha])
+
+        # Pages must be created in the exact order provided, not sorted alphabetically
+        assert created_titles == ["Gamma", "Beta", "Alpha"]
+
     def test_files_param_none_uses_rglob(self, mock_api, tmp_path):
         """deploy_tree with files=None discovers all .md files via rglob."""
         docs_root = tmp_path / "docs"
