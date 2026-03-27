@@ -4,6 +4,25 @@ All notable changes to CCFM are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.1.0] - 2026-03-27
+
+### Added
+
+- `ci_banner_text` global config option in `ccfm.yaml` — set the CI banner
+  message without needing `--git-repo-url` on every invocation
+  ([#57](https://github.com/stevesimpson418/ccfm-convert/pull/57))
+
+### Fixed
+
+- Smart links to container pages (directories with `.page_content.md`) now
+  resolve correctly for dependency-ordered deployment
+  ([#60](https://github.com/stevesimpson418/ccfm-convert/pull/60))
+- Planner detects content changes in `.page_content.md` files and generates
+  change actions instead of silently skipping them
+  ([#58](https://github.com/stevesimpson418/ccfm-convert/pull/58))
+- `ci_banner_text` from global config now forwarded to standalone
+  `.page_content.md` deploys via `ensure_page_hierarchy`
+
 ## [2.0.0] - 2026-03-25
 
 ### Breaking Changes
@@ -259,6 +278,7 @@ fix; no code changes._
 - `ccfm.yaml` project config file with `${ENV_VAR}` interpolation
 - 100% unit test coverage; end-to-end smoke tests against real Confluence
 
+[2.1.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v1.2.0...v2.0.0
 [1.1.3]: https://github.com/stevesimpson418/ccfm-convert/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/stevesimpson418/ccfm-convert/compare/v1.1.1...v1.1.2
