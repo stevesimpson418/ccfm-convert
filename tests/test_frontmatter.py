@@ -270,26 +270,39 @@ Content"""
         assert metadata["metadata"]["section"]["items"][0]["name"] == "item1"
         assert metadata["metadata"]["section"]["items"][1]["value"] == 200
 
-    def test_frontmatter_with_parent(self):
-        """Test frontmatter with parent field."""
+    def test_frontmatter_parent_emits_deprecation_warning(self):
+        """Test that using parent in frontmatter emits a deprecation warning."""
         content = """---
 page_meta:
   title: My Page
   parent: Parent Page Title
 ---
 # Content"""
-        metadata, markdown = parse_frontmatter(content)
-        assert metadata["parent"] == "Parent Page Title"
+        import warnings
 
-    def test_frontmatter_parent_defaults_none(self):
-        """Test that parent defaults to None when not specified."""
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            metadata, markdown = parse_frontmatter(content)
+            assert len(w) == 1
+            assert issubclass(w[0].category, DeprecationWarning)
+            assert "parent" in str(w[0].message)
+        assert "parent" not in metadata
+
+    def test_frontmatter_without_parent_no_warning(self):
+        """Test that no warning is emitted when parent is absent."""
         content = """---
 page_meta:
   title: My Page
 ---
 # Content"""
-        metadata, _ = parse_frontmatter(content)
-        assert metadata["parent"] is None
+        import warnings
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            metadata, _ = parse_frontmatter(content)
+            deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
+            assert len(deprecation_warnings) == 0
+        assert "parent" not in metadata
 
     def test_invalid_yaml(self):
         """Test handling of invalid YAML in frontmatter."""
