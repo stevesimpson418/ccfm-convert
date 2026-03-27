@@ -431,7 +431,12 @@ def _handle_apply(args, parser):
                 pc_dir_rel = _rel_path(action.filepath.parent)
                 if pc_dir_rel not in processed_dirs:
                     _, h_pages = ensure_page_hierarchy(
-                        api, space_id, action.filepath, args.docs_root, git_repo_url
+                        api,
+                        space_id,
+                        action.filepath,
+                        args.docs_root,
+                        git_repo_url,
+                        ci_banner_text=ci_banner_text,
                     )
                     for hp in h_pages:
                         if hp[0] not in processed_dirs:
