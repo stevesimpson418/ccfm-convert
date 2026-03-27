@@ -73,17 +73,26 @@ def build_title_map(files: list[Path]) -> dict[str, Path]:
     return title_map
 
 
-def build_dependency_graph(files: list[Path]) -> DependencyGraph:
+def build_dependency_graph(
+    files: list[Path],
+    container_files: list[Path] | None = None,
+) -> DependencyGraph:
     """Build a dependency graph and return a topologically sorted deployment order.
 
     Uses Kahn's algorithm (BFS). Pages with no incoming dependency edges deploy
     first. If cycles are detected, they are recorded and the cycle participants
     are appended in sorted file order.
+
+    Args:
+        files: Markdown files to include in the dependency ordering.
+        container_files: Optional ``.page_content.md`` files whose titles should
+            be resolvable as link targets but which are **not** included in the
+            deploy ordering (they are deployed as part of page hierarchy creation).
     """
     if not files:
         return DependencyGraph()
 
-    title_map = build_title_map(files)
+    title_map = build_title_map(files + (container_files or []))
     file_to_title: dict[Path, str] = {fp: title for title, fp in title_map.items()}
 
     # Build adjacency lists.
@@ -108,6 +117,9 @@ def build_dependency_graph(files: list[Path]) -> DependencyGraph:
             if dep_file is None:
                 # External/unresolved dependency
                 unresolved.setdefault(title, []).append(linked_title)
+            elif dep_file not in dependents:
+                # Container page — title resolved but not in deploy ordering
+                pass
             elif dep_file != filepath and dep_file not in seen_deps:
                 # Internal dependency — dep_file must deploy before filepath
                 seen_deps.add(dep_file)

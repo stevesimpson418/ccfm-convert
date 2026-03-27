@@ -242,3 +242,53 @@ class TestBuildDependencyGraph:
         graph = build_dependency_graph([fa])
         assert graph.order == [fa]
         assert graph.cycles == []
+
+    def test_container_files_resolve_links(self, tmp_path):
+        """Links to container pages (.page_content.md) should resolve when
+        container_files are passed to build_dependency_graph."""
+        # Sibling page links to a container page
+        subdir = tmp_path / "how-to-guides"
+        subdir.mkdir()
+        container = subdir / ".page_content.md"
+        container.write_text("---\npage_meta:\n  title: How To Guides\n---\nContainer content.")
+
+        sibling = tmp_path / "getting-started.md"
+        sibling.write_text(
+            "---\npage_meta:\n  title: Getting Started\n---\n"
+            "See [How To Guides](<How To Guides>) for walkthroughs."
+        )
+
+        # Without container_files — link is unresolved
+        graph = build_dependency_graph([sibling])
+        assert graph.unresolved == {"Getting Started": ["How To Guides"]}
+
+        # With container_files — link resolves, no unresolved warnings
+        graph = build_dependency_graph([sibling], container_files=[container])
+        assert graph.unresolved == {}
+        # Container file should NOT appear in the deploy order
+        assert graph.order == [sibling]
+
+    def test_container_files_not_in_order(self, tmp_path):
+        """Container files should never appear in the topological order."""
+        subdir = tmp_path / "guides"
+        subdir.mkdir()
+        container = subdir / ".page_content.md"
+        container.write_text("---\npage_meta:\n  title: Guides\n---\nContainer.")
+
+        fa = tmp_path / "a.md"
+        fa.write_text("---\npage_meta:\n  title: Page A\n---\nSee [Guides](<Guides>).")
+        fb = tmp_path / "b.md"
+        fb.write_text("---\npage_meta:\n  title: Page B\n---\nNo links.")
+
+        graph = build_dependency_graph([fa, fb], container_files=[container])
+        assert set(graph.order) == {fa, fb}
+        assert container not in graph.order
+        assert graph.unresolved == {}
+
+    def test_container_files_none_default(self, tmp_path):
+        """Passing no container_files should behave identically to the old API."""
+        fa = tmp_path / "a.md"
+        fa.write_text("---\npage_meta:\n  title: Page A\n---\nNo links.")
+        graph = build_dependency_graph([fa], container_files=None)
+        assert graph.order == [fa]
+        assert graph.unresolved == {}

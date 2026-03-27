@@ -764,16 +764,18 @@ class TestDocsRootConfig:
         mock_deploy_tree.assert_called_once()
 
     def test_resolve_target_files_uses_docs_root(self, tmp_path):
-        """_resolve_target_files uses docs_root and excludes .page_content.md."""
+        """_resolve_target_files uses docs_root and excludes .page_content.md from targets."""
         docs_dir = tmp_path / "docs"
         docs_dir.mkdir()
         (docs_dir / "page.md").write_text("# Test")
         (docs_dir / ".page_content.md").write_text("# Container")
 
         args = Namespace(docs_root=docs_dir)
-        result = main._resolve_target_files(args)
-        assert len(result) == 1
-        assert result[0].name == "page.md"
+        target_files, container_files = main._resolve_target_files(args)
+        assert len(target_files) == 1
+        assert target_files[0].name == "page.md"
+        assert len(container_files) == 1
+        assert container_files[0].name == ".page_content.md"
 
     def test_resolve_target_files_exits_when_no_docs_root(self):
         """Exits with error when docs_root is None."""
@@ -795,8 +797,8 @@ class TestDocsRootConfig:
         with pytest.raises(SystemExit):
             main._resolve_target_files(args)
 
-    def test_find_page_content_files(self, tmp_path):
-        """_find_page_content_files returns .page_content.md files under docs_root."""
+    def test_resolve_target_files_returns_container_files(self, tmp_path):
+        """_resolve_target_files returns .page_content.md files as container_files."""
         docs = tmp_path / "docs"
         section = docs / "section"
         section.mkdir(parents=True)
@@ -804,18 +806,21 @@ class TestDocsRootConfig:
         (section / "child.md").write_text("# Child")
         (docs / "top.md").write_text("# Top")
 
-        result = main._find_page_content_files(docs)
-        assert len(result) == 1
-        assert result[0].name == ".page_content.md"
+        args = Namespace(docs_root=docs)
+        target_files, container_files = main._resolve_target_files(args)
+        assert len(container_files) == 1
+        assert container_files[0].name == ".page_content.md"
+        assert all(f.name != ".page_content.md" for f in target_files)
 
-    def test_find_page_content_files_empty_when_none_exist(self, tmp_path):
-        """_find_page_content_files returns empty list when no .page_content.md files."""
+    def test_resolve_target_files_empty_container_files(self, tmp_path):
+        """_resolve_target_files returns empty container list when no .page_content.md."""
         docs = tmp_path / "docs"
         docs.mkdir()
         (docs / "page.md").write_text("# Test")
 
-        result = main._find_page_content_files(docs)
-        assert result == []
+        args = Namespace(docs_root=docs)
+        _, container_files = main._resolve_target_files(args)
+        assert container_files == []
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
@@ -823,7 +828,7 @@ class TestDocsRootConfig:
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
-    def test_plan_passes_page_content_files_to_compute_plan(
+    def test_plan_passes_container_files_to_compute_plan(
         self,
         mock_api_class,
         mock_find_mgmt,
@@ -833,7 +838,7 @@ class TestDocsRootConfig:
         mock_lock_class,
         tmp_path,
     ):
-        """plan passes .page_content.md files to compute_plan."""
+        """plan passes .page_content.md files to compute_plan as page_content_files."""
         docs = tmp_path / "docs"
         section = docs / "section"
         section.mkdir(parents=True)
