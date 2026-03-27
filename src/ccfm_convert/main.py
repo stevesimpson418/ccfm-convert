@@ -226,6 +226,11 @@ def _resolve_target_files(args):
 
     All deployments target the full docs_root directory. The docs_root must
     be set via docs_root in ccfm.yaml.
+
+    Returns:
+        Tuple of (target_files, container_files) where target_files are the
+        regular markdown files to deploy and container_files are the
+        ``.page_content.md`` files used for directory container pages.
     """
     docs_root = getattr(args, "docs_root", None)
     if not docs_root:
@@ -241,12 +246,9 @@ def _resolve_target_files(args):
         print(f"Error: docs_root is not a directory: {docs_root}", file=sys.stderr)
         sys.exit(1)
     all_md = sorted(docs_root.rglob("*.md"))
-    return [f for f in all_md if f.name != ".page_content.md"]
-
-
-def _find_page_content_files(docs_root: Path) -> list[Path]:
-    """Find all .page_content.md files under docs_root."""
-    return sorted(docs_root.rglob(".page_content.md"))
+    target_files = [f for f in all_md if f.name != ".page_content.md"]
+    container_files = [f for f in all_md if f.name == ".page_content.md"]
+    return target_files, container_files
 
 
 # ======================================================================
@@ -284,13 +286,12 @@ def _handle_plan(args, parser):
         print(json.dumps(body, indent=2))
         return
 
-    target_files = _resolve_target_files(args)
-    page_content_files = _find_page_content_files(args.docs_root)
+    target_files, container_files = _resolve_target_files(args)
 
     # Build dependency graph for ordering
     dep_graph = None
     if len(target_files) > 1:
-        dep_graph = build_dependency_graph(target_files)
+        dep_graph = build_dependency_graph(target_files, container_files)
 
     _require_credentials(args, parser)
     api = _create_api(args)
@@ -309,7 +310,7 @@ def _handle_plan(args, parser):
         files=target_files,
         docs_root=args.docs_root,
         force=force,
-        page_content_files=page_content_files,
+        page_content_files=container_files,
     )
     plan.dependency_graph = dep_graph
     plan.print_summary()
@@ -321,13 +322,12 @@ def _handle_plan(args, parser):
 def _handle_apply(args, parser):
     """Handle the 'apply' subcommand."""
 
-    target_files = _resolve_target_files(args)
-    page_content_files = _find_page_content_files(args.docs_root)
+    target_files, container_files = _resolve_target_files(args)
 
     # Build dependency graph for ordering
     dep_graph = None
     if len(target_files) > 1:
-        dep_graph = build_dependency_graph(target_files)
+        dep_graph = build_dependency_graph(target_files, container_files)
 
     _require_credentials(args, parser)
     api = _create_api(args)
@@ -347,7 +347,7 @@ def _handle_apply(args, parser):
         files=target_files,
         docs_root=args.docs_root,
         force=force,
-        page_content_files=page_content_files,
+        page_content_files=container_files,
     )
     plan.dependency_graph = dep_graph
     plan.print_summary()
