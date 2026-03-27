@@ -6,11 +6,9 @@ import sys
 
 import pytest
 
-from tests.smoke.conftest import PROJECT_ROOT, SMOKE_DOCS
+from tests.smoke.conftest import PROJECT_ROOT
 
 pytestmark = pytest.mark.smoke
-
-SINGLE_PAGE = SMOKE_DOCS / "single-page" / "single-page.md"
 
 
 class TestGlobalCIBannerText:
@@ -21,6 +19,9 @@ class TestGlobalCIBannerText:
         config = tmp_path / "ccfm.yaml"
         config.write_text('ci_banner_text: "Custom global banner from config"\n')
 
+        test_file = tmp_path / "test.md"
+        test_file.write_text("# Simple page\n\nSome content.")
+
         result = subprocess.run(
             [
                 sys.executable,
@@ -30,7 +31,7 @@ class TestGlobalCIBannerText:
                 str(config),
                 "plan",
                 "--debug-file",
-                str(SINGLE_PAGE),
+                str(test_file),
             ],
             cwd=PROJECT_ROOT,
             capture_output=True,
@@ -78,6 +79,9 @@ class TestGlobalCIBannerText:
         config = tmp_path / "ccfm.yaml"
         config.write_text("version: 1\n")
 
+        test_file = tmp_path / "test.md"
+        test_file.write_text("# Simple page\n\nSome content.")
+
         result = subprocess.run(
             [
                 sys.executable,
@@ -87,7 +91,7 @@ class TestGlobalCIBannerText:
                 str(config),
                 "plan",
                 "--debug-file",
-                str(SINGLE_PAGE),
+                str(test_file),
             ],
             cwd=PROJECT_ROOT,
             capture_output=True,
