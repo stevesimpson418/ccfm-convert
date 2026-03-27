@@ -7,7 +7,7 @@ from ccfm_convert.adf.inline import parse_inline_with_breaks
 from ccfm_convert.adf.nodes import expand, paragraph, resolve_image_width
 
 
-def add_ci_banner(adf_doc, metadata, file_git_url=""):
+def add_ci_banner(adf_doc, metadata, file_git_url="", global_ci_banner_text=None):
     """
     Conditionally prepend CI banner to ADF document based on metadata.
 
@@ -18,9 +18,11 @@ def add_ci_banner(adf_doc, metadata, file_git_url=""):
         adf_doc: The ADF document dict
         metadata: Frontmatter metadata dict (may be empty)
         file_git_url: Optional git file URL for source link
+        global_ci_banner_text: Optional global banner text from ccfm.yaml.
+            Per-page frontmatter ci_banner_text takes precedence.
     """
     if metadata.get("ci_banner", True):
-        banner_text = metadata.get("ci_banner_text")
+        banner_text = metadata.get("ci_banner_text") or global_ci_banner_text
         adf_doc = _build_ci_banner(
             adf_doc, file_git_url, banner_text=banner_text, metadata=metadata
         )

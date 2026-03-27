@@ -291,6 +291,19 @@ run_cmd ccfm plan --debug-file "$TMPFILE" '|' jq '.content[0].type'
 rm -f "$TMPFILE"
 verdict
 
+step_header "4.6" "Debug file with global ci_banner_text" 'Banner text is "Global banner"'
+TMPCFG=$(mktemp /tmp/ccfm-cfg-XXXXX.yaml)
+echo 'ci_banner_text: "Global banner"' > "$TMPCFG"
+run_cmd ccfm --config "$TMPCFG" plan --debug-file "$SINGLE_PAGE" '|' jq '.content[0].content[0].content[0].text'
+verdict
+
+step_header "4.7" "Frontmatter overrides global ci_banner_text" 'Banner text is "Page override" (not "Global banner")'
+TMPFILE=$(mktemp /tmp/ccfm-test-XXXXX.md)
+echo -e "---\ndeploy_config:\n  ci_banner_text: Page override\n---\n# Test" > "$TMPFILE"
+run_cmd ccfm --config "$TMPCFG" plan --debug-file "$TMPFILE" '|' jq '.content[0].content[0].content[0].text'
+rm -f "$TMPFILE" "$TMPCFG"
+verdict
+
 # ===================================================================
 # Phase 5: Destroy
 # ===================================================================

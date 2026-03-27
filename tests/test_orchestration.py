@@ -122,6 +122,29 @@ class TestEnsurePageHierarchy:
         call_args = mock_api.create_page.call_args
         assert call_args[0][2] == "Team Page"  # title argument
 
+    def test_page_content_with_global_ci_banner_text(self, mock_api, tmp_path):
+        """ensure_page_hierarchy forwards ci_banner_text to .page_content.md pages."""
+        docs_root = tmp_path / "docs"
+        subdir = docs_root / "Team"
+        subdir.mkdir(parents=True)
+
+        page_content = subdir / ".page_content.md"
+        page_content.write_text("---\npage_meta:\n  title: Team Page\n---\nContent")
+
+        filepath = subdir / "child.md"
+
+        mock_api.find_page_by_title.return_value = None
+        mock_api.create_page.return_value = "parent-123"
+
+        ensure_page_hierarchy(
+            mock_api, "space123", filepath, docs_root, ci_banner_text="Global banner"
+        )
+
+        call_args = mock_api.create_page.call_args
+        body = call_args[0][3]
+        banner_text = body["content"][0]["content"][0]["content"][0]["text"]
+        assert banner_text == "Global banner"
+
 
 class TestDeployPage:
     """Test page deployment."""
@@ -308,6 +331,37 @@ ci_banner: false
 
         # Should include git URL in banner
         assert mock_api.create_page.called
+
+    def test_deploy_page_passes_global_ci_banner_text(self, mock_api, tmp_path):
+        """deploy_page forwards ci_banner_text to add_ci_banner."""
+        filepath = tmp_path / "test.md"
+        filepath.write_text("# Test")
+
+        mock_api.find_page_by_title.return_value = None
+        mock_api.create_page.return_value = "new-123"
+
+        deploy_page(mock_api, "space123", None, filepath, ci_banner_text="Global banner")
+
+        # Verify create_page was called; banner text is embedded in the ADF body
+        call_args = mock_api.create_page.call_args
+        body = call_args[0][3]  # 4th positional arg is body
+        banner_text = body["content"][0]["content"][0]["content"][0]["text"]
+        assert banner_text == "Global banner"
+
+    def test_deploy_page_frontmatter_overrides_global_ci_banner_text(self, mock_api, tmp_path):
+        """Per-page frontmatter ci_banner_text overrides global value."""
+        filepath = tmp_path / "test.md"
+        filepath.write_text("---\ndeploy_config:\n  ci_banner_text: Page-specific\n---\n# Test")
+
+        mock_api.find_page_by_title.return_value = None
+        mock_api.create_page.return_value = "new-123"
+
+        deploy_page(mock_api, "space123", None, filepath, ci_banner_text="Global banner")
+
+        call_args = mock_api.create_page.call_args
+        body = call_args[0][3]
+        banner_text = body["content"][0]["content"][0]["content"][0]["text"]
+        assert banner_text == "Page-specific"
 
     def test_frontmatter_parent_overrides_directory_hierarchy(self, mock_api, tmp_path):
         """deploy_page uses frontmatter parent when specified."""
@@ -745,6 +799,24 @@ class TestDeployTree:
 
         # Should deploy all files
         assert mock_api.create_page.call_count >= 3
+
+    def test_deploy_tree_passes_ci_banner_text(self, mock_api, tmp_path):
+        """deploy_tree forwards ci_banner_text to each deployed page."""
+        docs_root = tmp_path / "docs"
+        docs_root.mkdir()
+
+        file1 = docs_root / "test.md"
+        file1.write_text("# Test")
+
+        mock_api.find_page_by_title.return_value = None
+        mock_api.create_page.return_value = "page-123"
+
+        deploy_tree(mock_api, "space123", docs_root, ci_banner_text="Global banner")
+
+        call_args = mock_api.create_page.call_args
+        body = call_args[0][3]
+        banner_text = body["content"][0]["content"][0]["content"][0]["text"]
+        assert banner_text == "Global banner"
 
     def test_deploy_with_hierarchy(self, mock_api, tmp_path):
         """Test deploying with directory hierarchy."""

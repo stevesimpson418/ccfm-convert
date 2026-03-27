@@ -171,6 +171,7 @@ class TestMergeConfigWithArgs:
             "space": "SP",
             "docs_root": "docs",
             "git_repo_url": "https://github.com/org/repo",
+            "ci_banner_text": "Global banner",
         }
         args = Namespace(
             domain=None,
@@ -179,6 +180,7 @@ class TestMergeConfigWithArgs:
             space=None,
             docs_root=None,
             git_repo_url=None,
+            ci_banner_text=None,
         )
         merged = merge_config_with_args(config, args)
         assert merged.domain == "d.atlassian.net"
@@ -187,6 +189,14 @@ class TestMergeConfigWithArgs:
         assert merged.space == "SP"
         assert merged.docs_root == Path("docs")
         assert merged.git_repo_url == "https://github.com/org/repo"
+        assert merged.ci_banner_text == "Global banner"
+
+    def test_ci_banner_text_from_config_fills_args(self):
+        """ci_banner_text from config is applied when not set on args."""
+        config = {"ci_banner_text": "Global banner text"}
+        args = Namespace(domain=None, email=None, token=None, space=None, docs_root=None)
+        merged = merge_config_with_args(config, args)
+        assert merged.ci_banner_text == "Global banner text"
 
     def test_docs_root_from_config_sets_path(self):
         """docs_root from config is coerced to Path."""
@@ -211,11 +221,13 @@ class TestConfigValidation:
         cfg = tmp_path / "ccfm.yaml"
         cfg.write_text(
             "version: 1\ndomain: x.atlassian.net\nemail: a@b.com\n"
-            "token: tok\nspace: SP\ndocs_root: docs\ngit_repo_url: https://gh.com/o/r\n",
+            "token: tok\nspace: SP\ndocs_root: docs\ngit_repo_url: https://gh.com/o/r\n"
+            "ci_banner_text: Custom global banner\n",
             encoding="utf-8",
         )
         result = load_config(cfg)
         assert result["domain"] == "x.atlassian.net"
+        assert result["ci_banner_text"] == "Custom global banner"
 
     def test_deployments_key_accepted(self, tmp_path):
         """The 'deployments' future key is accepted without error."""

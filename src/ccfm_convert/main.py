@@ -270,7 +270,8 @@ def _handle_plan(args, parser):
         body = convert(markdown)
         git_repo_url = getattr(args, "git_repo_url", "")
         file_url = f"{git_repo_url}/{debug_file}" if git_repo_url else ""
-        body = add_ci_banner(body, metadata, file_url)
+        global_ci_banner_text = getattr(args, "ci_banner_text", None)
+        body = add_ci_banner(body, metadata, file_url, global_ci_banner_text=global_ci_banner_text)
         print(json.dumps(body, indent=2))
         return
 
@@ -365,6 +366,7 @@ def _handle_apply(args, parser):
         sys.exit(1)
 
     git_repo_url = getattr(args, "git_repo_url", "")
+    ci_banner_text = getattr(args, "ci_banner_text", None)
     try:
         # Execute adds/changes
         actionable = [a for a in plan.page_actions if a.action != "no-op"]
@@ -382,6 +384,7 @@ def _handle_apply(args, parser):
                 args.docs_root,
                 git_repo_url,
                 files=actionable_files,
+                ci_banner_text=ci_banner_text,
             )
             for h_rel_path, h_page_id, h_title in hierarchy_pages:
                 state.set_page(
