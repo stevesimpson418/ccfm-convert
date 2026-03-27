@@ -1148,3 +1148,154 @@ class TestDestroyPages:
 
         assert count == 0
         mock_api.delete_page.assert_not_called()
+
+
+class TestChangedContainersParam:
+    """Tests for the changed_containers parameter in ensure_page_hierarchy."""
+
+    def test_unchanged_container_skips_update(self, mock_api, tmp_path):
+        """Existing page with .page_content.md is NOT updated when not in changed_containers."""
+        docs_root = tmp_path / "docs"
+        subdir = docs_root / "Team"
+        subdir.mkdir(parents=True)
+
+        page_content = subdir / ".page_content.md"
+        page_content.write_text(
+            "---\npage_meta:\n  title: Team\n  labels:\n    - team\n---\n# Team"
+        )
+        filepath = subdir / "child.md"
+
+        mock_api.find_page_by_title.return_value = "existing-team-page"
+
+        # changed_containers does NOT include "Team"
+        parent_id, _ = ensure_page_hierarchy(
+            mock_api, "space123", filepath, docs_root, changed_containers=set()
+        )
+
+        assert parent_id == "existing-team-page"
+        # update_page should NOT be called since Team is not in changed_containers
+        mock_api.update_page.assert_not_called()
+        mock_api.add_labels.assert_not_called()
+
+    def test_changed_container_triggers_update(self, mock_api, tmp_path):
+        """Existing page with .page_content.md IS updated when in changed_containers."""
+        docs_root = tmp_path / "docs"
+        subdir = docs_root / "Team"
+        subdir.mkdir(parents=True)
+
+        page_content = subdir / ".page_content.md"
+        page_content.write_text(
+            "---\npage_meta:\n  title: Team\n  labels:\n    - team\n---\n# Team"
+        )
+        filepath = subdir / "child.md"
+
+        mock_api.find_page_by_title.return_value = "existing-team-page"
+
+        # changed_containers includes "Team"
+        parent_id, _ = ensure_page_hierarchy(
+            mock_api, "space123", filepath, docs_root, changed_containers={"Team"}
+        )
+
+        assert parent_id == "existing-team-page"
+        mock_api.update_page.assert_called_once()
+
+    def test_none_changed_containers_updates_all(self, mock_api, tmp_path):
+        """When changed_containers is None (default), all containers are updated."""
+        docs_root = tmp_path / "docs"
+        subdir = docs_root / "Team"
+        subdir.mkdir(parents=True)
+
+        page_content = subdir / ".page_content.md"
+        page_content.write_text(
+            "---\npage_meta:\n  title: Team\n  labels:\n    - team\n---\n# Team"
+        )
+        filepath = subdir / "child.md"
+
+        mock_api.find_page_by_title.return_value = "existing-team-page"
+
+        parent_id, _ = ensure_page_hierarchy(
+            mock_api, "space123", filepath, docs_root, changed_containers=None
+        )
+
+        assert parent_id == "existing-team-page"
+        mock_api.update_page.assert_called_once()
+
+    def test_nested_changed_container_only_updates_changed(self, mock_api, tmp_path):
+        """Only the changed nested directory is updated, not unchanged parents."""
+        docs_root = tmp_path / "docs"
+        parent_dir = docs_root / "Team"
+        child_dir = parent_dir / "Engineering"
+        child_dir.mkdir(parents=True)
+
+        # Both directories have .page_content.md
+        (parent_dir / ".page_content.md").write_text("---\npage_meta:\n  title: Team\n---\n# Team")
+        (child_dir / ".page_content.md").write_text(
+            "---\npage_meta:\n  title: Engineering\n---\n# Engineering"
+        )
+
+        filepath = child_dir / "page.md"
+
+        # Both pages exist
+        mock_api.find_page_by_title.return_value = "team-page"
+        mock_api.find_child_page_by_title.return_value = "eng-page"
+
+        # Only Engineering changed, not Team
+        parent_id, _ = ensure_page_hierarchy(
+            mock_api,
+            "space123",
+            filepath,
+            docs_root,
+            changed_containers={"Team/Engineering"},
+        )
+
+        # update_page should be called only once (for Engineering, not Team)
+        mock_api.update_page.assert_called_once()
+        call_args = mock_api.update_page.call_args[0]
+        assert call_args[0] == "eng-page"  # page_id for Engineering
+
+    def test_new_page_creation_unaffected_by_changed_containers(self, mock_api, tmp_path):
+        """New pages are always created regardless of changed_containers."""
+        docs_root = tmp_path / "docs"
+        subdir = docs_root / "Team"
+        subdir.mkdir(parents=True)
+
+        page_content = subdir / ".page_content.md"
+        page_content.write_text("---\npage_meta:\n  title: Team\n---\n# Team")
+        filepath = subdir / "child.md"
+
+        # Page does NOT exist yet
+        mock_api.find_page_by_title.return_value = None
+        mock_api.create_page.return_value = "new-team-page"
+
+        parent_id, _ = ensure_page_hierarchy(
+            mock_api, "space123", filepath, docs_root, changed_containers=set()
+        )
+
+        # Should still create the page even though changed_containers is empty
+        assert parent_id == "new-team-page"
+        mock_api.create_page.assert_called_once()
+
+    def test_deploy_tree_forwards_changed_containers(self, mock_api, tmp_path):
+        """deploy_tree forwards changed_containers to ensure_page_hierarchy."""
+        docs_root = tmp_path / "docs"
+        subdir = docs_root / "Team"
+        subdir.mkdir(parents=True)
+
+        # .page_content.md exists but is NOT in changed set
+        (subdir / ".page_content.md").write_text("---\npage_meta:\n  title: Team\n---\n# Team")
+
+        child = subdir / "page.md"
+        child.write_text("# Page")
+
+        mock_api.find_page_by_title.return_value = "existing-team"
+        mock_api.find_child_page_by_title.return_value = None
+        mock_api.create_page.return_value = "new-page"
+
+        deploy_tree(mock_api, "space123", docs_root, changed_containers=set())
+
+        # update_page should NOT be called for the container since it's not changed
+        # It should only be called for the child page if it already existed
+        # In this case the child is new so create_page is called
+        for call in mock_api.update_page.call_args_list:
+            # Ensure no update_page call was for the container title "Team"
+            assert call[0][1] != "Team"

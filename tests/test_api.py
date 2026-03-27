@@ -838,6 +838,54 @@ class TestUploadAttachmentNameParam:
         assert post_files["file"][0] == "ccfm-state.json"
 
 
+class TestUploadAttachmentQuietParam:
+    """Test upload_attachment quiet parameter suppresses print output."""
+
+    @patch("requests.Session.get")
+    @patch("requests.Session.post")
+    @patch("builtins.open", new_callable=mock_open, read_data=b"file content")
+    def test_quiet_suppresses_existing_attachment_message(
+        self, mock_file, mock_post, mock_get, api, capsys
+    ):
+        """When quiet=True, the 'Attachment already exists' message is not printed."""
+        mock_get_response = Mock()
+        mock_get_response.status_code = 200
+        mock_get_response.json.return_value = {"results": [{"id": "att123", "title": "test.png"}]}
+        mock_get.return_value = mock_get_response
+
+        mock_post_response = Mock()
+        mock_post_response.status_code = 200
+        mock_post_response.json.return_value = {"results": [{"id": "att123", "title": "test.png"}]}
+        mock_post.return_value = mock_post_response
+
+        api.upload_attachment("789", Path("test.png"), quiet=True)
+
+        captured = capsys.readouterr()
+        assert "Attachment already exists" not in captured.out
+
+    @patch("requests.Session.get")
+    @patch("requests.Session.post")
+    @patch("builtins.open", new_callable=mock_open, read_data=b"file content")
+    def test_default_prints_existing_attachment_message(
+        self, mock_file, mock_post, mock_get, api, capsys
+    ):
+        """When quiet=False (default), the 'Attachment already exists' message is printed."""
+        mock_get_response = Mock()
+        mock_get_response.status_code = 200
+        mock_get_response.json.return_value = {"results": [{"id": "att123", "title": "test.png"}]}
+        mock_get.return_value = mock_get_response
+
+        mock_post_response = Mock()
+        mock_post_response.status_code = 200
+        mock_post_response.json.return_value = {"results": [{"id": "att123", "title": "test.png"}]}
+        mock_post.return_value = mock_post_response
+
+        api.upload_attachment("789", Path("test.png"))
+
+        captured = capsys.readouterr()
+        assert "Attachment already exists" in captured.out
+
+
 class TestErrorHandling:
     """Test error handling across API methods."""
 

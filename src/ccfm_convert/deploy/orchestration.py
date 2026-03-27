@@ -8,7 +8,15 @@ from .frontmatter import parse_frontmatter
 from .transforms import add_ci_banner, resolve_page_links
 
 
-def ensure_page_hierarchy(api, space_id, filepath, docs_root, git_repo_url="", ci_banner_text=None):
+def ensure_page_hierarchy(
+    api,
+    space_id,
+    filepath,
+    docs_root,
+    git_repo_url="",
+    ci_banner_text=None,
+    changed_containers=None,
+):
     """
     Ensure all parent pages exist for a file path.
 
@@ -23,6 +31,9 @@ def ensure_page_hierarchy(api, space_id, filepath, docs_root, git_repo_url="", c
         docs_root: Root documentation directory (e.g., Path("docs"))
         git_repo_url: Git repo URL for CI banner
         ci_banner_text: Optional global CI banner text from ccfm.yaml
+        changed_containers: Optional set of directory relative paths (relative to
+            docs_root) whose .page_content.md actually changed. When provided,
+            only directories in this set will have their pages updated.
 
     Returns:
         Tuple of (parent_page_id, hierarchy_pages) where hierarchy_pages is a list of
@@ -98,10 +109,15 @@ def ensure_page_hierarchy(api, space_id, filepath, docs_root, git_repo_url="", c
         else:
             page_id = api.find_page_by_title(space_id, title)
 
+        # Relative path of this directory from docs_root (for changed_containers check)
+        dir_rel_to_docs = str(Path(*parts[: i + 1]))
+
         if page_id:
             print(f"   ✓ Page '{title}' exists (ID: {page_id})")
             # If .page_content.md exists, update the page with new content
-            if page_content_file.exists():
+            # but only when the container actually changed (or no filter provided)
+            should_update = changed_containers is None or dir_rel_to_docs in changed_containers
+            if page_content_file.exists() and should_update:
                 print(f"   ♻️  Updating page '{title}' with .page_content.md content")
                 api.update_page(page_id, title, body, status=page_status)
 
@@ -137,7 +153,15 @@ def ensure_page_hierarchy(api, space_id, filepath, docs_root, git_repo_url="", c
     return current_parent_id, hierarchy_pages
 
 
-def deploy_tree(api, space_id, docs_root, git_repo_url="", files=None, ci_banner_text=None):
+def deploy_tree(
+    api,
+    space_id,
+    docs_root,
+    git_repo_url="",
+    files=None,
+    ci_banner_text=None,
+    changed_containers=None,
+):
     """
     Deploy an entire directory tree.
 
@@ -151,6 +175,9 @@ def deploy_tree(api, space_id, docs_root, git_repo_url="", files=None, ci_banner
             via rglob. Used by apply to limit deployment to actionable files.
         ci_banner_text: Optional global CI banner text from ccfm.yaml.
             Per-page frontmatter ci_banner_text takes precedence.
+        changed_containers: Optional set of directory relative paths (relative to
+            docs_root) whose .page_content.md actually changed. Forwarded to
+            ensure_page_hierarchy to skip unnecessary updates.
 
     Returns:
         Tuple of (results, hierarchy_pages) where results is a list of
@@ -175,7 +202,13 @@ def deploy_tree(api, space_id, docs_root, git_repo_url="", files=None, ci_banner
     for filepath in md_files:
         try:
             parent_id, h_pages = ensure_page_hierarchy(
-                api, space_id, filepath, docs_root, git_repo_url, ci_banner_text=ci_banner_text
+                api,
+                space_id,
+                filepath,
+                docs_root,
+                git_repo_url,
+                ci_banner_text=ci_banner_text,
+                changed_containers=changed_containers,
             )
             for hp in h_pages:
                 if hp[0] not in seen_dirs:

@@ -425,7 +425,7 @@ class ConfluenceAPI:
     # Attachments
     # ------------------------------------------------------------------
 
-    def upload_attachment(self, page_id, filepath, alt_text=None, name=None):
+    def upload_attachment(self, page_id, filepath, alt_text=None, name=None, quiet=False):
         """
         Upload attachment to page using v1 API.
 
@@ -455,7 +455,8 @@ class ConfluenceAPI:
             # Update existing attachment
             existing_attachment_id = response.json()["results"][0]["id"]
             upload_url = f"{url}/{existing_attachment_id}/data"
-            print(f"   ℹ Attachment already exists (ID: {existing_attachment_id}), updating...")
+            if not quiet:
+                print(f"   ℹ Attachment already exists (ID: {existing_attachment_id}), updating...")
         else:
             # Create new attachment
             upload_url = url

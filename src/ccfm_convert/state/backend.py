@@ -60,6 +60,9 @@ class ConfluenceBackend:
             fh.write(payload)
             tmp_path = Path(fh.name)
         try:
-            self._api.upload_attachment(self._page_id, tmp_path, name=self.STATE_ATTACHMENT_NAME)
+            self._api.upload_attachment(
+                self._page_id, tmp_path, name=self.STATE_ATTACHMENT_NAME, quiet=True
+            )
+            print("   ✅ CCFM State updated successfully")
         finally:
             tmp_path.unlink(missing_ok=True)

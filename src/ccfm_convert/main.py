@@ -395,6 +395,13 @@ def _handle_apply(args, parser):
 
         all_hierarchy_pages: list[tuple[str, str, str]] = []
 
+        # Compute set of container directories whose .page_content.md actually changed
+        changed_containers = (
+            {str(a.filepath.parent.relative_to(args.docs_root)) for a in pc_actionable}
+            if pc_actionable
+            else set()
+        )
+
         # Execute regular adds/changes via deploy_tree
         if regular_actionable:
             actionable_files = [a.filepath for a in regular_actionable]
@@ -411,6 +418,7 @@ def _handle_apply(args, parser):
                 git_repo_url,
                 files=actionable_files,
                 ci_banner_text=ci_banner_text,
+                changed_containers=changed_containers,
             )
             all_hierarchy_pages.extend(hierarchy_pages)
             for filepath, page_id in results:
@@ -437,6 +445,7 @@ def _handle_apply(args, parser):
                         args.docs_root,
                         git_repo_url,
                         ci_banner_text=ci_banner_text,
+                        changed_containers=changed_containers,
                     )
                     for hp in h_pages:
                         if hp[0] not in processed_dirs:
