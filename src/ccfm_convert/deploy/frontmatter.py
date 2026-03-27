@@ -46,7 +46,7 @@ def parse_frontmatter(content):
     if "parent" in page_meta:
         warnings.warn(
             "The 'parent' frontmatter option is deprecated and will be ignored. "
-            "Page hierarchy is determined by directory structure.",
+            "Remove it and use directory structure to control page hierarchy.",
             DeprecationWarning,
             stacklevel=2,
         )

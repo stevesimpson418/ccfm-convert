@@ -18,7 +18,7 @@ in standard Markdown works in CCFM. The following features are CCFM-specific:
 
 **Not found in standard Markdown:**
 
-- [Front matter](#front-matter) — page metadata (title, labels, parent)
+- [Front matter](#front-matter) — page metadata (title, labels, author)
 - [Panels](#panels) — coloured callout blocks (info, note, warning, success, error)
 - [Expand blocks](#expand-blocks) — collapsible sections
 - [Status badges](#status-badges) — inline coloured status labels
@@ -46,7 +46,6 @@ the page is published in Confluence.
 ---
 page_meta:
   title: My Page Title
-  parent: Architecture Overview   # Optional — overrides directory-based hierarchy
   author: Jane Smith              # Optional — added as a label
   labels:
     - backend
@@ -72,7 +71,6 @@ deploy_config:
 | Field | Required | Description |
 | --- | --- | --- |
 | `title` | No | The page title as it appears in Confluence. Defaults to filename. |
-| `parent` | No | Title of the parent page. Overrides directory-based hierarchy if set. Page is created at space root if omitted and file is in the deploy root. |
 | `author` | No | Author name — added as an `author-*` label |
 | `labels` | No | List of Confluence labels to apply to the page |
 | `attachments` | No | List of files to attach. Each item has `path` (relative to markdown file) and optional `alt` text |
