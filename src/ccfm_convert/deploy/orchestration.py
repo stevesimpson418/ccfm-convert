@@ -286,18 +286,6 @@ def deploy_page(api, space_id, parent_id, filepath, git_repo_url="", ci_banner_t
     # Resolve internal Confluence page links
     body = resolve_page_links(body, api, space_id)
 
-    # Frontmatter parent override
-    frontmatter_parent = metadata.get("parent")
-    if frontmatter_parent:
-        parent_page_id = api.find_page_by_title(space_id, frontmatter_parent)
-        if parent_page_id:
-            parent_id = parent_page_id
-            print(f"   🔗 Parent override: '{frontmatter_parent}' (ID: {parent_page_id})")
-        else:
-            print(
-                f"   ⚠️  Warning: Parent page '{frontmatter_parent}' not found, using directory hierarchy"
-            )
-
     # STEP 1: Create or update page (images are still external URLs or placeholders)
     # Scope lookup to parent when available to avoid matching same-titled pages elsewhere
     if parent_id:

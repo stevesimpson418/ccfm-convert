@@ -1,5 +1,7 @@
 """YAML Frontmatter Parsing."""
 
+import warnings
+
 import yaml
 
 
@@ -40,6 +42,15 @@ def parse_frontmatter(content):
     page_meta = raw_metadata.get("page_meta", {})
     deploy_config = raw_metadata.get("deploy_config", {})
 
+    # Warn if deprecated 'parent' key is present
+    if "parent" in page_meta:
+        warnings.warn(
+            "The 'parent' frontmatter option is deprecated and will be ignored. "
+            "Page hierarchy is determined by directory structure.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
     # Build normalized metadata
     metadata = {
         # Page metadata
@@ -47,7 +58,6 @@ def parse_frontmatter(content):
         "author": page_meta.get("author"),
         "labels": page_meta.get("labels", []),
         "attachments": page_meta.get("attachments", []),
-        "parent": page_meta.get("parent"),
         # Deploy config with defaults
         "ci_banner": deploy_config.get("ci_banner", True),
         "ci_banner_text": deploy_config.get("ci_banner_text"),

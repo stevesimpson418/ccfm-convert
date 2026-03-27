@@ -363,8 +363,8 @@ ci_banner: false
         banner_text = body["content"][0]["content"][0]["content"][0]["text"]
         assert banner_text == "Page-specific"
 
-    def test_frontmatter_parent_overrides_directory_hierarchy(self, mock_api, tmp_path):
-        """deploy_page uses frontmatter parent when specified."""
+    def test_frontmatter_parent_ignored_uses_directory_hierarchy(self, mock_api, tmp_path):
+        """deploy_page ignores deprecated parent frontmatter and uses directory hierarchy."""
         filepath = tmp_path / "test.md"
         filepath.write_text("""---
 page_meta:
@@ -372,36 +372,17 @@ page_meta:
   parent: Explicit Parent
 ---
 # Content""")
-        # Frontmatter parent lookup uses space-wide search (correct)
-        mock_api.find_page_by_title.side_effect = lambda space, title: (
-            "explicit-parent-id" if title == "Explicit Parent" else None
-        )
-        # After parent override, page lookup uses scoped child search
         mock_api.find_child_page_by_title.return_value = None
         mock_api.create_page.return_value = "new-page"
 
-        deploy_page(mock_api, "space123", "directory-parent-id", filepath)
+        import warnings
+
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            deploy_page(mock_api, "space123", "directory-parent-id", filepath)
 
         call_args = mock_api.create_page.call_args
-        assert call_args[0][1] == "explicit-parent-id"  # overridden, not "directory-parent-id"
-
-    def test_frontmatter_parent_not_found_falls_back(self, mock_api, tmp_path):
-        """deploy_page falls back to directory parent when frontmatter parent not found."""
-        filepath = tmp_path / "test.md"
-        filepath.write_text("""---
-page_meta:
-  title: My Page
-  parent: Nonexistent Page
----
-# Content""")
-        mock_api.find_page_by_title.return_value = None
-        mock_api.find_child_page_by_title.return_value = None
-        mock_api.create_page.return_value = "new-page"
-
-        deploy_page(mock_api, "space123", "directory-parent-id", filepath)
-
-        call_args = mock_api.create_page.call_args
-        assert call_args[0][1] == "directory-parent-id"  # fallback to directory hierarchy
+        assert call_args[0][1] == "directory-parent-id"  # directory hierarchy, not overridden
 
 
 class TestDeployPageScopedLookup:
