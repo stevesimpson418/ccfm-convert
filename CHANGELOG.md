@@ -4,6 +4,18 @@ All notable changes to CCFM are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.1.1] - 2026-03-27
+
+### Fixed
+
+- Deprecated `parent` frontmatter option now emits a warning and is ignored;
+  previously it silently attempted a parent override lookup
+  ([#63](https://github.com/stevesimpson418/ccfm-convert/pull/63))
+- `deploy_tree` now preserves caller-provided dependency ordering instead of
+  re-sorting alphabetically, fixing out-of-order deploys when pages have
+  internal link dependencies
+  ([#64](https://github.com/stevesimpson418/ccfm-convert/pull/64))
+
 ## [2.1.0] - 2026-03-27
 
 ### Added
@@ -278,6 +290,7 @@ fix; no code changes._
 - `ccfm.yaml` project config file with `${ENV_VAR}` interpolation
 - 100% unit test coverage; end-to-end smoke tests against real Confluence
 
+[2.1.1]: https://github.com/stevesimpson418/ccfm-convert/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/stevesimpson418/ccfm-convert/compare/v1.2.0...v2.0.0
 [1.1.3]: https://github.com/stevesimpson418/ccfm-convert/compare/v1.1.2...v1.1.3
