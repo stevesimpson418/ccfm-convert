@@ -77,6 +77,8 @@ No credentials needed for these steps.
 | 4.3 | `ccfm plan --debug-file "tests/smoke/docs/example/CCFM Example/complete_example.md"` | Succeeds (no crash on page links) | |
 | 4.4 | `ccfm plan --debug-file tests/smoke/docs/single-page/single-page.md --git-repo-url https://github.com/org/repo` | ADF JSON includes CI banner panel as first content node | |
 | 4.5 | Create a temp file with `ci_banner: false` frontmatter, run `--debug-file` against it | ADF JSON has heading as first content node (no banner) | |
+| 4.6 | Create a temp `ccfm.yaml` with `ci_banner_text: "Global banner"`, run `ccfm --config <tmp> plan --debug-file tests/smoke/docs/single-page/single-page.md \| jq '.content[0].content[0].content[0].text'` | Prints `"Global banner"` | |
+| 4.7 | Create a temp file with frontmatter `ci_banner_text: "Page override"`, run `--debug-file` with the global config from 4.6 | Prints `"Page override"` (frontmatter wins) | |
 
 ---
 

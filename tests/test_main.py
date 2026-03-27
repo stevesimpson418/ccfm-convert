@@ -882,6 +882,58 @@ class TestDebugFile:
         # First content should be heading, not expand (no CI banner)
         assert data["content"][0]["type"] == "heading"
 
+    def test_debug_file_with_global_ci_banner_text(self, tmp_path, capsys):
+        """--debug-file uses global ci_banner_text from ccfm.yaml."""
+        test_file = tmp_path / "test.md"
+        test_file.write_text("# Test")
+
+        config_file = tmp_path / "ccfm.yaml"
+        config_file.write_text('ci_banner_text: "Global banner from config"')
+
+        with patch(
+            "sys.argv",
+            [
+                "main.py",
+                "--config",
+                str(config_file),
+                "plan",
+                "--debug-file",
+                str(test_file),
+            ],
+        ):
+            main.main()
+
+        output = capsys.readouterr().out
+        data = json.loads(output)
+        banner_text = data["content"][0]["content"][0]["content"][0]["text"]
+        assert banner_text == "Global banner from config"
+
+    def test_debug_file_frontmatter_overrides_global_ci_banner_text(self, tmp_path, capsys):
+        """Per-page frontmatter ci_banner_text overrides global config value."""
+        test_file = tmp_path / "test.md"
+        test_file.write_text("---\ndeploy_config:\n  ci_banner_text: Page override\n---\n# Test")
+
+        config_file = tmp_path / "ccfm.yaml"
+        config_file.write_text('ci_banner_text: "Global banner from config"')
+
+        with patch(
+            "sys.argv",
+            [
+                "main.py",
+                "--config",
+                str(config_file),
+                "plan",
+                "--debug-file",
+                str(test_file),
+            ],
+        ):
+            main.main()
+
+        output = capsys.readouterr().out
+        data = json.loads(output)
+        banner_text = data["content"][0]["content"][0]["content"][0]["text"]
+        assert banner_text == "Page override"
+
 
 # ---------------------------------------------------------------------------
 # Apply subcommand — directory deployment
@@ -931,6 +983,64 @@ class TestApplyDocsRoot:
             main.main()
 
         mock_deploy_tree.assert_called_once()
+
+    @patch("ccfm_convert.main.LockManager")
+    @patch("ccfm_convert.main.StateManager")
+    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.deploy_tree")
+    @patch("ccfm_convert.main.compute_plan")
+    @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    def test_apply_passes_ci_banner_text_to_deploy_tree(
+        self,
+        mock_api_class,
+        mock_find_mgmt,
+        mock_compute_plan,
+        mock_deploy_tree,
+        mock_backend_class,
+        mock_state_class,
+        mock_lock_class,
+        tmp_path,
+    ):
+        """Apply passes ci_banner_text from config to deploy_tree."""
+        test_dir = tmp_path / "docs"
+        test_dir.mkdir()
+        f1 = test_dir / "page.md"
+        f1.write_text("# Page")
+
+        # Write config with ci_banner_text
+        config_path = tmp_path / "ccfm.yaml"
+        config_path.write_text(
+            f"version: 1\n"
+            f"domain: example.atlassian.net\n"
+            f"email: test@example.com\n"
+            f"token: token\n"
+            f"space: TEST\n"
+            f"docs_root: {test_dir}\n"
+            f'ci_banner_text: "Global banner"\n'
+        )
+
+        mock_api = Mock()
+        mock_api.get_space_id.return_value = "space123"
+        mock_api_class.return_value = mock_api
+        mock_deploy_tree.return_value = ([], [])
+
+        mock_compute_plan.return_value = _mock_plan_with_changes([f1])
+
+        mock_state = Mock()
+        mock_state_class.return_value = mock_state
+        mock_lock = Mock()
+        mock_lock_class.return_value = mock_lock
+
+        with patch(
+            "sys.argv",
+            ["main.py", "--config", str(config_path), "apply", "--auto-approve"],
+        ):
+            main.main()
+
+        mock_deploy_tree.assert_called_once()
+        call_kwargs = mock_deploy_tree.call_args
+        assert call_kwargs[1]["ci_banner_text"] == "Global banner"
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")

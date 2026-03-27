@@ -8,7 +8,7 @@ from .frontmatter import parse_frontmatter
 from .transforms import add_ci_banner, resolve_page_links
 
 
-def ensure_page_hierarchy(api, space_id, filepath, docs_root, git_repo_url=""):
+def ensure_page_hierarchy(api, space_id, filepath, docs_root, git_repo_url="", ci_banner_text=None):
     """
     Ensure all parent pages exist for a file path.
 
@@ -22,6 +22,7 @@ def ensure_page_hierarchy(api, space_id, filepath, docs_root, git_repo_url=""):
         filepath: Path to the file (e.g., Path("docs/Team/Engineering/api-guide.md"))
         docs_root: Root documentation directory (e.g., Path("docs"))
         git_repo_url: Git repo URL for CI banner
+        ci_banner_text: Optional global CI banner text from ccfm.yaml
 
     Returns:
         Tuple of (parent_page_id, hierarchy_pages) where hierarchy_pages is a list of
@@ -77,7 +78,7 @@ def ensure_page_hierarchy(api, space_id, filepath, docs_root, git_repo_url=""):
 
             # Add CI banner if enabled
             file_git_url = f"{git_repo_url}/{page_content_file}" if git_repo_url else ""
-            body = add_ci_banner(body, metadata, file_git_url)
+            body = add_ci_banner(body, metadata, file_git_url, global_ci_banner_text=ci_banner_text)
 
             labels = metadata.get("labels", [])
             author = metadata.get("author")
@@ -136,7 +137,7 @@ def ensure_page_hierarchy(api, space_id, filepath, docs_root, git_repo_url=""):
     return current_parent_id, hierarchy_pages
 
 
-def deploy_tree(api, space_id, docs_root, git_repo_url="", files=None):
+def deploy_tree(api, space_id, docs_root, git_repo_url="", files=None, ci_banner_text=None):
     """
     Deploy an entire directory tree.
 
@@ -148,6 +149,8 @@ def deploy_tree(api, space_id, docs_root, git_repo_url="", files=None):
         files: Optional pre-filtered list of files to deploy. When provided,
             only these files are deployed instead of discovering all .md files
             via rglob. Used by apply to limit deployment to actionable files.
+        ci_banner_text: Optional global CI banner text from ccfm.yaml.
+            Per-page frontmatter ci_banner_text takes precedence.
 
     Returns:
         Tuple of (results, hierarchy_pages) where results is a list of
@@ -171,14 +174,16 @@ def deploy_tree(api, space_id, docs_root, git_repo_url="", files=None):
     for filepath in md_files:
         try:
             parent_id, h_pages = ensure_page_hierarchy(
-                api, space_id, filepath, docs_root, git_repo_url
+                api, space_id, filepath, docs_root, git_repo_url, ci_banner_text=ci_banner_text
             )
             for hp in h_pages:
                 if hp[0] not in seen_dirs:
                     all_hierarchy_pages.append(hp)
                     seen_dirs.add(hp[0])
 
-            page_id = deploy_page(api, space_id, parent_id, filepath, git_repo_url)
+            page_id = deploy_page(
+                api, space_id, parent_id, filepath, git_repo_url, ci_banner_text=ci_banner_text
+            )
             results.append((filepath, page_id))
         except Exception as e:
             print(f"   ❌ Error: {e}")
@@ -237,7 +242,7 @@ def destroy_pages(api, state, destroy_actions) -> int:
     return destroyed
 
 
-def deploy_page(api, space_id, parent_id, filepath, git_repo_url=""):
+def deploy_page(api, space_id, parent_id, filepath, git_repo_url="", ci_banner_text=None):
     """
     Deploy a single markdown file to Confluence.
 
@@ -254,6 +259,8 @@ def deploy_page(api, space_id, parent_id, filepath, git_repo_url=""):
         parent_id: Parent page ID (computed from folder hierarchy)
         filepath: Path to markdown file
         git_repo_url: Git repository URL for CI banner
+        ci_banner_text: Optional global CI banner text from ccfm.yaml.
+            Per-page frontmatter ci_banner_text takes precedence.
     """
     print(f"\n📄 Processing: {filepath.name}")
 
@@ -274,7 +281,7 @@ def deploy_page(api, space_id, parent_id, filepath, git_repo_url=""):
     body = convert(markdown)
 
     # Add CI banner unless explicitly disabled
-    body = add_ci_banner(body, metadata, file_git_url)
+    body = add_ci_banner(body, metadata, file_git_url, global_ci_banner_text=ci_banner_text)
 
     # Resolve internal Confluence page links
     body = resolve_page_links(body, api, space_id)
