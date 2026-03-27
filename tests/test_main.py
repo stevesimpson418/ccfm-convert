@@ -211,6 +211,14 @@ class TestDeriveTitle:
         # Don't create the file — read_text will raise OSError
         assert _derive_title(f) == "Unreadable Doc"
 
+    def test_page_content_falls_back_to_dir_name(self, tmp_path):
+        """Returns parent directory name for .page_content.md without frontmatter title."""
+        section = tmp_path / "my-section"
+        section.mkdir()
+        f = section / ".page_content.md"
+        f.write_text("# No frontmatter title")
+        assert _derive_title(f) == "my-section"
+
 
 # ---------------------------------------------------------------------------
 # CLI argument parsing and no-subcommand
@@ -787,6 +795,64 @@ class TestDocsRootConfig:
         with pytest.raises(SystemExit):
             main._resolve_target_files(args)
 
+    def test_find_page_content_files(self, tmp_path):
+        """_find_page_content_files returns .page_content.md files under docs_root."""
+        docs = tmp_path / "docs"
+        section = docs / "section"
+        section.mkdir(parents=True)
+        (section / ".page_content.md").write_text("# Landing")
+        (section / "child.md").write_text("# Child")
+        (docs / "top.md").write_text("# Top")
+
+        result = main._find_page_content_files(docs)
+        assert len(result) == 1
+        assert result[0].name == ".page_content.md"
+
+    def test_find_page_content_files_empty_when_none_exist(self, tmp_path):
+        """_find_page_content_files returns empty list when no .page_content.md files."""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "page.md").write_text("# Test")
+
+        result = main._find_page_content_files(docs)
+        assert result == []
+
+    @patch("ccfm_convert.main.LockManager")
+    @patch("ccfm_convert.main.StateManager")
+    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.compute_plan")
+    @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    def test_plan_passes_page_content_files_to_compute_plan(
+        self,
+        mock_api_class,
+        mock_find_mgmt,
+        mock_compute_plan,
+        mock_backend_class,
+        mock_state_class,
+        mock_lock_class,
+        tmp_path,
+    ):
+        """plan passes .page_content.md files to compute_plan."""
+        docs = tmp_path / "docs"
+        section = docs / "section"
+        section.mkdir(parents=True)
+        (docs / "a.md").write_text("# A")
+        (section / ".page_content.md").write_text("# Container")
+
+        mock_api = Mock()
+        mock_api.get_space_id.return_value = "space123"
+        mock_api_class.return_value = mock_api
+        mock_compute_plan.return_value = _mock_plan_no_changes()
+
+        with patch("sys.argv", _base_plan_argv(docs)):
+            main.main()
+
+        call_kwargs = mock_compute_plan.call_args[1]
+        pc_files = call_kwargs["page_content_files"]
+        assert len(pc_files) == 1
+        assert pc_files[0].name == ".page_content.md"
+
 
 # ---------------------------------------------------------------------------
 # Debug file (ADF inspection)
@@ -1106,16 +1172,20 @@ class TestApplyDocsRoot:
     ):
         """Hierarchy container pages returned by deploy_tree are saved to state."""
         docs = tmp_path / "docs"
-        docs.mkdir()
+        sub = docs / "sub"
+        sub.mkdir(parents=True)
         f1 = docs / "page.md"
         f1.write_text("# P")
 
         mock_api = Mock()
         mock_api.get_space_id.return_value = "space123"
         mock_api_class.return_value = mock_api
+
+        # Use resolved path for hierarchy rel_path (matches actual code behavior)
+        sub_rel = str(sub.resolve().relative_to(tmp_path))
         mock_deploy_tree.return_value = (
             [(f1, "pid1")],
-            [("docs/sub", "sub-pid", "Sub")],
+            [(sub_rel, "sub-pid", "Sub")],
         )
 
         mock_compute_plan.return_value = _mock_plan_with_changes([f1])
@@ -1128,9 +1198,143 @@ class TestApplyDocsRoot:
 
         # 1 hierarchy page + 1 content page
         assert mock_state.set_page.call_count == 2
-        hierarchy_call = mock_state.set_page.call_args_list[0]
-        assert hierarchy_call.kwargs["rel_path"] == "docs/sub"
-        assert hierarchy_call.kwargs["content_hash"] == ""
+        # Find the hierarchy call (the one with the sub directory path)
+        hierarchy_calls = [
+            c for c in mock_state.set_page.call_args_list if c.kwargs["rel_path"] == sub_rel
+        ]
+        assert len(hierarchy_calls) == 1
+        # No .page_content.md → empty hash (placeholder)
+        assert hierarchy_calls[0].kwargs["content_hash"] == ""
+
+    @patch("ccfm_convert.main.LockManager")
+    @patch("ccfm_convert.main.StateManager")
+    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.deploy_tree")
+    @patch("ccfm_convert.main.compute_plan")
+    @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    def test_hierarchy_with_page_content_stores_actual_hash(
+        self,
+        mock_api_class,
+        mock_find_mgmt,
+        mock_compute_plan,
+        mock_deploy_tree,
+        mock_backend_class,
+        mock_state_class,
+        mock_lock_class,
+        tmp_path,
+    ):
+        """Hierarchy pages with .page_content.md get actual content hash stored."""
+        docs = tmp_path / "docs"
+        sub = docs / "sub"
+        sub.mkdir(parents=True)
+        f1 = sub / "page.md"
+        f1.write_text("# P")
+        pc = sub / ".page_content.md"
+        pc.write_text("# Section landing")
+
+        mock_api = Mock()
+        mock_api.get_space_id.return_value = "space123"
+        mock_api_class.return_value = mock_api
+
+        sub_rel = str(sub.resolve().relative_to(tmp_path))
+        mock_deploy_tree.return_value = (
+            [(f1, "pid1")],
+            [(sub_rel, "sub-pid", "Sub")],
+        )
+
+        mock_compute_plan.return_value = _mock_plan_with_changes([f1])
+
+        mock_state = Mock()
+        mock_state.compute_hash.return_value = "sha256:actual-hash"
+        mock_state_class.return_value = mock_state
+
+        old_cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            with patch("sys.argv", _base_apply_argv(docs)):
+                main.main()
+        finally:
+            os.chdir(old_cwd)
+
+        hierarchy_calls = [
+            c for c in mock_state.set_page.call_args_list if c.kwargs["rel_path"] == sub_rel
+        ]
+        assert len(hierarchy_calls) == 1
+        assert hierarchy_calls[0].kwargs["content_hash"] == "sha256:actual-hash"
+
+    @patch("ccfm_convert.main.ensure_page_hierarchy")
+    @patch("ccfm_convert.main.LockManager")
+    @patch("ccfm_convert.main.StateManager")
+    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.deploy_tree")
+    @patch("ccfm_convert.main.compute_plan")
+    @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    def test_standalone_page_content_deploy_via_ensure_hierarchy(
+        self,
+        mock_api_class,
+        mock_find_mgmt,
+        mock_compute_plan,
+        mock_deploy_tree,
+        mock_backend_class,
+        mock_state_class,
+        mock_lock_class,
+        mock_ensure_hierarchy,
+        tmp_path,
+    ):
+        """Standalone .page_content.md changes are deployed via ensure_page_hierarchy."""
+        docs = tmp_path / "docs"
+        sub = docs / "sub"
+        sub.mkdir(parents=True)
+        pc = sub / ".page_content.md"
+        pc.write_text("# Updated landing")
+
+        mock_api = Mock()
+        mock_api.get_space_id.return_value = "space123"
+        mock_api_class.return_value = mock_api
+
+        # Plan with only .page_content.md change (no regular files)
+        pc_action = Mock()
+        pc_action.action = "change"
+        pc_action.filepath = pc
+        plan = Mock()
+        plan.has_changes.return_value = True
+        plan.page_actions = [pc_action]
+        plan.destroy_actions = []
+        mock_compute_plan.return_value = plan
+
+        sub_rel = str(sub.resolve().relative_to(tmp_path))
+        mock_ensure_hierarchy.return_value = (
+            "sub-pid",
+            [(sub_rel, "sub-pid", "Sub")],
+        )
+
+        mock_state = Mock()
+        mock_state.compute_hash.return_value = "sha256:new-hash"
+        mock_state_class.return_value = mock_state
+
+        old_cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            with patch("sys.argv", _base_apply_argv(docs)):
+                main.main()
+        finally:
+            os.chdir(old_cwd)
+
+        # deploy_tree should NOT be called (no regular files)
+        mock_deploy_tree.assert_not_called()
+        # ensure_page_hierarchy should be called for the .page_content.md file
+        mock_ensure_hierarchy.assert_called_once()
+        call_args = mock_ensure_hierarchy.call_args
+        assert call_args[0][2] == pc  # filepath arg
+
+        # State should have the actual hash
+        hierarchy_calls = [
+            c for c in mock_state.set_page.call_args_list if c.kwargs["rel_path"] == sub_rel
+        ]
+        assert len(hierarchy_calls) == 1
+        assert hierarchy_calls[0].kwargs["content_hash"] == "sha256:new-hash"
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")

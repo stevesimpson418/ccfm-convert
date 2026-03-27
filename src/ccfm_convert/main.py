@@ -14,6 +14,7 @@ from ccfm_convert.deploy import (
     add_ci_banner,
     deploy_tree,
     destroy_pages,
+    ensure_page_hierarchy,
 )
 from ccfm_convert.deploy.dependencies import build_dependency_graph
 from ccfm_convert.deploy.frontmatter import parse_frontmatter
@@ -37,7 +38,8 @@ def _rel_path(filepath: Path) -> str:
 
 
 def _derive_title(filepath: Path) -> str:
-    """Derive the page title from frontmatter, or fall back to the filename stem."""
+    """Derive the page title from frontmatter, or fall back to the filename stem.
+    For .page_content.md files, falls back to the parent directory name."""
     try:
         content = filepath.read_text(encoding="utf-8")
         metadata, _ = parse_frontmatter(content)
@@ -45,6 +47,8 @@ def _derive_title(filepath: Path) -> str:
             return metadata["title"]
     except OSError:
         pass
+    if filepath.name == ".page_content.md":
+        return filepath.parent.name
     return filepath.stem.replace("-", " ").title()
 
 
@@ -240,6 +244,11 @@ def _resolve_target_files(args):
     return [f for f in all_md if f.name != ".page_content.md"]
 
 
+def _find_page_content_files(docs_root: Path) -> list[Path]:
+    """Find all .page_content.md files under docs_root."""
+    return sorted(docs_root.rglob(".page_content.md"))
+
+
 # ======================================================================
 # Subcommand handlers
 # ======================================================================
@@ -276,6 +285,7 @@ def _handle_plan(args, parser):
         return
 
     target_files = _resolve_target_files(args)
+    page_content_files = _find_page_content_files(args.docs_root)
 
     # Build dependency graph for ordering
     dep_graph = None
@@ -299,6 +309,7 @@ def _handle_plan(args, parser):
         files=target_files,
         docs_root=args.docs_root,
         force=force,
+        page_content_files=page_content_files,
     )
     plan.dependency_graph = dep_graph
     plan.print_summary()
@@ -311,6 +322,7 @@ def _handle_apply(args, parser):
     """Handle the 'apply' subcommand."""
 
     target_files = _resolve_target_files(args)
+    page_content_files = _find_page_content_files(args.docs_root)
 
     # Build dependency graph for ordering
     dep_graph = None
@@ -335,6 +347,7 @@ def _handle_apply(args, parser):
         files=target_files,
         docs_root=args.docs_root,
         force=force,
+        page_content_files=page_content_files,
     )
     plan.dependency_graph = dep_graph
     plan.print_summary()
@@ -368,10 +381,23 @@ def _handle_apply(args, parser):
     git_repo_url = getattr(args, "git_repo_url", "")
     ci_banner_text = getattr(args, "ci_banner_text", None)
     try:
-        # Execute adds/changes
-        actionable = [a for a in plan.page_actions if a.action != "no-op"]
-        if actionable:
-            actionable_files = [a.filepath for a in actionable]
+        # Separate regular files from .page_content.md files
+        regular_actionable = [
+            a
+            for a in plan.page_actions
+            if a.action != "no-op" and a.filepath.name != ".page_content.md"
+        ]
+        pc_actionable = [
+            a
+            for a in plan.page_actions
+            if a.action != "no-op" and a.filepath.name == ".page_content.md"
+        ]
+
+        all_hierarchy_pages: list[tuple[str, str, str]] = []
+
+        # Execute regular adds/changes via deploy_tree
+        if regular_actionable:
+            actionable_files = [a.filepath for a in regular_actionable]
 
             # Reorder by dependency graph if available
             if dep_graph:
@@ -386,15 +412,7 @@ def _handle_apply(args, parser):
                 files=actionable_files,
                 ci_banner_text=ci_banner_text,
             )
-            for h_rel_path, h_page_id, h_title in hierarchy_pages:
-                state.set_page(
-                    rel_path=h_rel_path,
-                    page_id=h_page_id,
-                    title=h_title,
-                    space_key=args.space,
-                    space_id=space_id,
-                    content_hash="",
-                )
+            all_hierarchy_pages.extend(hierarchy_pages)
             for filepath, page_id in results:
                 if page_id:
                     state.set_page(
@@ -405,6 +423,33 @@ def _handle_apply(args, parser):
                         space_id=space_id,
                         content_hash=state.compute_hash(filepath),
                     )
+
+        # Deploy .page_content.md changes not already covered by deploy_tree
+        if pc_actionable:
+            processed_dirs = {hp[0] for hp in all_hierarchy_pages}
+            for action in pc_actionable:
+                pc_dir_rel = _rel_path(action.filepath.parent)
+                if pc_dir_rel not in processed_dirs:
+                    _, h_pages = ensure_page_hierarchy(
+                        api, space_id, action.filepath, args.docs_root, git_repo_url
+                    )
+                    for hp in h_pages:
+                        if hp[0] not in processed_dirs:
+                            all_hierarchy_pages.append(hp)
+                            processed_dirs.add(hp[0])
+
+        # Store state for all hierarchy pages (with actual hash when .page_content.md exists)
+        for h_rel_path, h_page_id, h_title in all_hierarchy_pages:
+            pc_file = Path(h_rel_path) / ".page_content.md"
+            content_hash = state.compute_hash(pc_file) if pc_file.exists() else ""
+            state.set_page(
+                rel_path=h_rel_path,
+                page_id=h_page_id,
+                title=h_title,
+                space_key=args.space,
+                space_id=space_id,
+                content_hash=content_hash,
+            )
 
         # Execute destroys
         if plan.destroy_actions:
