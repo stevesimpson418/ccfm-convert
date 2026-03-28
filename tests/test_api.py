@@ -838,6 +838,55 @@ class TestUploadAttachmentNameParam:
         assert post_files["file"][0] == "ccfm-state.json"
 
 
+class TestGetPageBody:
+    """Test fetching ADF body for a page."""
+
+    @patch("requests.Session.get")
+    def test_get_page_body_success(self, mock_get, api):
+        """Test successful ADF body retrieval."""
+        adf_doc = {"version": 1, "type": "doc", "content": []}
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "id": "123",
+            "body": {"atlas_doc_format": {"value": '{"version":1,"type":"doc","content":[]}'}},
+        }
+        mock_response.raise_for_status = Mock()
+        mock_get.return_value = mock_response
+
+        result = api.get_page_body("123")
+
+        assert result == adf_doc
+        mock_get.assert_called_once()
+        call_kwargs = mock_get.call_args
+        assert call_kwargs.kwargs["params"] == {"body-format": "atlas_doc_format"}
+
+    @patch("requests.Session.get")
+    def test_get_page_body_passes_body_format_param(self, mock_get, api):
+        """Verify the body-format query parameter is sent."""
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "id": "456",
+            "body": {"atlas_doc_format": {"value": '{"version":1,"type":"doc","content":[]}'}},
+        }
+        mock_response.raise_for_status = Mock()
+        mock_get.return_value = mock_response
+
+        api.get_page_body("456")
+
+        url_used = mock_get.call_args.args[0]
+        assert url_used == "https://example.atlassian.net/wiki/api/v2/pages/456"
+
+    @patch("requests.Session.get")
+    def test_get_page_body_http_error(self, mock_get, api):
+        """Test HTTP error propagation."""
+        mock_response = Mock()
+        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("Not Found")
+        mock_get.return_value = mock_response
+
+        with pytest.raises(requests.exceptions.HTTPError):
+            api.get_page_body("999")
+
+
 class TestErrorHandling:
     """Test error handling across API methods."""
 

@@ -23,6 +23,7 @@ Version: 2.0.0 (Refactored)
 
 # Relative imports - standard Python practice for packages
 from .converter import convert, convert_markdown_to_adf
+from .reverse import adf_to_markdown
 
 __version__ = "2.0.0"
-__all__ = ["convert", "convert_markdown_to_adf"]
+__all__ = ["convert", "convert_markdown_to_adf", "adf_to_markdown"]

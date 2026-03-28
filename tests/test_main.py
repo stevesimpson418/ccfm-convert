@@ -3309,3 +3309,214 @@ class TestDependencyOrderingApply:
         files_kwarg = call_args.kwargs["files"]
         # b.md should come before a.md in the files list
         assert list(files_kwarg).index(fb) < list(files_kwarg).index(fa)
+
+
+# ======================================================================
+# Export subcommand tests
+# ======================================================================
+
+
+class TestExportSubcommand:
+    """Test the export subcommand."""
+
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    def test_export_by_page_id(self, mock_api_class, capsys):
+        """Export by page ID writes markdown to stdout."""
+        mock_api = Mock()
+        mock_api.get_page_body.return_value = {
+            "version": 1,
+            "type": "doc",
+            "content": [
+                {
+                    "type": "heading",
+                    "attrs": {"level": 1},
+                    "content": [{"type": "text", "text": "Hello"}],
+                },
+                {"type": "paragraph", "content": [{"type": "text", "text": "World"}]},
+            ],
+        }
+        mock_api_class.return_value = mock_api
+
+        with patch(
+            "sys.argv",
+            [
+                "ccfm",
+                "--domain",
+                "example.atlassian.net",
+                "--email",
+                "test@example.com",
+                "--token",
+                "tok",
+                "export",
+                "--page-id",
+                "12345",
+            ],
+        ):
+            main.main()
+
+        captured = capsys.readouterr()
+        assert "# Hello" in captured.out
+        assert "World" in captured.out
+        mock_api.get_page_body.assert_called_once_with("12345")
+
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    def test_export_by_title(self, mock_api_class, capsys):
+        """Export by title resolves page ID then fetches body."""
+        mock_api = Mock()
+        mock_api.get_space_id.return_value = "space123"
+        mock_api.find_page_by_title.return_value = "789"
+        mock_api.get_page_body.return_value = {
+            "version": 1,
+            "type": "doc",
+            "content": [
+                {"type": "paragraph", "content": [{"type": "text", "text": "Found it"}]},
+            ],
+        }
+        mock_api_class.return_value = mock_api
+
+        with patch(
+            "sys.argv",
+            [
+                "ccfm",
+                "--domain",
+                "example.atlassian.net",
+                "--email",
+                "test@example.com",
+                "--token",
+                "tok",
+                "--space",
+                "TEST",
+                "export",
+                "--title",
+                "My Page",
+            ],
+        ):
+            main.main()
+
+        captured = capsys.readouterr()
+        assert "Found it" in captured.out
+        mock_api.find_page_by_title.assert_called_once_with("space123", "My Page")
+        mock_api.get_page_body.assert_called_once_with("789")
+
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    def test_export_to_file(self, mock_api_class, tmp_path, capsys):
+        """Export with --output writes markdown to a file."""
+        mock_api = Mock()
+        mock_api.get_page_body.return_value = {
+            "version": 1,
+            "type": "doc",
+            "content": [
+                {"type": "paragraph", "content": [{"type": "text", "text": "File content"}]},
+            ],
+        }
+        mock_api_class.return_value = mock_api
+
+        output_file = tmp_path / "exported.md"
+        with patch(
+            "sys.argv",
+            [
+                "ccfm",
+                "--domain",
+                "example.atlassian.net",
+                "--email",
+                "test@example.com",
+                "--token",
+                "tok",
+                "export",
+                "--page-id",
+                "99",
+                "--output",
+                str(output_file),
+            ],
+        ):
+            main.main()
+
+        assert output_file.exists()
+        assert "File content" in output_file.read_text()
+        captured = capsys.readouterr()
+        assert "Exported to" in captured.out
+
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    def test_export_title_not_found(self, mock_api_class, capsys):
+        """Export with --title for non-existent page exits with error."""
+        mock_api = Mock()
+        mock_api.get_space_id.return_value = "space123"
+        mock_api.find_page_by_title.return_value = None
+        mock_api_class.return_value = mock_api
+
+        with patch(
+            "sys.argv",
+            [
+                "ccfm",
+                "--domain",
+                "example.atlassian.net",
+                "--email",
+                "test@example.com",
+                "--token",
+                "tok",
+                "--space",
+                "TEST",
+                "export",
+                "--title",
+                "Ghost Page",
+            ],
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                main.main()
+            assert exc_info.value.code == 1
+
+        captured = capsys.readouterr()
+        assert "not found" in captured.out
+
+    def test_export_missing_page_id_and_title(self, capsys):
+        """Export without --page-id or --title errors."""
+        with patch(
+            "sys.argv",
+            [
+                "ccfm",
+                "--domain",
+                "example.atlassian.net",
+                "--email",
+                "test@example.com",
+                "--token",
+                "tok",
+                "export",
+            ],
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                main.main()
+            assert exc_info.value.code == 2
+
+    def test_export_missing_credentials(self, capsys):
+        """Export without domain/email/token errors."""
+        with (
+            patch(
+                "sys.argv",
+                ["ccfm", "export", "--page-id", "123"],
+            ),
+            patch.dict(os.environ, {}, clear=True),
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                main.main()
+            assert exc_info.value.code == 2
+
+    def test_export_title_without_space(self, capsys):
+        """Export with --title but no --space errors."""
+        with patch(
+            "sys.argv",
+            [
+                "ccfm",
+                "--domain",
+                "example.atlassian.net",
+                "--email",
+                "test@example.com",
+                "--token",
+                "tok",
+                "export",
+                "--title",
+                "My Page",
+            ],
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                main.main()
+            assert exc_info.value.code == 2

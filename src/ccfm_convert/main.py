@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from ccfm_convert.adf.converter import convert
+from ccfm_convert.adf.reverse import adf_to_markdown
 from ccfm_convert.config import load_config, merge_config_with_args
 from ccfm_convert.deploy import (
     ConfluenceAPI,
@@ -139,6 +140,16 @@ def _build_parser() -> argparse.ArgumentParser:
     state_rm.add_argument("path", help="Relative path of the entry to remove")
     state_show = state_sub.add_parser("show", help="Show state entry for a specific path")
     state_show.add_argument("path", help="Relative path of the tracked page")
+
+    # -- export ----------------------------------------------------------
+    export_parser = subparsers.add_parser(
+        "export", help="Export a Confluence page as CCFM markdown"
+    )
+    export_parser.add_argument("--page-id", help="Page ID to export")
+    export_parser.add_argument("--title", help="Page title to export (requires --space)")
+    export_parser.add_argument(
+        "--output", type=Path, metavar="PATH", help="Write to file instead of stdout"
+    )
 
     # -- lock ------------------------------------------------------------
     lock_parser = subparsers.add_parser("lock", help="Manage the remote state lock")
@@ -550,6 +561,48 @@ def _handle_lock(args, parser):
         print("Lock released.")
 
 
+def _handle_export(args, parser):
+    """Handle the 'export' subcommand."""
+    if not args.page_id and not args.title:
+        parser.error("One of --page-id or --title is required")
+
+    # Validate credentials — space only needed for title lookup
+    missing = []
+    if not args.domain:
+        missing.append("--domain (or CONFLUENCE_DOMAIN env var)")
+    if not args.email:
+        missing.append("--email (or CONFLUENCE_EMAIL env var)")
+    if not args.token:
+        missing.append("--token (or CONFLUENCE_TOKEN env var)")
+    if args.title and not args.space:
+        missing.append("--space (required when using --title)")
+    if missing:
+        parser.error(f"Missing required arguments: {', '.join(missing)}")
+
+    api = _create_api(args)
+
+    # Resolve page ID
+    if args.page_id:
+        page_id = args.page_id
+    else:
+        space_id = api.get_space_id(args.space)
+        page_id = api.find_page_by_title(space_id, args.title)
+        if page_id is None:
+            print(f"Error: Page '{args.title}' not found in space '{args.space}'")
+            sys.exit(1)
+
+    # Fetch ADF and convert to markdown
+    adf_body = api.get_page_body(page_id)
+    markdown = adf_to_markdown(adf_body)
+
+    # Output
+    if args.output:
+        args.output.write_text(markdown, encoding="utf-8")
+        print(f"Exported to {args.output}")
+    else:
+        print(markdown, end="")
+
+
 def main():
     """CLI entry point."""
     parser = _build_parser()
@@ -569,6 +622,8 @@ def main():
         _handle_state(args, parser)
     elif args.command == "lock":
         _handle_lock(args, parser)
+    elif args.command == "export":
+        _handle_export(args, parser)
     else:
         parser.print_help()
         sys.exit(1)

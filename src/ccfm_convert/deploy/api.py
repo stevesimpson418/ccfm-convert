@@ -245,6 +245,26 @@ class ConfluenceAPI:
 
         return response.json().get("fileId")
 
+    def get_page_body(self, page_id):
+        """Fetch the ADF body for a page.
+
+        Returns:
+            Parsed ADF document dict.
+        """
+        url = f"{self.base_url}/pages/{page_id}"
+        params = {"body-format": "atlas_doc_format"}
+        response = self._session.get(
+            url,
+            params=params,
+            auth=self.auth,
+            headers={"Accept": "application/json"},
+            timeout=REQUEST_TIMEOUT,
+        )
+        response.raise_for_status()
+        data = response.json()
+        adf_value = data["body"]["atlas_doc_format"]["value"]
+        return json.loads(adf_value)
+
     def delete_page(self, page_id):
         """Permanently delete a page (moves it to the site trash).
 
