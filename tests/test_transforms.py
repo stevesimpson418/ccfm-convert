@@ -201,6 +201,42 @@ class TestAddCIBanner:
         banner_text = result["content"][0]["content"][0]["content"][0]["text"]
         assert banner_text == ""
 
+    def test_global_ci_banner_false_disables_banner(self):
+        """Global ci_banner=False from ccfm.yaml disables banner when frontmatter is silent."""
+        adf_doc = doc([paragraph([text_node("Content")])])
+        result = add_ci_banner(adf_doc, {}, global_ci_banner=False)
+        assert result["content"][0]["type"] == "paragraph"
+
+    def test_global_ci_banner_true_enables_banner(self):
+        """Global ci_banner=True from ccfm.yaml enables banner when frontmatter is silent."""
+        adf_doc = doc([paragraph([text_node("Content")])])
+        result = add_ci_banner(adf_doc, {}, global_ci_banner=True)
+        assert result["content"][0]["type"] == "panel"
+
+    def test_frontmatter_ci_banner_true_overrides_global_false(self):
+        """Per-page ci_banner=True wins over global ci_banner=False."""
+        adf_doc = doc([paragraph([text_node("Content")])])
+        result = add_ci_banner(adf_doc, {"ci_banner": True}, global_ci_banner=False)
+        assert result["content"][0]["type"] == "panel"
+
+    def test_frontmatter_ci_banner_false_overrides_global_true(self):
+        """Per-page ci_banner=False wins over global ci_banner=True."""
+        adf_doc = doc([paragraph([text_node("Content")])])
+        result = add_ci_banner(adf_doc, {"ci_banner": False}, global_ci_banner=True)
+        assert result["content"][0]["type"] == "paragraph"
+
+    def test_none_metadata_ci_banner_falls_back_to_global(self):
+        """ci_banner=None in metadata (absent) falls through to the global toggle."""
+        adf_doc = doc([paragraph([text_node("Content")])])
+        result = add_ci_banner(adf_doc, {"ci_banner": None}, global_ci_banner=False)
+        assert result["content"][0]["type"] == "paragraph"
+
+    def test_default_true_when_neither_set(self):
+        """When neither frontmatter nor global is set, banner is shown."""
+        adf_doc = doc([paragraph([text_node("Content")])])
+        result = add_ci_banner(adf_doc, {})
+        assert result["content"][0]["type"] == "panel"
+
 
 class TestCreateMetadataExpand:
     """Test metadata expand creation."""

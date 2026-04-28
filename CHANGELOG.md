@@ -4,6 +4,15 @@ All notable changes to CCFM are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.2.0] - 2026-04-28
+
+### Added
+
+- Global `ci_banner` toggle in `ccfm.yaml` — set `ci_banner: false` to disable the
+  CI banner project-wide without editing each file's frontmatter. Adds matching
+  `--ci-banner` / `--no-ci-banner` CLI flags. Per-page frontmatter still takes
+  precedence ([#66](https://github.com/stevesimpson418/ccfm-convert/issues/66))
+
 ## [2.1.1] - 2026-03-27
 
 ### Fixed

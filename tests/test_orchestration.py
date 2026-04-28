@@ -145,6 +145,27 @@ class TestEnsurePageHierarchy:
         banner_text = body["content"][0]["content"][0]["content"][0]["text"]
         assert banner_text == "Global banner"
 
+    def test_page_content_with_global_ci_banner_false(self, mock_api, tmp_path):
+        """ensure_page_hierarchy honours global ci_banner=False on .page_content.md pages."""
+        docs_root = tmp_path / "docs"
+        subdir = docs_root / "Team"
+        subdir.mkdir(parents=True)
+
+        page_content = subdir / ".page_content.md"
+        page_content.write_text("---\npage_meta:\n  title: Team Page\n---\nContent")
+
+        filepath = subdir / "child.md"
+
+        mock_api.find_page_by_title.return_value = None
+        mock_api.create_page.return_value = "parent-123"
+
+        ensure_page_hierarchy(mock_api, "space123", filepath, docs_root, ci_banner=False)
+
+        call_args = mock_api.create_page.call_args
+        body = call_args[0][3]
+        # No banner panel should be prepended.
+        assert body["content"][0]["type"] != "panel"
+
 
 class TestDeployPage:
     """Test page deployment."""
@@ -362,6 +383,35 @@ ci_banner: false
         body = call_args[0][3]
         banner_text = body["content"][0]["content"][0]["content"][0]["text"]
         assert banner_text == "Page-specific"
+
+    def test_deploy_page_global_ci_banner_false_disables_banner(self, mock_api, tmp_path):
+        """deploy_page applies global ci_banner=False to suppress the banner."""
+        filepath = tmp_path / "test.md"
+        filepath.write_text("# Test")
+
+        mock_api.find_page_by_title.return_value = None
+        mock_api.create_page.return_value = "new-123"
+
+        deploy_page(mock_api, "space123", None, filepath, ci_banner=False)
+
+        call_args = mock_api.create_page.call_args
+        body = call_args[0][3]
+        # First node should be the heading paragraph, not a banner panel
+        assert body["content"][0]["type"] != "panel"
+
+    def test_deploy_page_frontmatter_ci_banner_overrides_global_false(self, mock_api, tmp_path):
+        """Per-page ci_banner=true overrides a global ci_banner=false."""
+        filepath = tmp_path / "test.md"
+        filepath.write_text("---\ndeploy_config:\n  ci_banner: true\n---\n# Test")
+
+        mock_api.find_page_by_title.return_value = None
+        mock_api.create_page.return_value = "new-123"
+
+        deploy_page(mock_api, "space123", None, filepath, ci_banner=False)
+
+        call_args = mock_api.create_page.call_args
+        body = call_args[0][3]
+        assert body["content"][0]["type"] == "panel"
 
     def test_frontmatter_parent_ignored_uses_directory_hierarchy(self, mock_api, tmp_path):
         """deploy_page ignores deprecated parent frontmatter and uses directory hierarchy."""
@@ -798,6 +848,23 @@ class TestDeployTree:
         body = call_args[0][3]
         banner_text = body["content"][0]["content"][0]["content"][0]["text"]
         assert banner_text == "Global banner"
+
+    def test_deploy_tree_passes_ci_banner_toggle(self, mock_api, tmp_path):
+        """deploy_tree forwards ci_banner=False to suppress banner across pages."""
+        docs_root = tmp_path / "docs"
+        docs_root.mkdir()
+
+        file1 = docs_root / "test.md"
+        file1.write_text("# Test")
+
+        mock_api.find_page_by_title.return_value = None
+        mock_api.create_page.return_value = "page-123"
+
+        deploy_tree(mock_api, "space123", docs_root, ci_banner=False)
+
+        call_args = mock_api.create_page.call_args
+        body = call_args[0][3]
+        assert body["content"][0]["type"] != "panel"
 
     def test_deploy_with_hierarchy(self, mock_api, tmp_path):
         """Test deploying with directory hierarchy."""

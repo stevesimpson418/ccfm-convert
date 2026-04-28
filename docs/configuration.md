@@ -14,7 +14,23 @@ token: ${CONFLUENCE_TOKEN}
 space: DOCS
 docs_root: docs
 git_repo_url: https://github.com/org/repo
+ci_banner: true                  # Show CI banner on all pages (default: true)
+ci_banner_text: "Custom banner"  # Optional — overrides default banner text
 ```
+
+### ci_banner (optional)
+
+Set `ci_banner: false` in `ccfm.yaml` to disable the CI banner across every page in the
+project without needing to add `ci_banner: false` to each file's frontmatter. Per-page
+frontmatter still wins — a file with `deploy_config.ci_banner: true` will keep its banner
+even when the global toggle is off.
+
+Precedence (highest first):
+
+1. Per-page frontmatter `deploy_config.ci_banner`
+2. CLI flags `--ci-banner` / `--no-ci-banner`
+3. Global `ci_banner` in `ccfm.yaml`
+4. Default (`true`)
 
 ### docs_root (required)
 

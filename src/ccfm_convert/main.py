@@ -80,8 +80,18 @@ def _add_global_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _add_target_args(parser: argparse.ArgumentParser) -> None:
-    """Add --git-repo-url shared by plan and apply."""
+    """Add target args shared by plan and apply."""
     parser.add_argument("--git-repo-url", default="", help="Git repo URL for CI banner")
+    parser.add_argument(
+        "--ci-banner",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "Enable/disable the CI banner globally. Use --no-ci-banner to disable "
+            "across all pages. Overridden by per-page ci_banner in frontmatter. "
+            "Defaults to True when neither CLI nor ccfm.yaml sets it."
+        ),
+    )
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -282,7 +292,14 @@ def _handle_plan(args, parser):
         git_repo_url = getattr(args, "git_repo_url", "")
         file_url = f"{git_repo_url}/{debug_file}" if git_repo_url else ""
         global_ci_banner_text = getattr(args, "ci_banner_text", None)
-        body = add_ci_banner(body, metadata, file_url, global_ci_banner_text=global_ci_banner_text)
+        global_ci_banner = getattr(args, "ci_banner", None)
+        body = add_ci_banner(
+            body,
+            metadata,
+            file_url,
+            global_ci_banner_text=global_ci_banner_text,
+            global_ci_banner=global_ci_banner,
+        )
         print(json.dumps(body, indent=2))
         return
 
@@ -380,6 +397,7 @@ def _handle_apply(args, parser):
 
     git_repo_url = getattr(args, "git_repo_url", "")
     ci_banner_text = getattr(args, "ci_banner_text", None)
+    ci_banner = getattr(args, "ci_banner", None)
     try:
         # Separate regular files from .page_content.md files
         regular_actionable = [
@@ -418,6 +436,7 @@ def _handle_apply(args, parser):
                 git_repo_url,
                 files=actionable_files,
                 ci_banner_text=ci_banner_text,
+                ci_banner=ci_banner,
                 changed_containers=changed_containers,
             )
             all_hierarchy_pages.extend(hierarchy_pages)
@@ -445,6 +464,7 @@ def _handle_apply(args, parser):
                         args.docs_root,
                         git_repo_url,
                         ci_banner_text=ci_banner_text,
+                        ci_banner=ci_banner,
                         changed_containers=changed_containers,
                     )
                     for hp in h_pages:
