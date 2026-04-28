@@ -1,6 +1,6 @@
 [project]
 name = "ccfm-convert"
-version = "2.2.0"
+version = "2.2.1"
 description = "Deploy Markdown as native ADF pages to Confluence Cloud"
 readme = "README.md"
 license = { text = "MIT" }

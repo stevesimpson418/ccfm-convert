@@ -4,6 +4,16 @@ All notable changes to CCFM are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.2.1] - 2026-04-28
+
+### Fixed
+
+- `git_repo_url` set in `ccfm.yaml` is now applied when `--git-repo-url` is
+  omitted on the CLI. Previously the argparse default of `""` masked the
+  config-file value in `merge_config_with_args`, silently dropping the source
+  link from the CI banner
+  ([#68](https://github.com/stevesimpson418/ccfm-convert/pull/68))
+
 ## [2.2.0] - 2026-04-28
 
 ### Added
