@@ -194,6 +194,34 @@ class TestMergeConfigWithArgs:
         assert merged.ci_banner is False
         assert merged.ci_banner_text == "Global banner"
 
+    def test_git_repo_url_from_config_fills_args(self):
+        """git_repo_url from config is applied when CLI arg is None.
+
+        Regression: --git-repo-url must default to None (not "") in argparse,
+        otherwise merge_config_with_args treats it as already-set and silently
+        drops the config value.
+        """
+        config = {"git_repo_url": "https://github.com/org/repo"}
+        args = Namespace(
+            domain=None, email=None, token=None, space=None, docs_root=None, git_repo_url=None
+        )
+        merged = merge_config_with_args(config, args)
+        assert merged.git_repo_url == "https://github.com/org/repo"
+
+    def test_git_repo_url_cli_overrides_config(self):
+        """An explicit CLI git_repo_url takes precedence over the config value."""
+        config = {"git_repo_url": "https://github.com/org/repo"}
+        args = Namespace(
+            domain=None,
+            email=None,
+            token=None,
+            space=None,
+            docs_root=None,
+            git_repo_url="https://gitlab.com/other/repo",
+        )
+        merged = merge_config_with_args(config, args)
+        assert merged.git_repo_url == "https://gitlab.com/other/repo"
+
     def test_ci_banner_text_from_config_fills_args(self):
         """ci_banner_text from config is applied when not set on args."""
         config = {"ci_banner_text": "Global banner text"}

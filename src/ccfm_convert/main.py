@@ -81,7 +81,7 @@ def _add_global_args(parser: argparse.ArgumentParser) -> None:
 
 def _add_target_args(parser: argparse.ArgumentParser) -> None:
     """Add target args shared by plan and apply."""
-    parser.add_argument("--git-repo-url", default="", help="Git repo URL for CI banner")
+    parser.add_argument("--git-repo-url", default=None, help="Git repo URL for CI banner")
     parser.add_argument(
         "--ci-banner",
         action=argparse.BooleanOptionalAction,
@@ -289,7 +289,7 @@ def _handle_plan(args, parser):
         content = debug_file.read_text(encoding="utf-8")
         metadata, markdown = parse_frontmatter(content)
         body = convert(markdown)
-        git_repo_url = getattr(args, "git_repo_url", "")
+        git_repo_url = getattr(args, "git_repo_url", None) or ""
         file_url = f"{git_repo_url}/{debug_file}" if git_repo_url else ""
         global_ci_banner_text = getattr(args, "ci_banner_text", None)
         global_ci_banner = getattr(args, "ci_banner", None)
@@ -395,7 +395,7 @@ def _handle_apply(args, parser):
         print(f"Error: {e}")
         sys.exit(1)
 
-    git_repo_url = getattr(args, "git_repo_url", "")
+    git_repo_url = getattr(args, "git_repo_url", None) or ""
     ci_banner_text = getattr(args, "ci_banner_text", None)
     ci_banner = getattr(args, "ci_banner", None)
     try:
