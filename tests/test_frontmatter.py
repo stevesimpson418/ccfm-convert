@@ -23,7 +23,9 @@ class TestFrontmatterParsing:
 
         # Empty frontmatter returns defaults
         assert metadata["title"] is None
-        assert metadata["ci_banner"] is True  # Default
+        # ci_banner is None when absent so add_ci_banner can apply the
+        # global ccfm.yaml ci_banner toggle before falling back to True.
+        assert metadata["ci_banner"] is None
         assert metadata["deploy_page"] is True  # Default
         assert markdown == "# Content"
 

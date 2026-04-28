@@ -59,7 +59,9 @@ def parse_frontmatter(content):
         "labels": page_meta.get("labels", []),
         "attachments": page_meta.get("attachments", []),
         # Deploy config with defaults
-        "ci_banner": deploy_config.get("ci_banner", True),
+        # ci_banner has no default here so add_ci_banner can distinguish
+        # "absent" (apply global/default) from explicit True/False.
+        "ci_banner": deploy_config.get("ci_banner"),
         "ci_banner_text": deploy_config.get("ci_banner_text"),
         "include_page_metadata": deploy_config.get("include_page_metadata", False),
         "page_status": deploy_config.get("page_status", "current"),

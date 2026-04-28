@@ -7,12 +7,22 @@ from ccfm_convert.adf.inline import parse_inline_with_breaks
 from ccfm_convert.adf.nodes import expand, paragraph, resolve_image_width
 
 
-def add_ci_banner(adf_doc, metadata, file_git_url="", global_ci_banner_text=None):
+def add_ci_banner(
+    adf_doc,
+    metadata,
+    file_git_url="",
+    global_ci_banner_text=None,
+    global_ci_banner=None,
+):
     """
     Conditionally prepend CI banner to ADF document based on metadata.
 
-    Checks metadata["ci_banner"] (defaults to True when absent) and,
-    if enabled, builds and prepends a CI banner panel.
+    Resolves whether the banner is shown via the following precedence
+    (highest first):
+
+      1. Per-page frontmatter ``ci_banner``
+      2. Global ``ci_banner`` from ``ccfm.yaml``
+      3. Default (``True``)
 
     Args:
         adf_doc: The ADF document dict
@@ -20,8 +30,19 @@ def add_ci_banner(adf_doc, metadata, file_git_url="", global_ci_banner_text=None
         file_git_url: Optional git file URL for source link
         global_ci_banner_text: Optional global banner text from ccfm.yaml.
             Per-page frontmatter ci_banner_text takes precedence.
+        global_ci_banner: Optional global ci_banner toggle from ccfm.yaml.
+            Per-page frontmatter ci_banner takes precedence. ``None`` means
+            "not configured" — falls back to the default ``True``.
     """
-    if metadata.get("ci_banner", True):
+    fm_ci_banner = metadata.get("ci_banner")
+    if fm_ci_banner is not None:
+        enabled = bool(fm_ci_banner)
+    elif global_ci_banner is not None:
+        enabled = bool(global_ci_banner)
+    else:
+        enabled = True
+
+    if enabled:
         fm_text = metadata.get("ci_banner_text")
         banner_text = fm_text if fm_text is not None else global_ci_banner_text
         adf_doc = _build_ci_banner(

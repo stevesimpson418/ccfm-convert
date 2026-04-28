@@ -171,6 +171,7 @@ class TestMergeConfigWithArgs:
             "space": "SP",
             "docs_root": "docs",
             "git_repo_url": "https://github.com/org/repo",
+            "ci_banner": False,
             "ci_banner_text": "Global banner",
         }
         args = Namespace(
@@ -180,6 +181,7 @@ class TestMergeConfigWithArgs:
             space=None,
             docs_root=None,
             git_repo_url=None,
+            ci_banner=None,
             ci_banner_text=None,
         )
         merged = merge_config_with_args(config, args)
@@ -189,6 +191,7 @@ class TestMergeConfigWithArgs:
         assert merged.space == "SP"
         assert merged.docs_root == Path("docs")
         assert merged.git_repo_url == "https://github.com/org/repo"
+        assert merged.ci_banner is False
         assert merged.ci_banner_text == "Global banner"
 
     def test_ci_banner_text_from_config_fills_args(self):
@@ -197,6 +200,24 @@ class TestMergeConfigWithArgs:
         args = Namespace(domain=None, email=None, token=None, space=None, docs_root=None)
         merged = merge_config_with_args(config, args)
         assert merged.ci_banner_text == "Global banner text"
+
+    def test_ci_banner_from_config_fills_args(self):
+        """ci_banner=False from config is applied when not set on args."""
+        config = {"ci_banner": False}
+        args = Namespace(
+            domain=None, email=None, token=None, space=None, docs_root=None, ci_banner=None
+        )
+        merged = merge_config_with_args(config, args)
+        assert merged.ci_banner is False
+
+    def test_ci_banner_cli_overrides_config(self):
+        """An explicit CLI ci_banner value takes precedence over the config value."""
+        config = {"ci_banner": False}
+        args = Namespace(
+            domain=None, email=None, token=None, space=None, docs_root=None, ci_banner=True
+        )
+        merged = merge_config_with_args(config, args)
+        assert merged.ci_banner is True
 
     def test_docs_root_from_config_sets_path(self):
         """docs_root from config is coerced to Path."""
@@ -222,11 +243,13 @@ class TestConfigValidation:
         cfg.write_text(
             "version: 1\ndomain: x.atlassian.net\nemail: a@b.com\n"
             "token: tok\nspace: SP\ndocs_root: docs\ngit_repo_url: https://gh.com/o/r\n"
+            "ci_banner: false\n"
             "ci_banner_text: Custom global banner\n",
             encoding="utf-8",
         )
         result = load_config(cfg)
         assert result["domain"] == "x.atlassian.net"
+        assert result["ci_banner"] is False
         assert result["ci_banner_text"] == "Custom global banner"
 
     def test_deployments_key_accepted(self, tmp_path):
