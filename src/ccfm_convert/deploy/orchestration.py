@@ -100,6 +100,10 @@ def ensure_page_hierarchy(
                 global_ci_banner=ci_banner,
             )
 
+            # Resolve internal Confluence page links (issue #69 — must run on
+            # .page_content.md container pages too, not just regular pages).
+            body = resolve_page_links(body, api, space_id)
+
             labels = metadata.get("labels", [])
             author = metadata.get("author")
         else:

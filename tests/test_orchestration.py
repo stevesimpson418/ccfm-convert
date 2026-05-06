@@ -1,5 +1,6 @@
 """Tests for deploy.orchestration module."""
 
+import json
 from unittest.mock import Mock
 
 import pytest
@@ -165,6 +166,84 @@ class TestEnsurePageHierarchy:
         body = call_args[0][3]
         # No banner panel should be prepended.
         assert body["content"][0]["type"] != "panel"
+
+
+def _body_to_string(body):
+    """Serialise an ADF body for sentinel-URL substring inspection."""
+    return json.dumps(body)
+
+
+class TestEnsurePageHierarchyResolvesPageLinks:
+    """Regression tests for issue #69 — smart links from .page_content.md must be resolved."""
+
+    def test_create_page_resolves_smart_links(self, mock_api, tmp_path):
+        """A new container page from .page_content.md must have its smart links resolved.
+
+        Regression for #69: the container-page branch of ensure_page_hierarchy
+        previously skipped resolve_page_links, so confluence-page:// sentinel URLs
+        were shipped to Confluence unresolved and rendered as broken inline cards.
+        """
+        docs_root = tmp_path / "docs"
+        subdir = docs_root / "Welcome"
+        subdir.mkdir(parents=True)
+
+        page_content = subdir / ".page_content.md"
+        page_content.write_text(
+            "---\npage_meta:\n  title: Welcome\n---\nSee [the policy](<Usage policy>) for details."
+        )
+
+        filepath = subdir / "child.md"
+
+        mock_api.find_page_by_title.return_value = None
+        mock_api.create_page.return_value = "welcome-page"
+        mock_api.find_page_webui_url = Mock(
+            return_value="https://example.atlassian.net/wiki/spaces/SPACE/pages/999/Usage+policy"
+        )
+
+        ensure_page_hierarchy(mock_api, "space123", filepath, docs_root)
+
+        # find_page_webui_url should have been invoked for the smart-link title.
+        mock_api.find_page_webui_url.assert_called_with("space123", "Usage policy")
+
+        # The body sent to create_page must not retain the sentinel scheme.
+        body = mock_api.create_page.call_args[0][3]
+        serialised = _body_to_string(body)
+        assert "confluence-page://" not in serialised
+        assert (
+            "https://example.atlassian.net/wiki/spaces/SPACE/pages/999/Usage+policy" in serialised
+        )
+
+    def test_update_page_resolves_smart_links(self, mock_api, tmp_path):
+        """An existing container page updated from .page_content.md must resolve smart links."""
+        docs_root = tmp_path / "docs"
+        subdir = docs_root / "Welcome"
+        subdir.mkdir(parents=True)
+
+        page_content = subdir / ".page_content.md"
+        page_content.write_text(
+            "---\npage_meta:\n  title: Welcome\n---\n"
+            "Sign up at [the academy](<Anthropic Academy signup>)."
+        )
+
+        filepath = subdir / "child.md"
+
+        mock_api.find_page_by_title.return_value = "existing-welcome"
+        mock_api.find_page_webui_url = Mock(
+            return_value="https://example.atlassian.net/wiki/spaces/SPACE/pages/777/Anthropic+Academy+signup"
+        )
+
+        ensure_page_hierarchy(mock_api, "space123", filepath, docs_root)
+
+        mock_api.find_page_webui_url.assert_called_with("space123", "Anthropic Academy signup")
+
+        mock_api.update_page.assert_called_once()
+        body = mock_api.update_page.call_args[0][2]
+        serialised = _body_to_string(body)
+        assert "confluence-page://" not in serialised
+        assert (
+            "https://example.atlassian.net/wiki/spaces/SPACE/pages/777/Anthropic+Academy+signup"
+            in serialised
+        )
 
 
 class TestDeployPage:
