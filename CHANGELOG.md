@@ -4,6 +4,17 @@ All notable changes to CCFM are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.2.2] - 2026-05-06
+
+### Fixed
+
+- Smart-links written as `[text](<Page Title>)` inside a `.page_content.md`
+  section-landing page are now resolved to real Confluence URLs at deploy
+  time. Previously the container-page branch of `ensure_page_hierarchy`
+  skipped `resolve_page_links`, so the `confluence-page://` sentinel was
+  shipped to Confluence and rendered as a broken inline card
+  ([#69](https://github.com/stevesimpson418/ccfm-convert/issues/69))
+
 ## [2.2.1] - 2026-04-28
 
 ### Fixed
