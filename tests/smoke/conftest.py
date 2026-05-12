@@ -24,12 +24,19 @@ Or: copy .env.smoke.example to .env, fill in values, then ``source .env``.
 """
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 import requests
+
+# Mirror the backend's strict key shape (``ccfm-page-<sha256(path)[:16]>``) so
+# teardown only touches properties the backend itself would have written. A
+# loose ``startswith("ccfm-page-")`` would over-reach if some other tool ever
+# wrote a property with that prefix and a non-conformant suffix.
+_STATE_KEY_RE = re.compile(r"^ccfm-page-[0-9a-f]{16}$")
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -128,14 +135,13 @@ def _delete_smoke_pages():
     if not mgmt_page_id:
         print("\nNo CCFM State Management page found — skipping state cleanup.")
     else:
-        # Step 2: Download remote state and delete all tracked pages
-        state_data = _download_state(domain, auth, mgmt_page_id)
-        if state_data:
-            pages = state_data.get("pages", {})
+        # Step 2: Read remote state from per-page properties and delete tracked pages.
+        state_pages = _load_state_pages(domain, auth, mgmt_page_id)
+        if state_pages:
             deleted = 0
             failed = 0
-            print(f"\n\nCleaning up {len(pages)} smoke test page(s)...")
-            for rel_path, entry in pages.items():
+            print(f"\n\nCleaning up {len(state_pages)} smoke test page(s)...")
+            for rel_path, entry in state_pages.items():
                 page_id = entry.get("page_id")
                 title = entry.get("title", rel_path)
                 if not page_id:
@@ -280,49 +286,70 @@ def _delete_all_children(domain, auth, parent_id):
         print(f"  ✗ Error listing children of {parent_id}: {e}")
 
 
-def _reset_state(domain, auth, mgmt_page_id):
-    """Upload an empty state JSON to the management page, resetting state for the next run.
+def _list_state_property_keys(domain, auth, mgmt_page_id):
+    """Return the keys of all ``ccfm-page-*`` content properties on the management page.
 
-    Checks whether the ccfm-state.json attachment already exists:
-    - If yes, updates via POST .../attachment/{id}/data
-    - If no, creates via POST .../attachment
+    Mirrors the prefix used by ``ccfm_convert.state.backend`` without importing it,
+    so the smoke teardown stays decoupled from the package internals.
     """
-    import io
-    import json
-
-    empty_state = json.dumps({"version": "1", "pages": {}}, indent=2).encode()
-    base_url = f"https://{domain}/wiki/rest/api/content/{mgmt_page_id}/child/attachment"
-    headers = {"X-Atlassian-Token": "nocheck"}
-
+    keys: list[str] = []
+    url = f"https://{domain}/wiki/rest/api/content/{mgmt_page_id}/property"
+    params: dict = {"expand": "value,version", "limit": 100}
     try:
-        # Check if the attachment already exists
-        resp = requests.get(
-            base_url,
-            params={"filename": "ccfm-state.json"},
-            auth=auth,
-            headers={"Accept": "application/json"},
-            timeout=15,
-        )
-        resp.raise_for_status()
-        existing = resp.json().get("results", [])
-        if existing:
-            upload_url = f"{base_url}/{existing[0]['id']}/data"
-        else:
-            upload_url = base_url
+        while True:
+            resp = requests.get(
+                url,
+                params=params,
+                auth=auth,
+                headers={"Accept": "application/json"},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            for prop in data.get("results", []):
+                key = prop.get("key", "")
+                if _STATE_KEY_RE.match(key):
+                    keys.append(key)
+            next_path = data.get("_links", {}).get("next")
+            if not next_path:
+                break
+            url = f"https://{domain}/wiki{next_path}"
+            params = {}
+    except requests.RequestException:
+        # Best-effort cleanup — surface nothing on transient errors so the
+        # session-finish hook stays quiet.
+        return []
+    return keys
 
-        resp = requests.post(
-            upload_url,
-            files={"file": ("ccfm-state.json", io.BytesIO(empty_state), "application/json")},
-            headers=headers,
-            auth=auth,
-            timeout=30,
-        )
-        if resp.status_code in (200, 201):
-            print("  ✓ State reset to empty")
-        else:
-            print(f"  ✗ Failed to reset state ({resp.status_code})")
-    except requests.RequestException as e:
-        print(f"  ✗ Error resetting state: {e}")
+
+def _reset_state(domain, auth, mgmt_page_id):
+    """Delete every ``ccfm-page-*`` content property on the management page.
+
+    The lock property (``ccfm-lock``) is left alone — if a previous run
+    crashed mid-deploy and left a stale lock, run ``ccfm lock release``
+    manually before the next smoke run.
+    """
+    keys = _list_state_property_keys(domain, auth, mgmt_page_id)
+    if not keys:
+        print("  ✓ State already empty (no ccfm-page-* properties)")
+        return
+
+    deleted = 0
+    failed = 0
+    for key in keys:
+        url = f"https://{domain}/wiki/rest/api/content/{mgmt_page_id}/property/{key}"
+        try:
+            resp = requests.delete(url, auth=auth, timeout=15)
+            if resp.status_code in (200, 204, 404):
+                deleted += 1
+            else:
+                failed += 1
+        except requests.RequestException:
+            failed += 1
+    if failed:
+        print(f"  ✗ Reset state: {deleted} property removed, {failed} failed.")
+    else:
+        print(f"  ✓ State reset (removed {deleted} ccfm-page-* property/-ies).")
 
 
 def _find_container_page(domain, auth, space_key):
@@ -333,31 +360,53 @@ def _find_container_page(domain, auth, space_key):
     return _find_page_by_title_in_space(domain, auth, space_id, "_ccfm")
 
 
-def _download_state(domain, auth, mgmt_page_id):
-    """Download the ccfm-state.json attachment from the management page."""
-    import json
+def _load_state_pages(domain, auth, mgmt_page_id):
+    """Read all ``ccfm-page-*`` content properties and assemble the path → entry map.
 
-    list_url = f"https://{domain}/wiki/rest/api/content/{mgmt_page_id}/child/attachment"
+    Returns the ``pages`` portion of state — a dict keyed by relative path. The
+    smoke teardown only needs this slice (it iterates entries to delete each
+    deployed Confluence page); ``version`` and other state envelope fields are
+    not required here.
+    """
+    pages: dict = {}
+    url = f"https://{domain}/wiki/rest/api/content/{mgmt_page_id}/property"
+    params: dict = {"expand": "value,version", "limit": 100}
     try:
-        resp = requests.get(
-            list_url,
-            params={"filename": "ccfm-state.json"},
-            auth=auth,
-            headers={"Accept": "application/json"},
-            timeout=15,
-        )
-        resp.raise_for_status()
-        results = resp.json().get("results", [])
-        if not results:
-            return None
-
-        download_path = results[0]["_links"]["download"]
-        download_url = f"https://{domain}/wiki{download_path}"
-        resp = requests.get(download_url, auth=auth, timeout=30)
-        resp.raise_for_status()
-        return json.loads(resp.content)
-    except (requests.RequestException, json.JSONDecodeError):
-        return None
+        while True:
+            resp = requests.get(
+                url,
+                params=params,
+                auth=auth,
+                headers={"Accept": "application/json"},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            for prop in data.get("results", []):
+                key = prop.get("key", "")
+                if not _STATE_KEY_RE.match(key):
+                    continue
+                value = prop.get("value")
+                if not isinstance(value, dict):
+                    continue
+                path = value.get("path")
+                if not isinstance(path, str) or not path:
+                    continue
+                pages[path] = {k: v for k, v in value.items() if k != "path"}
+            next_path = data.get("_links", {}).get("next")
+            if not next_path:
+                break
+            url = f"https://{domain}/wiki{next_path}"
+            params = {}
+    except requests.RequestException:
+        # Best-effort: a transient list failure here returns an empty mapping,
+        # which causes the teardown to skip page deletion for this run. The
+        # next smoke run's ``_reset_state`` will still nuke the orphaned
+        # ``ccfm-page-*`` properties (it deletes by key regex without
+        # inspecting values), and any stranded Confluence pages will be
+        # re-discovered then. Logging would clutter the session-finish hook.
+        return {}
+    return pages
 
 
 # ---------------------------------------------------------------------------

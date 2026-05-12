@@ -20,7 +20,7 @@ from ccfm_convert.deploy.dependencies import build_dependency_graph
 from ccfm_convert.deploy.frontmatter import parse_frontmatter
 from ccfm_convert.plan import compute_plan
 from ccfm_convert.state import (
-    ConfluenceBackend,
+    ContentPropertyBackend,
     LockError,
     LockManager,
     StateManager,
@@ -222,11 +222,11 @@ def _find_management_page(api, space_id):
     """
     container_id = api.find_page_by_title(space_id, CONTAINER_PAGE_TITLE)
     if container_id is None:
-        print("Error: CCFM has not been initialized in this space. " "Run `ccfm init` first.")
+        print("Error: CCFM has not been initialized in this space. Run `ccfm init` first.")
         sys.exit(1)
     page_id = api.find_child_page_by_title(container_id, MANAGEMENT_PAGE_TITLE)
     if page_id is None:
-        print("Error: CCFM has not been initialized in this space. " "Run `ccfm init` first.")
+        print("Error: CCFM has not been initialized in this space. Run `ccfm init` first.")
         sys.exit(1)
     return page_id
 
@@ -317,7 +317,7 @@ def _handle_plan(args, parser):
     print(f"   Space ID: {space_id}")
 
     mgmt_page_id = _find_management_page(api, space_id)
-    backend = ConfluenceBackend(api, mgmt_page_id)
+    backend = ContentPropertyBackend(api, mgmt_page_id)
     state = StateManager(backend)
     state.load()
 
@@ -353,7 +353,7 @@ def _handle_apply(args, parser):
     print(f"   Space ID: {space_id}")
 
     mgmt_page_id = _find_management_page(api, space_id)
-    backend = ConfluenceBackend(api, mgmt_page_id)
+    backend = ContentPropertyBackend(api, mgmt_page_id)
     state = StateManager(backend)
     state.load()
 
@@ -506,7 +506,7 @@ def _handle_state(args, parser):
     api = _create_api(args)
     space_id = api.get_space_id(args.space)
     mgmt_page_id = _find_management_page(api, space_id)
-    backend = ConfluenceBackend(api, mgmt_page_id)
+    backend = ContentPropertyBackend(api, mgmt_page_id)
     state = StateManager(backend)
     state.load()
 
@@ -559,6 +559,18 @@ def _handle_state(args, parser):
             sys.exit(1)
         try:
             print("Warning: this overwrites remote state. Use with caution.")
+            # Re-load *inside* the lock so the backend's version cache reflects
+            # the current state of every property at the moment we're about to
+            # write. ``state push`` is unique among the state-mutating commands
+            # in writing arbitrary user-supplied data — apply and ``state rm``
+            # both use the cache-skip-when-unchanged path which naturally
+            # preserves concurrent changes to entries we don't touch and
+            # surfaces real conflicts as 409s. ``state push``, by contrast,
+            # asks the backend to make the remote look exactly like the input
+            # file, so a stale cache would cause spurious 409s on every
+            # entry that any concurrent writer touched between the pre-lock
+            # ``state.load()`` above and the lock acquisition.
+            backend.load()
             backend.save(data)
             print(f"Remote state updated from '{args.file}'.")
         finally:

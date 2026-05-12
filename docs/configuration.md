@@ -110,8 +110,8 @@ variables directly in your config.
 ## State Management
 
 CCFM stores deployment state remotely in Confluence itself — no local state files to commit
-or sync. State is stored as a `ccfm-state.json` attachment on the `CCFM State Management`
-page, which lives under a `_ccfm` container page in your space.
+or sync. Each tracked page is stored as its own content property (`ccfm-page-<hash>`) on the
+`CCFM State Management` page, which lives under a `_ccfm` container page in your space.
 
 This enables:
 
@@ -165,6 +165,34 @@ ccfm state push state-backup.json
 
 !!! warning
     `state push` overwrites the remote state completely. Use with caution.
+
+### Migrating from attachment-based state (pre-v2.3)
+
+Releases before v2.3 stored state as a single `ccfm-state.json` attachment on the
+management page. Atlassian deprecated and then removed Basic-auth API-token access to
+the legacy `/wiki/download/attachments/` path
+([CHANGE-2735](https://developer.atlassian.com/changelog/#CHANGE-2735)) — so the old
+backend can no longer read its own state on tenants where the change has rolled out
+(typically surfaces as `401 Unauthorized` on `ccfm plan` / `apply`).
+
+If you're upgrading and `ccfm state pull` returns nothing or errors:
+
+1. **Download the old state** through the Confluence UI: open the `CCFM State Management`
+   page in your browser, find `ccfm-state.json` in its attachments list, and click download.
+   (Browser cookie auth still works on that path; only API-token auth is blocked.)
+2. **Upgrade ccfm-convert** to v2.3 or later.
+3. **Push it to the new backend**: `ccfm state push ccfm-state.json` — this writes one
+   `ccfm-page-<hash>` content property per tracked page on the management page.
+4. **Optional tidy-up**: delete the `ccfm-state.json` attachment from the management page
+   in the Confluence UI; nothing reads it any more.
+
+If the UI download path has also been disabled on your tenant by the time you read this,
+contact Atlassian support to retrieve the attachment, or rebuild state from scratch by
+running `ccfm apply --force` against a clean management page (every tracked page will be
+re-deployed and re-tracked, but no Confluence content is lost in the process).
+
+New installations are unaffected — `ccfm init` and the first `apply` use the property
+backend natively.
 
 ### Plan and apply workflow
 

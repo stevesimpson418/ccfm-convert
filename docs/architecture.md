@@ -18,7 +18,7 @@
 │       │   ├── orchestration.py  # deploy_page(), deploy_tree(), destroy_page()
 │       │   └── transforms.py     # CI banner, page link resolution, attachment media nodes
 │       ├── state/                # Remote state and locking
-│       │   ├── backend.py        # StateBackend protocol + ConfluenceBackend
+│       │   ├── backend.py        # StateBackend protocol + ContentPropertyBackend
 │       │   ├── manager.py        # StateManager — filepath → page_id mapping, content hashing
 │       │   ├── lock.py           # LockManager — Terraform-style deploy locking
 │       │   └── init.py           # init_remote_state() — one-time space setup
@@ -67,7 +67,11 @@ No I/O, no network calls. Entry point: `convert(markdown: str) -> dict`.
 ## `src/ccfm_convert/state/` — Remote State and Locking
 
 - **`backend.py`** — `StateBackend` protocol with `load()`/`save()` methods;
-  `ConfluenceBackend` stores state as a JSON attachment on the management page
+  `ContentPropertyBackend` stores state as one Confluence content property per
+  tracked page (key `ccfm-page-<sha256(path)[:16]>`) on the management page.
+  This avoids the deprecated legacy attachment-download endpoint
+  ([CHANGE-2735](https://developer.atlassian.com/changelog/#CHANGE-2735))
+  and scales with property count rather than the 32 KB per-property cap
 - **`manager.py`** — `StateManager` tracks deployed pages, computes content hashes,
   detects orphaned pages. Backend-agnostic via `StateBackend` protocol
 - **`lock.py`** — `LockManager` implements Terraform-style locking using Confluence content

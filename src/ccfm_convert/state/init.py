@@ -20,8 +20,8 @@ _MANAGEMENT_PAGE_ADF = {
                         {
                             "type": "text",
                             "text": "This page is managed by ccfm-convert. "
-                            "It stores deployment state (ccfm-state.json attachment) "
-                            "and locking metadata (ccfm-lock property). "
+                            "It stores deployment state (ccfm-page-* content properties) "
+                            "and locking metadata (ccfm-lock content property). "
                             "Do not edit this page manually.",
                         }
                     ],
