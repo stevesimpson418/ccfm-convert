@@ -4,6 +4,37 @@ All notable changes to CCFM are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- **Remote state storage moved off attachments and onto per-page content
+  properties.** Atlassian's changes to the legacy
+  `/wiki/download/attachments/` auth surface (tracked under
+  [CHANGE-2735](https://developer.atlassian.com/changelog/#CHANGE-2735))
+  cause Basic-auth API-token requests to that path to return `401
+  Unauthorized`, breaking the previous attachment-based state backend on
+  every `ccfm plan` / `apply`. Each tracked page is now stored as its own
+  `ccfm-page-<hash>` content property on the `CCFM State Management` page.
+  Capacity scales with the count of properties Confluence permits per
+  content item — no documented hard cap — rather than the 32 KB
+  single-attachment ceiling.
+
+### Removed
+
+- `ConfluenceBackend` (attachment-based state) and
+  `ConfluenceAPI.download_attachment`. The `StateBackend` Protocol remains
+  for future backends.
+
+### Migration
+
+- Existing installations: download `ccfm-state.json` from the management page
+  via the Confluence web UI (browser cookie auth still works on the
+  deprecated path), upgrade ccfm-convert, then run
+  `ccfm state push <downloaded-file>` to seed the new property-based store.
+  The orphaned attachment can then be deleted from the UI. New installations
+  are unaffected.
+
 ## [2.2.2] - 2026-05-06
 
 ### Fixed

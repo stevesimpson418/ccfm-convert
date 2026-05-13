@@ -331,34 +331,33 @@ class ConfluenceAPI:
             return
         response.raise_for_status()
 
-    # ------------------------------------------------------------------
-    # Attachment download (v1 API) — used for remote state
-    # ------------------------------------------------------------------
+    def list_content_properties(self, page_id):
+        """List all content properties on a page, with values and versions inline.
 
-    def download_attachment(self, page_id, filename):
-        """Download an attachment's content by filename.
-
-        Returns:
-            Raw bytes of the attachment, or None if not found.
+        Pages through ``_links.next`` until exhausted. Each result is a property
+        dict containing at minimum ``key``, ``value``, and ``version``. Returns
+        an empty list if the page has no properties.
         """
-        list_url = f"https://{self.domain}/wiki/rest/api/content/{page_id}/child/attachment"
-        resp = self._session.get(
-            list_url,
-            params={"filename": filename},
-            auth=self.auth,
-            headers={"Accept": "application/json"},
-            timeout=REQUEST_TIMEOUT,
-        )
-        resp.raise_for_status()
-        results = resp.json().get("results", [])
-        if not results:
-            return None
-
-        download_path = results[0]["_links"]["download"]
-        download_url = f"https://{self.domain}/wiki{download_path}"
-        resp = self._session.get(download_url, auth=self.auth, timeout=UPLOAD_TIMEOUT)
-        resp.raise_for_status()
-        return resp.content
+        url = f"https://{self.domain}/wiki/rest/api/content/{page_id}/property"
+        params: dict = {"expand": "value,version", "limit": 100}
+        results: list[dict] = []
+        while True:
+            response = self._session.get(
+                url,
+                params=params,
+                auth=self.auth,
+                headers={"Accept": "application/json"},
+                timeout=REQUEST_TIMEOUT,
+            )
+            response.raise_for_status()
+            data = response.json()
+            results.extend(data.get("results", []))
+            next_path = data.get("_links", {}).get("next")
+            if not next_path:
+                break
+            url = f"https://{self.domain}/wiki{next_path}"
+            params = {}
+        return results
 
     # ------------------------------------------------------------------
     # Page discovery by parent/child (v2 API) — used to find management page

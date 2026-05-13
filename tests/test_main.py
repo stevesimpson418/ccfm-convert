@@ -419,7 +419,7 @@ class TestPlanSubcommand:
     """Test the 'plan' subcommand."""
 
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -452,7 +452,7 @@ class TestPlanSubcommand:
         mock_plan.print_summary.assert_called_once()
 
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -484,7 +484,7 @@ class TestPlanSubcommand:
         mock_compute_plan.assert_called_once()
 
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -519,7 +519,7 @@ class TestPlanSubcommand:
         assert exc_info.value.code == 2
 
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -554,7 +554,7 @@ class TestPlanSubcommand:
         assert exc_info.value.code == 0
 
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -587,7 +587,7 @@ class TestPlanSubcommand:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -617,7 +617,7 @@ class TestPlanSubcommand:
         mock_lock_class.assert_not_called()
 
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -673,7 +673,7 @@ class TestDocsRootConfig:
     """Test that docs_root from config is used correctly."""
 
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -713,7 +713,7 @@ class TestDocsRootConfig:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.deploy_tree")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
@@ -824,7 +824,7 @@ class TestDocsRootConfig:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -1088,7 +1088,7 @@ class TestApplyDocsRoot:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.deploy_tree")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
@@ -1129,7 +1129,7 @@ class TestApplyDocsRoot:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.deploy_tree")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
@@ -1187,7 +1187,7 @@ class TestApplyDocsRoot:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.deploy_tree")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
@@ -1243,7 +1243,7 @@ class TestApplyDocsRoot:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.deploy_tree")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
@@ -1287,7 +1287,7 @@ class TestApplyDocsRoot:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.deploy_tree")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
@@ -1341,7 +1341,7 @@ class TestApplyDocsRoot:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.deploy_tree")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
@@ -1399,7 +1399,7 @@ class TestApplyDocsRoot:
     @patch("ccfm_convert.main.ensure_page_hierarchy")
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.deploy_tree")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
@@ -1473,7 +1473,7 @@ class TestApplyDocsRoot:
     @patch("ccfm_convert.main.ensure_page_hierarchy")
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.deploy_tree")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
@@ -1544,7 +1544,7 @@ class TestApplyDocsRoot:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.deploy_tree")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
@@ -1588,7 +1588,7 @@ class TestApplyDocsRoot:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.deploy_tree")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
@@ -1636,7 +1636,7 @@ class TestApplyDocsRoot:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.deploy_tree")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
@@ -1690,7 +1690,7 @@ class TestApplyConfirmation:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -1728,7 +1728,7 @@ class TestApplyConfirmation:
             mock_input.assert_not_called()
 
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -1774,7 +1774,7 @@ class TestApplyConfirmation:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -1823,7 +1823,7 @@ class TestApplyConfirmation:
         mock_state.save.assert_called_once()
 
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -1866,7 +1866,7 @@ class TestApplyConfirmation:
         assert "Apply cancelled." in captured.out
 
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -1920,7 +1920,7 @@ class TestApplyDestroy:
     @patch("ccfm_convert.main.destroy_pages")
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -1974,7 +1974,7 @@ class TestApplyDestroy:
     @patch("ccfm_convert.main.destroy_pages")
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -2024,7 +2024,7 @@ class TestApplyLocking:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -2067,7 +2067,7 @@ class TestApplyLocking:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.deploy_tree", side_effect=RuntimeError("deploy failed"))
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
@@ -2109,7 +2109,7 @@ class TestApplyLocking:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -2202,7 +2202,7 @@ class TestManagementPageDiscovery:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main.ConfluenceAPI")
     def test_find_management_page_returns_page_id(
@@ -2236,7 +2236,7 @@ class TestManagementPageDiscovery:
         with patch("sys.argv", _base_apply_argv(docs)):
             main.main()
 
-        # ConfluenceBackend should have been called with the found mgmt page id
+        # ContentPropertyBackend should have been called with the found mgmt page id
         mock_backend_class.assert_called_once_with(mock_api, "found-mgmt-id")
 
 
@@ -2250,7 +2250,7 @@ class TestApplyOutput:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -2291,7 +2291,7 @@ class TestApplyOutput:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -2341,7 +2341,7 @@ class TestApplyErrorHandling:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
     def test_invalid_space(
@@ -2406,7 +2406,7 @@ class TestStateSubcommand:
     """Test the 'state' subcommand."""
 
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
     def test_state_list_with_pages(
@@ -2441,7 +2441,7 @@ class TestStateSubcommand:
         assert "pid1" in captured.out
 
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
     def test_state_list_empty(
@@ -2469,7 +2469,7 @@ class TestStateSubcommand:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
     def test_state_rm_removes_entry(
@@ -2505,7 +2505,7 @@ class TestStateSubcommand:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
     def test_state_rm_exits_when_locked(
@@ -2539,7 +2539,7 @@ class TestStateSubcommand:
         mock_lock.release.assert_not_called()
 
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
     def test_state_rm_unknown_path_exits(
@@ -2565,7 +2565,7 @@ class TestStateSubcommand:
         assert exc_info.value.code == 1
 
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
     def test_state_pull_prints_json(
@@ -2594,7 +2594,7 @@ class TestStateSubcommand:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
     def test_state_push_overwrites_state(
@@ -2625,7 +2625,6 @@ class TestStateSubcommand:
             main.main()
 
         mock_backend.save.assert_called_once_with({"version": "1", "pages": {}})
-        mock_lock.acquire.assert_called_once()
         mock_lock.release.assert_called_once()
         captured = capsys.readouterr()
         assert "Warning" in captured.out
@@ -2633,7 +2632,68 @@ class TestStateSubcommand:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
+    @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
+    @patch("ccfm_convert.main.ConfluenceAPI")
+    def test_state_push_calls_backend_load_inside_the_lock(
+        self,
+        mock_api_class,
+        mock_find_mgmt,
+        mock_backend_class,
+        mock_state_class,
+        mock_lock_class,
+        tmp_path,
+    ):
+        """`state push` must refresh the backend's version cache *inside* the lock.
+
+        Records every relevant operation onto a shared event log via mock
+        side-effects, then asserts the in-lock subsequence is exactly
+        ``[load, save]``. This catches a regression where the in-lock
+        ``backend.load()`` line is removed — the previous version of the test
+        only checked relative ordering across all loads/saves, which passed
+        coincidentally because the pre-lock ``state.load()`` already triggered
+        a ``backend.load()`` before save.
+        """
+        events: list[str] = []
+
+        mock_api = Mock()
+        mock_api.get_space_id.return_value = "space123"
+        mock_api_class.return_value = mock_api
+
+        mock_backend = Mock()
+        mock_backend.load.side_effect = lambda: events.append("backend.load")
+        mock_backend.save.side_effect = lambda data: events.append("backend.save")
+        mock_backend_class.return_value = mock_backend
+
+        mock_state = Mock(raw_state={})
+        mock_state.load.side_effect = lambda: events.append("state.load")
+        mock_state_class.return_value = mock_state
+
+        mock_lock = Mock()
+        mock_lock.acquire.side_effect = lambda *a, **kw: events.append("lock.acquire")
+        mock_lock.release.side_effect = lambda *a, **kw: events.append("lock.release")
+        mock_lock_class.return_value = mock_lock
+
+        state_file = tmp_path / "state.json"
+        state_file.write_text('{"version": "1", "pages": {}}')
+
+        with patch("sys.argv", _base_state_argv("push", extra=[str(state_file)])):
+            main.main()
+
+        # The window between acquire and release must contain backend.load
+        # then backend.save in that order. Removing the in-lock load would
+        # leave only ``["lock.acquire", "backend.save", "lock.release"]``.
+        acquire_idx = events.index("lock.acquire")
+        release_idx = events.index("lock.release")
+        in_lock = events[acquire_idx + 1 : release_idx]
+        assert in_lock == ["backend.load", "backend.save"], (
+            f"Expected [backend.load, backend.save] inside the lock, got {in_lock!r}. "
+            f"Full sequence: {events!r}"
+        )
+
+    @patch("ccfm_convert.main.LockManager")
+    @patch("ccfm_convert.main.StateManager")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
     def test_state_push_exits_when_locked(
@@ -2669,7 +2729,7 @@ class TestStateSubcommand:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
     def test_state_push_pages_not_dict_exits(
@@ -2701,7 +2761,7 @@ class TestStateSubcommand:
         mock_lock.acquire.assert_not_called()
 
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
     def test_state_push_invalid_json_exits(
@@ -2728,7 +2788,7 @@ class TestStateSubcommand:
         assert exc_info.value.code == 1
 
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
     def test_state_push_invalid_schema_exits(
@@ -2767,7 +2827,7 @@ class TestStateSubcommand:
     )
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
     def test_state_push_invalid_page_id_exits(
@@ -2803,7 +2863,7 @@ class TestStateSubcommand:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
     def test_state_push_long_key_truncated_in_error(
@@ -2839,7 +2899,7 @@ class TestStateSubcommand:
         assert "x" * 201 not in captured.out
 
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
     def test_state_show_prints_entry(
@@ -2874,7 +2934,7 @@ class TestStateSubcommand:
         assert "My Page" in captured.out
 
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
     def test_state_show_unknown_path_exits(
@@ -3137,7 +3197,7 @@ class TestConfigFileLoading:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -3224,7 +3284,7 @@ class TestConfigFileLoading:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -3288,7 +3348,7 @@ class TestTokenHandling:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -3380,7 +3440,7 @@ class TestDomainEnvVarFallback:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -3463,7 +3523,7 @@ class TestEmailEnvVarFallback:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -3544,7 +3604,7 @@ class TestAllCredentialsFromEnvVars:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -3608,7 +3668,7 @@ class TestPathHandling:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -3657,7 +3717,7 @@ class TestPathHandling:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -3701,7 +3761,7 @@ class TestDependencyOrderingPlan:
     """Test that plan computes and displays dependency graph for directory deploys."""
 
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -3741,7 +3801,7 @@ class TestDependencyOrderingPlan:
         assert plan.dependency_graph is not None
 
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")
     @patch("ccfm_convert.main.ConfluenceAPI")
@@ -3782,7 +3842,7 @@ class TestDependencyOrderingApply:
 
     @patch("ccfm_convert.main.LockManager")
     @patch("ccfm_convert.main.StateManager")
-    @patch("ccfm_convert.main.ConfluenceBackend")
+    @patch("ccfm_convert.main.ContentPropertyBackend")
     @patch("ccfm_convert.main.deploy_tree")
     @patch("ccfm_convert.main.compute_plan")
     @patch("ccfm_convert.main._find_management_page", return_value="mgmt-page-id")

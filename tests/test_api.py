@@ -665,42 +665,81 @@ class TestDeleteContentProperty:
             api.delete_content_property("page-1", "key")
 
 
-class TestDownloadAttachment:
-    """Test download_attachment (v1 attachment download)."""
+class TestListContentProperties:
+    """Test list_content_properties (paginated v1 content properties)."""
 
     @patch("requests.Session.get")
-    def test_downloads_attachment_content(self, mock_get, api):
-        list_response = Mock()
-        list_response.raise_for_status = Mock()
-        list_response.json.return_value = {
-            "results": [{"_links": {"download": "/download/attachments/123/state.json"}}]
-        }
-
-        download_response = Mock()
-        download_response.raise_for_status = Mock()
-        download_response.content = b'{"version":"1","pages":{}}'
-
-        mock_get.side_effect = [list_response, download_response]
-
-        result = api.download_attachment("page-1", "ccfm-state.json")
-
-        assert result == b'{"version":"1","pages":{}}'
-        assert mock_get.call_count == 2
-        # Second call should use the download link
-        download_url = mock_get.call_args_list[1][0][0]
-        assert "download/attachments/123/state.json" in download_url
-
-    @patch("requests.Session.get")
-    def test_returns_none_when_attachment_not_found(self, mock_get, api):
+    def test_returns_empty_list_when_page_has_no_properties(self, mock_get, api):
         mock_response = Mock()
         mock_response.raise_for_status = Mock()
         mock_response.json.return_value = {"results": []}
         mock_get.return_value = mock_response
 
-        result = api.download_attachment("page-1", "missing.json")
+        result = api.list_content_properties("page-1")
 
-        assert result is None
+        assert result == []
         mock_get.assert_called_once()
+        call_url = mock_get.call_args[0][0]
+        assert "/content/page-1/property" in call_url
+        # First call asks Confluence to inline the value and version.
+        assert mock_get.call_args[1]["params"]["expand"] == "value,version"
+
+    @patch("requests.Session.get")
+    def test_returns_single_page_of_results(self, mock_get, api):
+        mock_response = Mock()
+        mock_response.raise_for_status = Mock()
+        mock_response.json.return_value = {
+            "results": [
+                {"key": "ccfm-lock", "value": {"locked": False}, "version": {"number": 2}},
+                {"key": "ccfm-page-abc", "value": {"path": "a.md"}, "version": {"number": 1}},
+            ]
+        }
+        mock_get.return_value = mock_response
+
+        result = api.list_content_properties("page-1")
+
+        assert len(result) == 2
+        assert {p["key"] for p in result} == {"ccfm-lock", "ccfm-page-abc"}
+
+    @patch("requests.Session.get")
+    def test_paginates_across_multiple_pages(self, mock_get, api):
+        first = Mock()
+        first.raise_for_status = Mock()
+        first.json.return_value = {
+            "results": [{"key": "ccfm-page-aaa", "value": {}, "version": {"number": 1}}],
+            "_links": {"next": "/rest/api/content/page-1/property?start=1&limit=1"},
+        }
+        second = Mock()
+        second.raise_for_status = Mock()
+        second.json.return_value = {
+            "results": [{"key": "ccfm-page-bbb", "value": {}, "version": {"number": 1}}],
+            "_links": {},
+        }
+        mock_get.side_effect = [first, second]
+
+        result = api.list_content_properties("page-1")
+
+        assert [p["key"] for p in result] == ["ccfm-page-aaa", "ccfm-page-bbb"]
+        assert mock_get.call_count == 2
+        # Follow-up GET targets the exact URL Confluence returned, prefixed
+        # with the wiki base. Asserting the full URL (not just the suffix)
+        # would catch any double ``/wiki/wiki/`` prefix bug if the v1 ``next``
+        # link format ever changes.
+        next_url = mock_get.call_args_list[1][0][0]
+        assert (
+            next_url == "https://example.atlassian.net/wiki/rest/api/content/page-1/property"
+            "?start=1&limit=1"
+        )
+        assert mock_get.call_args_list[1][1]["params"] == {}
+
+    @patch("requests.Session.get")
+    def test_raises_on_server_error(self, mock_get, api):
+        mock_response = Mock()
+        mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("500")
+        mock_get.return_value = mock_response
+
+        with pytest.raises(requests.exceptions.HTTPError):
+            api.list_content_properties("page-1")
 
 
 class TestFindPageByLabel:
